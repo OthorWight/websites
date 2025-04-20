@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baker's Percentage Calculator V2 - Enhanced</title>
+    <style>
+        /* --- CSS Variables for Theming --- */
+        :root {
+            /* Existing variables... */
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --input-bg: #ffffff;
+            --input-border: #ced4da;
+            --input-focus-border: #80bdff; /* Adjusted for glow */
+            --input-focus-shadow: rgba(0, 123, 255, 0.25);
+            --primary-color: #007bff;
+            --primary-hover-color: #0056b3;
+            --secondary-color: #6c757d;
+            --secondary-hover-color: #5a6268;
+            --danger-color: #dc3545;
+            --danger-hover-color: #c82333;
+            --border-color: #e9ecef;
+            --link-color: #007bff;
+            --label-color: #495057;
+            --heading-color: #343a40;
+            --subtle-text-color: #6c757d;
+            --results-span-color: #343a40;
+
+            /* --- NEW: Variables for Effects --- */
+            --glow-color: var(--primary-color);
+            --glow-shadow: rgba(0, 123, 255, 0.5); /* Slightly stronger shadow for glow */
+            --button-hover-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            --gradient-start: #eef4ff; /* Subtle gradient start */
+            --gradient-end: #fdfdff;   /* Subtle gradient end */
+        }
+
+        /* --- Dark Mode --- */
+        body.dark-mode {
+            /* Existing variables... */
+            --bg-color: #212529;
+            --text-color: #e9ecef;
+            --card-bg: #343a40;
+            --input-bg: #495057;
+            --input-border: #6c757d;
+            --input-focus-border: #adb5bd; /* Adjusted for glow */
+            --input-focus-shadow: rgba(173, 181, 189, 0.35); /* Adjusted for glow */
+            --primary-color: #0d6efd;
+            --primary-hover-color: #0b5ed7;
+            --secondary-color: #6c757d;
+            --secondary-hover-color: #5c636a;
+            --danger-color: #dc3545;
+            --danger-hover-color: #bb2d3b;
+            --border-color: #495057;
+            --link-color: #6ea8fe;
+            --label-color: #ced4da;
+            --heading-color: #f8f9fa;
+            --subtle-text-color: #adb5bd;
+            --results-span-color: #e9ecef;
+
+            /* --- NEW: Dark Mode Effect Variables --- */
+            --glow-color: #6ea8fe;
+            --glow-shadow: rgba(110, 168, 254, 0.4);
+            --button-hover-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            --gradient-start: #2a2f34; /* Subtle dark gradient start */
+            --gradient-end: #343a40;   /* Subtle dark gradient end */
+        }
+
+        /* Basic Reset & Font */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            background-color: var(--bg-color);
+            background: linear-gradient(135deg, var(--bg-color), var(--gradient-start));
+            background-size: 200% 200%;
+            animation: subtleGradientShift 15s ease infinite;
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background-color 0.4s ease, color 0.3s ease;
+        }
+
+        @keyframes subtleGradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Main Container */
+        .calculator-container {
+            background-color: var(--card-bg);
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+            max-width: 900px;
+            width: 100%;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .calculator-container::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: inherit; padding: 1px;
+            background: linear-gradient(135deg, var(--primary-color), transparent, var(--secondary-color));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: destination-out; mask-composite: exclude;
+            opacity: 0; transition: opacity 0.4s ease; pointer-events: none; z-index: -1;
+        }
+        .calculator-container:hover::before { opacity: 0.5; }
+
+        /* Header Area */
+        .header-area {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap; transition: border-color 0.3s ease;
+        }
+        .header-area h1 {
+            text-align: left; color: var(--heading-color); margin-bottom: 0;
+            font-size: 1.8rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
+            body.dark-mode & { text-shadow: 1px 1px 3px rgba(0,0,0,0.3); }
+        }
+
+        /* Toggles Styling */
+        .toggle-container { /* Common container for toggles */
+            display: flex; align-items: center; cursor: pointer;
+            padding: 5px 0;
+            user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
+        }
+        .toggle-container label:not(.switch) { /* Text label for the toggle */
+            margin-right: 8px; font-size: 0.9em; color: var(--subtle-text-color);
+            min-width: 80px; /* Ensure alignment */
+            text-align: right;
+        }
+         /* Specific alignment for dark mode toggle */
+        .dark-mode-toggle { margin-left: auto; }
+        .dark-mode-toggle label:not(.switch) { min-width: unset; }
+
+        /* The Switch */
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc; transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            border-radius: 24px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 18px; width: 18px;
+            left: 3px; bottom: 3px; background-color: white;
+            transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        /* --- END Toggle Switch CSS --- */
+
+        /* --- NEW: Weight Mode Toggle specific labels --- */
+        .weight-mode-toggle-container {
+             margin-bottom: 10px; /* Space below toggle */
+             justify-content: flex-start; /* Align to left */
+        }
+        .weight-mode-toggle-container label:not(.switch) {
+            min-width: 100px; /* Adjust width as needed */
+            text-align: left; /* Align text left */
+        }
+        .weight-mode-label-text { /* Specific class for the mode text */
+            font-weight: 500;
+            color: var(--label-color); /* Use label color */
+            margin-left: 8px; /* Space after slider */
+            font-size: 0.9em;
+            transition: color 0.3s ease;
+        }
+        /* --- END NEW --- */
+
+        .description {
+            text-align: center; color: var(--subtle-text-color);
+            margin-bottom: 20px; /* Reduced margin */ font-size: 0.95em; margin-top: 5px;
+        }
+
+        /* Two Column Layout */
+        .calculator-body { display: flex; gap: 40px; align-items: flex-start; }
+        .input-column, .results-column { flex: 1; min-width: 0; }
+
+        /* Form Styling */
+        #baker-form { display: flex; flex-direction: column; gap: 20px; }
+        .input-group { display: flex; flex-direction: column; position: relative; }
+        .input-group label {
+            margin-bottom: 6px; font-weight: 500; color: var(--label-color);
+            font-size: 0.9em; transition: color 0.3s ease;
+        }
+        .input-group input[type="text"],
+        .input-group input[type="number"],
+        .input-group select {
+            padding: 12px 15px; border: 1px solid var(--input-border);
+            background-color: var(--input-bg); color: var(--text-color);
+            border-radius: 6px; font-size: 1rem; width: 100%;
+            transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .input-group input[type="text"]:focus,
+        .input-group input[type="number"]:focus,
+        .input-group select:focus {
+            outline: none; border-color: var(--glow-color);
+            box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 8px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05);
+            animation: inputGlow 1.5s infinite alternate;
+        }
+        @keyframes inputGlow {
+            from { box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 5px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05); }
+            to   { box-shadow: 0 0 0 4px var(--input-focus-shadow), 0 0 12px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05); }
+        }
+        .input-group small { font-size: 0.8em; color: var(--subtle-text-color); margin-top: 5px; }
+
+        /* Results Area Styling */
+        #results-container { border-left: 1px solid var(--border-color); padding-left: 40px; transition: border-color 0.3s ease; }
+        #results-container h2 {
+            margin-bottom: 20px; color: var(--heading-color); font-size: 1.3rem;
+            border-bottom: 1px solid var(--border-color); padding-bottom: 10px; transition: border-color 0.3s ease;
+        }
+        #results-list { list-style: none; padding: 0; margin-bottom: 20px; }
+        #results-list li {
+            margin-bottom: 12px; font-size: 1rem; color: var(--text-color);
+            display: flex; /*justify-content: space-between; */
+            align-items: baseline;
+            padding: 8px 5px; border-bottom: 1px dashed var(--border-color);
+            transition: border-color 0.3s ease, background-color 0.2s ease; border-radius: 4px;
+        }
+        #results-list li:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+            body.dark-mode & { background-color: rgba(110, 168, 254, 0.1); }
+        }
+        #results-list li:last-child { border-bottom: none; }
+        #results-list li strong { color: var(--heading-color); margin-right: 10px; flex-shrink: 0; }
+        #results-list li span {
+            font-weight: 600; /*min-width: 60px; text-align: right;*/
+            color: var(--results-span-color); background-color: transparent;
+            transition: background-color 0.4s ease, color 0.3s ease, transform 0.3s ease, padding 0.3s ease;
+            display: inline-block; border-radius: 3px; padding: 0; margin-left: auto; margin-right: 5px;
+        }
+        #results-list li span.highlight-update {
+            background-color: var(--primary-color); color: white;
+            body.dark-mode & { color: var(--card-bg); }
+            transform: scale(1.1); box-shadow: 0 0 8px var(--primary-color);
+        }
+        #results-container p { font-size: 1rem; color: var(--text-color); margin-bottom: 10px; display: flex; align-items: baseline; }
+        #results-container p span { font-weight: 600; color: var(--results-span-color); margin-left: auto; margin-right: 5px; }
+        #results-container hr {
+            border: 0; height: 2px;
+            background-image: linear-gradient(to right, transparent, var(--primary-color), transparent);
+            opacity: 0.6; margin: 20px 0; transition: opacity 0.3s ease;
+            body.dark-mode & { background-image: linear-gradient(to right, transparent, var(--glow-color), transparent); }
+        }
+
+        /* Error Message */
+        .error {
+            color: var(--danger-color); background-color: rgba(220, 53, 69, 0.1);
+            border: 1px dashed var(--danger-color); padding: 8px 12px; border-radius: 4px;
+            font-weight: 500; margin-top: 10px; min-height: 1.5em; font-size: 0.9em;
+            opacity: 0; max-height: 0; overflow: hidden;
+            transition: opacity 0.4s ease, max-height 0.4s ease, margin-top 0.4s ease, padding 0.4s ease, border 0.4s ease;
+        }
+        .error:not(:empty) {
+            opacity: 1; max-height: 100px; margin-top: 15px;
+            padding: 8px 12px; border: 1px dashed var(--danger-color);
+        }
+
+        /* Buttons */
+        button {
+            padding: 10px 18px; font-size: 0.95rem; font-weight: 600;
+            border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+            transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease;
+            margin-right: 8px; margin-top: 5px; position: relative; overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        button:hover { transform: translateY(-2px); box-shadow: var(--button-hover-shadow); }
+        button:active { transform: translateY(0px) scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        button:last-child { margin-right: 0; }
+        .btn-primary { background-color: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+        .btn-primary:hover { background-color: var(--primary-hover-color); border-color: var(--primary-hover-color); color: #fff; }
+        .btn-secondary { background-color: var(--secondary-color); color: #fff; border-color: var(--secondary-color); }
+        .btn-secondary:hover { background-color: var(--secondary-hover-color); border-color: var(--secondary-hover-color); color: #fff; }
+        .btn-danger { background-color: var(--danger-color); color: #fff; border-color: var(--danger-color); }
+        .btn-danger:hover { background-color: var(--danger-hover-color); border-color: var(--danger-hover-color); color: #fff; }
+        .btn-outline-secondary { background-color: transparent; color: var(--secondary-color); border-color: var(--secondary-color); }
+        .btn-outline-secondary:hover { background-color: var(--secondary-color); color: #fff; border-color: var(--secondary-color); }
+
+        /* Action Sections */
+        .actions-section {
+            border-top: 1px solid var(--border-color); margin-top: 30px; padding-top: 30px;
+            transition: border-color 0.3s ease;
+        }
+        .actions-section h3 { font-size: 1.2rem; color: var(--heading-color); margin-bottom: 20px; }
+        .action-group { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
+        .action-group input[type="text"],
+        .action-group input[type="number"],
+        .action-group select {
+            flex-grow: 1; min-width: 150px; padding: 12px 15px; border: 1px solid var(--input-border);
+            background-color: var(--input-bg); color: var(--text-color); border-radius: 6px;
+            font-size: 1rem; transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .action-group input[type="text"]:focus,
+        .action-group input[type="number"]:focus,
+        .action-group select:focus {
+            outline: none; border-color: var(--glow-color);
+            box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 8px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05);
+            animation: inputGlow 1.5s infinite alternate;
+        }
+        .action-group button { flex-shrink: 0; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .calculator-body { flex-direction: column; gap: 30px; }
+            .results-column { padding-left: 0; border-left: none; border-top: 1px solid var(--border-color); padding-top: 30px; margin-top: 20px; }
+            #results-container { border-left: none; padding-left: 0; }
+            .calculator-container { padding: 25px; }
+            .header-area h1 { font-size: 1.6rem; }
+            .header-area { justify-content: center; }
+            .dark-mode-toggle { margin-left: 0; margin-top: 15px; width: 100%; justify-content: center;}
+            body { animation-duration: 20s; }
+        }
+        @media (max-width: 480px) {
+            .action-group { flex-direction: column; align-items: stretch; gap: 12px; }
+            .action-group input, .action-group select, .action-group button { width: 100%; margin-right: 0; }
+            .header-area h1 { font-size: 1.4rem; }
+            .calculator-container { padding: 20px; }
+            .input-group input[type="text"], .input-group input[type="number"], .input-group select,
+            .action-group input[type="text"], .action-group input[type="number"], .action-group select { padding: 10px 12px; }
+            button { padding: 10px 15px; }
+            #results-list li { flex-wrap: wrap; }
+            #results-list li strong { margin-bottom: 3px; }
+            #results-list li span { min-width: 50px; }
+            .weight-mode-toggle-container label:not(.switch) { min-width: 90px; } /* Adjust toggle label width */
+        }
+        /* --- CSS Ends --- */
+    </style>
+</head>
+<body>
+
+    <div class="calculator-container">
+        <div class="header-area">
+            <h1>Baker's Calculator</h1>
+            <div class="dark-mode-toggle toggle-container">
+                <label for="darkModeToggle">Dark Mode</label>
+                <label class="switch">
+                    <input type="checkbox" id="darkModeToggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        <p class="description">Values auto-save. Use formulas (e.g., 8*50) for weights. Manage recipes & scale below.</p>
+
+        <div class="calculator-body">
+            <!-- Column 1: Inputs -->
+            <div class="input-column">
+                <form id="baker-form" onsubmit="return false;">
+                    <!-- NEW: Weight Mode Toggle -->
+                    <div class="weight-mode-toggle-container toggle-container">
+                        <label for="weightModeToggle">Calculate By:</label>
+                        <label class="switch">
+                            <input type="checkbox" id="weightModeToggle"> <!-- unchecked = Final Weight, checked = Flour Weight -->
+                            <span class="slider"></span>
+                        </label>
+                        <span id="weightModeLabelText" class="weight-mode-label-text">Final Weight</span>
+                    </div>
+                    <!-- END NEW -->
+
+                    <div class="input-group">
+                        <!-- MODIFIED: Added ID to label -->
+                        <label for="primaryWeight" id="primaryWeightLabel">Desired Final Dough Weight (g):</label>
+                        <!-- MODIFIED: Changed ID to be more generic -->
+                        <input type="text" id="primaryWeight" placeholder="e.g., 1000 or 8*50" required>
+                        <small>Enter weight or a simple formula (+, -, *, /)</small>
+                    </div>
+                    <div class="input-group"> <label for="hydration">Hydration (%):</label> <input type="number" id="hydration" value="65" step="1" min="0" required> </div>
+                    <div class="input-group"> <label for="yeast">Yeast (%):</label> <input type="number" id="yeast" value="1.5" step="0.1" min="0" required> </div>
+                    <div class="input-group"> <label for="salt">Salt (%):</label> <input type="number" id="salt" value="2" step="0.1" min="0" required> </div>
+                    <div class="input-group"> <label for="sugar">Sugar (%):</label> <input type="number" id="sugar" value="0" step="0.5" min="0"> <small>(Optional)</small> </div>
+                    <div class="input-group"> <label for="fat">Fat (%):</label> <input type="number" id="fat" value="0" step="0.5" min="0"> <small>(Optional)</small> </div>
+                </form>
+                <p id="error-message" class="error"></p>
+                <button type="button" id="resetBtn" class="btn-outline-secondary" style="margin-top: 15px;">Reset Fields</button>
+            </div>
+
+            <!-- Column 2: Results -->
+            <div class="results-column">
+                <div id="results-container">
+                    <h2>Ingredient Weights:</h2>
+                    <ul id="results-list">
+                        <li><strong>Flour:</strong> <span id="flour-weight">-</span> g</li>
+                        <li><strong>Water:</strong> <span id="water-weight">-</span> g</li>
+                        <li><strong>Yeast:</strong> <span id="yeast-weight">-</span> g</li>
+                        <li><strong>Salt:</strong> <span id="salt-weight">-</span> g</li>
+                        <li><strong>Sugar:</strong> <span id="sugar-weight">-</span> g</li>
+                        <li><strong>Fat:</strong> <span id="fat-weight">-</span> g</li>
+                    </ul>
+                    <hr>
+                    <p><strong>Total Percentage:</strong> <span id="total-percentage">-</span> %</p>
+                    <p><strong>Calculated Total Weight:</strong> <span id="calculated-total-weight">-</span> g</p>
+                </div>
+            </div>
+        </div> <!-- End calculator-body -->
+
+        <!-- Action Sections Below Columns -->
+        <div class="actions-section">
+            <h3>Recipe Management</h3>
+            <div class="action-group">
+                <input type="text" id="recipeName" placeholder="Recipe Name">
+                <button type="button" id="saveRecipeBtn" class="btn-primary">Save Current</button>
+            </div>
+            <div class="action-group">
+                <select id="recipeSelect">
+                    <option value="" disabled selected>-- Load or Delete Recipe --</option>
+                    <!-- Options populated by JS -->
+                </select>
+                <button type="button" id="loadRecipeBtn" class="btn-secondary">Load Selected</button>
+                <button type="button" id="deleteRecipeBtn" class="btn-danger">Delete Selected</button>
+            </div>
+        </div>
+
+        <div class="actions-section">
+            <h3>Scale Recipe</h3>
+            <div class="action-group">
+                <input type="number" id="scaleValue" placeholder="Factor or Weight (g)" step="any" min="0">
+                <button type="button" id="scaleByFactorBtn" class="btn-secondary">Scale by Factor</button>
+                <button type="button" id="scaleToTotalBtn" class="btn-secondary">Scale to Total (g)</button>
+                <button type="button" id="scaleToFlourBtn" class="btn-secondary">Scale to Flour (g)</button>
+            </div>
+            <p id="scale-error-message" class="error"></p>
+        </div>
+
+    </div> <!-- End calculator-container -->
+
+    <script>
+        // --- JavaScript Starts ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Element References ---
+            // MODIFIED: Changed ID reference
+            const primaryWeightInput = document.getElementById('primaryWeight');
+            const primaryWeightLabel = document.getElementById('primaryWeightLabel'); // NEW
+            const hydrationInput = document.getElementById('hydration');
+            const yeastInput = document.getElementById('yeast');
+            const saltInput = document.getElementById('salt');
+            const sugarInput = document.getElementById('sugar');
+            const fatInput = document.getElementById('fat');
+            const errorMessage = document.getElementById('error-message');
+            const scaleErrorMessage = document.getElementById('scale-error-message');
+
+            // Mode Toggles
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            const weightModeToggle = document.getElementById('weightModeToggle'); // NEW
+            const weightModeLabelText = document.getElementById('weightModeLabelText'); // NEW
+
+            // Result Spans
+            const flourWeightSpan = document.getElementById('flour-weight');
+            const waterWeightSpan = document.getElementById('water-weight');
+            const yeastWeightSpan = document.getElementById('yeast-weight');
+            const saltWeightSpan = document.getElementById('salt-weight');
+            const sugarWeightSpan = document.getElementById('sugar-weight');
+            const fatWeightSpan = document.getElementById('fat-weight');
+            const totalPercentageSpan = document.getElementById('total-percentage');
+            const calculatedTotalWeightSpan = document.getElementById('calculated-total-weight');
+
+            const resultSpans = [
+                flourWeightSpan, waterWeightSpan, yeastWeightSpan,
+                saltWeightSpan, sugarWeightSpan, fatWeightSpan,
+                totalPercentageSpan, calculatedTotalWeightSpan
+            ];
+
+            // Action Elements
+            const resetBtn = document.getElementById('resetBtn');
+            const recipeNameInput = document.getElementById('recipeName');
+            const saveRecipeBtn = document.getElementById('saveRecipeBtn');
+            const recipeSelect = document.getElementById('recipeSelect');
+            const loadRecipeBtn = document.getElementById('loadRecipeBtn');
+            const deleteRecipeBtn = document.getElementById('deleteRecipeBtn');
+            const scaleValueInput = document.getElementById('scaleValue');
+            const scaleByFactorBtn = document.getElementById('scaleByFactorBtn');
+            const scaleToTotalBtn = document.getElementById('scaleToTotalBtn');
+            const scaleToFlourBtn = document.getElementById('scaleToFlourBtn');
+
+            // Define inputs for saving/loading/resetting
+            const savableInputs = {
+                // MODIFIED: Key matches the new input ID
+                primaryWeight: primaryWeightInput,
+                hydration: hydrationInput,
+                yeast: yeastInput,
+                salt: saltInput,
+                sugar: sugarInput,
+                fat: fatInput
+            };
+            const inputIds = Object.keys(savableInputs);
+
+            // --- State Variables ---
+            let isFlourWeightMode = false; // NEW: Track current weight calculation mode
+
+            // --- Constants ---
+            const RECIPES_STORAGE_KEY = 'bakersCalcRecipes_v1';
+            const DARK_MODE_KEY = 'bakersCalcDarkMode';
+            const WEIGHT_MODE_KEY = 'bakersCalcWeightMode'; // NEW: Key for saving weight mode
+
+            // Define built-in presets (MODIFIED: Added isFlourMode)
+            const PRESETS = {
+                "Basic White Loaf":        { primaryWeight: "900",  hydration: "65", yeast: "1.5", salt: "2", sugar: "1", fat: "2", isFlourMode: false },
+                "Whole Wheat Loaf (50%)":  { primaryWeight: "950",  hydration: "72", yeast: "1.5", salt: "2", sugar: "2", fat: "3", isFlourMode: false },
+                "Sandwich Bread (Soft)":   { primaryWeight: "1000", hydration: "63", yeast: "1.8", salt: "2", sugar: "4", fat: "5", isFlourMode: false },
+                "Simple Rye (Light)":      { primaryWeight: "900",  hydration: "75", yeast: "1.2", salt: "2", sugar: "1", fat: "1", isFlourMode: false },
+                "No-Knead (Basic)":        { primaryWeight: "850",  hydration: "80", yeast: "0.2", salt: "2", sugar: "0", fat: "0", isFlourMode: false },
+                "Sourdough Base (Low Yeast)":{ primaryWeight: "1000", hydration: "70", yeast: "0.1", salt: "2", sugar: "0", fat: "0", isFlourMode: false },
+                "Simple Pizza Dough":      { primaryWeight: "600",  hydration: "62", yeast: "0.5", salt: "2", sugar: "0", fat: "3", isFlourMode: false },
+                "Ciabatta":                { primaryWeight: "800",  hydration: "80", yeast: "0.3", salt: "2", sugar: "0", fat: "2", isFlourMode: false },
+                "Focaccia":                { primaryWeight: "750",  hydration: "78", yeast: "1.2", salt: "2", sugar: "0", fat: "8", isFlourMode: false },
+                "Lean Baguette":           { primaryWeight: "1000", hydration: "68", yeast: "0.8", salt: "2", sugar: "0", fat: "0", isFlourMode: false },
+                "Rich Brioche":            { primaryWeight: "1000", hydration: "50", yeast: "2.5", salt: "1.5", sugar: "12", fat: "25", isFlourMode: false }, // Hydration lower due to other liquids/fats
+                "Challah (Basic)":         { primaryWeight: "1100", hydration: "55", yeast: "1.8", salt: "1.8", sugar: "8", fat: "10", isFlourMode: false }, // Assumes eggs contribute liquid
+                "Soft Dinner Rolls":       { primaryWeight: "700",  hydration: "60", yeast: "2.0", salt: "1.8", sugar: "6", fat: "8", isFlourMode: false },
+                "Bagels":                  { primaryWeight: "1200", hydration: "55", yeast: "1.0", salt: "2", sugar: "2", fat: "1", isFlourMode: false }, // Malt often used
+                "Soft Pretzels":           { primaryWeight: "800",  hydration: "58", yeast: "1.5", salt: "1.5", sugar: "1", fat: "3", isFlourMode: false }, // Salt % is for dough itself
+                // Example Flour Weight Preset:
+                "500g Flour Base":         { primaryWeight: "500", hydration: "70", yeast: "1", salt: "2", sugar: "1", fat: "2", isFlourMode: true },
+                "Default":                 { primaryWeight: "1000", hydration: "65", yeast: "1.5", salt: "2", sugar: "0", fat: "0", isFlourMode: false } // Default uses Final Weight
+            };
+
+            // --- Local Storage Functions (unchanged) ---
+            const ls = { /* ... get, set, getObject, setObject, remove ... */
+                get: (key, defaultValue = null) => { try { const value = localStorage.getItem(key); return value !== null ? value : defaultValue; } catch (e) { console.error("LS get error", e); return defaultValue; } },
+                set: (key, value) => { try { localStorage.setItem(key, value); } catch (e) { console.error("LS set error", e); if(errorMessage) errorMessage.textContent = "Failed to save settings."; } },
+                getObject: (key, defaultValue = null) => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : defaultValue; } catch (e) { console.error("LS getObject error", e); return defaultValue; } },
+                setObject: (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.error("LS setObject error", e); if(errorMessage) errorMessage.textContent = "Failed to save settings."; } },
+                remove: (key) => { try { localStorage.removeItem(key); } catch (e) { console.error("LS remove error", e); } }
+            };
+
+            // --- Dark Mode ---
+            function applyDarkModePreference() {
+                const isDarkMode = ls.getObject(DARK_MODE_KEY, false);
+                if (darkModeToggle) darkModeToggle.checked = isDarkMode;
+                document.body.classList.toggle('dark-mode', isDarkMode);
+            }
+            function toggleDarkMode() {
+                const isDarkMode = darkModeToggle.checked;
+                document.body.classList.toggle('dark-mode', isDarkMode);
+                ls.setObject(DARK_MODE_KEY, isDarkMode);
+            }
+
+            // --- NEW: Weight Mode ---
+            function applyWeightModePreference() {
+                isFlourWeightMode = ls.getObject(WEIGHT_MODE_KEY, false); // Load preference, default to false (Final Weight)
+                if (weightModeToggle) weightModeToggle.checked = isFlourWeightMode;
+                updateWeightModeUI();
+            }
+
+            function toggleWeightMode() {
+                isFlourWeightMode = weightModeToggle.checked;
+                updateWeightModeUI();
+                ls.setObject(WEIGHT_MODE_KEY, isFlourWeightMode); // Save preference
+                calculateWeights(); // Recalculate as the input's meaning changes
+            }
+
+            function updateWeightModeUI() {
+                if (!primaryWeightLabel || !weightModeLabelText || !primaryWeightInput) return;
+                if (isFlourWeightMode) {
+                    primaryWeightLabel.textContent = 'Desired Flour Weight (g):';
+                    weightModeLabelText.textContent = 'Flour Weight';
+                    primaryWeightInput.placeholder = 'e.g., 500';
+                } else {
+                    primaryWeightLabel.textContent = 'Desired Final Dough Weight (g):';
+                    weightModeLabelText.textContent = 'Final Weight';
+                    primaryWeightInput.placeholder = 'e.g., 1000 or 8*50';
+                }
+            }
+            // --- END NEW ---
+
+            // --- Recipe Management (minor change for input id) ---
+            function getRecipes() { return ls.getObject(RECIPES_STORAGE_KEY, {}); }
+            function saveRecipes(recipes) { ls.setObject(RECIPES_STORAGE_KEY, recipes); }
+            function populateRecipeDropdown() { /* ... unchanged ... */
+                if (!recipeSelect) return;
+                const recipes = getRecipes();
+                recipeSelect.innerHTML = '<option value="" disabled selected>-- Load or Delete Recipe --</option>';
+
+                const presetGroup = document.createElement('optgroup');
+                presetGroup.label = "Presets";
+                for (const name in PRESETS) {
+                    if (name !== "Default") {
+                        const option = document.createElement('option');
+                        option.value = `preset_${name}`;
+                        option.textContent = name;
+                        presetGroup.appendChild(option);
+                    }
+                }
+                if (presetGroup.childElementCount > 0) recipeSelect.appendChild(presetGroup);
+
+                const userGroup = document.createElement('optgroup');
+                userGroup.label = "My Recipes";
+                const userRecipeNames = Object.keys(recipes).sort();
+                userRecipeNames.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    userGroup.appendChild(option);
+                });
+
+                if (userGroup.childElementCount > 0) recipeSelect.appendChild(userGroup);
+
+                const hasOptions = presetGroup.childElementCount + userGroup.childElementCount > 0;
+                recipeSelect.disabled = !hasOptions;
+                if(loadRecipeBtn) loadRecipeBtn.disabled = !hasOptions;
+                if(deleteRecipeBtn) deleteRecipeBtn.disabled = !hasOptions;
+            }
+
+            function saveCurrentRecipe() {
+                if (!recipeNameInput || !errorMessage || !weightModeToggle) return; // Added weightModeToggle check
+                const name = recipeNameInput.value.trim();
+                if (!name) {
+                    errorMessage.textContent = "Please enter a name for the recipe.";
+                    recipeNameInput.focus();
+                    return;
+                }
+                if (name.startsWith("preset_")) {
+                    errorMessage.textContent = "Recipe name cannot start with 'preset_'.";
+                    recipeNameInput.focus();
+                    return;
+                }
+
+                const recipes = getRecipes();
+                if (recipes[name] && !confirm(`Recipe "${name}" already exists. Overwrite?`)) {
+                    return; // User cancelled overwrite
+                }
+
+                recipes[name] = {};
+                inputIds.forEach(id => {
+                    if (savableInputs[id]) { // Check if input exists
+                        recipes[name][id] = savableInputs[id].value;
+                    }
+                });
+
+                // *** NEW: Save the current weight mode state ***
+                recipes[name].isFlourMode = isFlourWeightMode; // Or weightModeToggle.checked
+
+                saveRecipes(recipes);
+                populateRecipeDropdown(); // Update dropdown
+                recipeNameInput.value = ''; // Clear input field
+                errorMessage.textContent = `Recipe "${name}" saved.`;
+                setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
+            }
+
+            function loadSelectedRecipe() {
+                if (!recipeSelect || !errorMessage || !weightModeToggle) return; // Added weightModeToggle check
+                const selectedValue = recipeSelect.value;
+                if (!selectedValue) return;
+
+                let recipeData;
+                let recipeDisplayName = selectedValue; // Default to user recipe name
+
+                if (selectedValue.startsWith("preset_")) {
+                    const presetName = selectedValue.substring(7); // Remove "preset_" prefix
+                    recipeData = PRESETS[presetName];
+                    recipeDisplayName = presetName; // Use clean name for messages
+                } else {
+                    const recipes = getRecipes();
+                    recipeData = recipes[selectedValue];
+                }
+
+
+                if (recipeData) {
+                    // *** NEW: Set the weight mode BEFORE loading values ***
+                    // Default to false (Final Weight) if the property doesn't exist (for older saved recipes)
+                    const loadedMode = recipeData.isFlourMode === true; // Explicitly check for true
+                    if (isFlourWeightMode !== loadedMode) { // Only update if mode changed
+                        isFlourWeightMode = loadedMode;
+                        weightModeToggle.checked = isFlourWeightMode;
+                        updateWeightModeUI();
+                        ls.setObject(WEIGHT_MODE_KEY, isFlourWeightMode); // Persist the loaded mode preference immediately
+                    }
+                    // *** END NEW ***
+
+                    // Now load the input values
+                    inputIds.forEach(id => {
+                        if (savableInputs[id] && recipeData[id] !== undefined) { // Check if input exists
+                            savableInputs[id].value = recipeData[id];
+                            // Don't trigger input event here yet, do it after all values are loaded
+                        }
+                    });
+
+                    // IMPORTANT: Trigger calculation AFTER all inputs (including mode) are set
+                    calculateWeights();
+                    // Also save the new values as the 'last state'
+                    inputIds.forEach(id => {
+                         if (savableInputs[id] && recipeData[id] !== undefined) {
+                            ls.set(id, savableInputs[id].value);
+                         }
+                    });
+
+
+                    errorMessage.textContent = `Recipe "${recipeDisplayName}" loaded.`;
+                    setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
+                } else {
+                    errorMessage.textContent = "Could not load selected recipe data.";
+                }
+            }
+
+            function deleteSelectedRecipe() { /* ... unchanged ... */
+                if (!recipeSelect || !errorMessage) return;
+                const selectedValue = recipeSelect.value;
+                if (!selectedValue || selectedValue.startsWith("preset_")) { /* ... */ return; }
+                if (confirm(`Are you sure you want to delete the recipe "${selectedValue}"?`)) {
+                    const recipes = getRecipes();
+                    delete recipes[selectedValue];
+                    saveRecipes(recipes);
+                    populateRecipeDropdown();
+                    errorMessage.textContent = `Recipe "${selectedValue}" deleted.`;
+                    setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
+                }
+            }
+
+            // --- Scaling (MODIFIED to handle both modes) ---
+            function scaleRecipe(type) {
+                if (!scaleValueInput || !primaryWeightInput || !scaleErrorMessage || !errorMessage) return;
+                scaleErrorMessage.textContent = '';
+                errorMessage.textContent = '';
+
+                const scaleValue = parseFloat(scaleValueInput.value);
+                const currentPrimaryWeightValue = evaluateMathExpression(primaryWeightInput.value);
+
+                if (isNaN(scaleValue) || scaleValue <= 0) {
+                    scaleErrorMessage.textContent = "Please enter a valid positive number for scaling.";
+                    scaleValueInput.focus();
+                    return;
+                }
+                if (isNaN(currentPrimaryWeightValue) || currentPrimaryWeightValue <= 0) {
+                    const inputName = isFlourWeightMode ? "Flour Weight" : "Final Weight";
+                    errorMessage.textContent = `Current ${inputName} is invalid, cannot scale.`;
+                    primaryWeightInput.focus();
+                    return;
+                }
+
+                const currentPercentages = getCurrentPercentages();
+                 if (currentPercentages.totalPercentage <= 0) {
+                    errorMessage.textContent = "Cannot scale: Invalid current percentages (total is zero or less).";
+                    return;
+                }
+
+                let newPrimaryWeightValue;
+
+                try { // Wrap calculations in try/catch for safety
+                    if (type === 'factor') {
+                        newPrimaryWeightValue = currentPrimaryWeightValue * scaleValue;
+                    } else if (type === 'total') {
+                        const targetTotalWeight = scaleValue;
+                        if (isFlourWeightMode) {
+                             // We need to calculate the flour weight that yields this total weight
+                             const weightPerPercent = targetTotalWeight / currentPercentages.totalPercentage;
+                             newPrimaryWeightValue = weightPerPercent * 100; // target flour weight
+                        } else {
+                            // We just set the final weight directly
+                            newPrimaryWeightValue = targetTotalWeight;
+                        }
+                    } else if (type === 'flour') {
+                         const targetFlourWeight = scaleValue;
+                         if (isFlourWeightMode) {
+                            // We just set the flour weight directly
+                            newPrimaryWeightValue = targetFlourWeight;
+                         } else {
+                            // We need to calculate the final weight for this flour weight
+                            const weightPerPercent = targetFlourWeight / 100;
+                            newPrimaryWeightValue = weightPerPercent * currentPercentages.totalPercentage; // target final weight
+                         }
+                    } else {
+                        console.error("Unknown scaling type:", type);
+                        return;
+                    }
+
+                } catch (e) {
+                    console.error("Scaling calculation error:", e);
+                    scaleErrorMessage.textContent = "Error during scaling calculation.";
+                    return;
+                }
+
+
+                if (isFinite(newPrimaryWeightValue) && newPrimaryWeightValue > 0) {
+                    const precision = newPrimaryWeightValue < 10 ? 2 : (newPrimaryWeightValue < 100 ? 1 : 0) ; // Dynamic precision
+                    primaryWeightInput.value = newPrimaryWeightValue.toFixed(precision);
+                    primaryWeightInput.dispatchEvent(new Event('input')); // Trigger recalculation and save
+                    scaleValueInput.value = '';
+                } else {
+                    scaleErrorMessage.textContent = "Scaling resulted in an invalid weight (e.g., zero or negative).";
+                }
+            }
+
+            // Helper to get current percentages (unchanged)
+            function getCurrentPercentages() { /* ... unchanged ... */
+                const hydration = parseFloat(hydrationInput?.value) || 0;
+                const yeast = parseFloat(yeastInput?.value) || 0;
+                const salt = parseFloat(saltInput?.value) || 0;
+                const sugar = parseFloat(sugarInput?.value) || 0;
+                const fat = parseFloat(fatInput?.value) || 0;
+                const totalPercentage = 100 + hydration + yeast + salt + sugar + fat;
+                return { hydration, yeast, salt, sugar, fat, totalPercentage };
+            }
+
+            // --- Reset Form (minor change for default input id) ---
+            function resetForm() {
+                 if (!errorMessage) return;
+                if (confirm("Reset all fields to default values? This will clear current inputs.")) {
+                    const defaultValues = PRESETS["Default"];
+                    inputIds.forEach(id => {
+                        if (savableInputs[id]) {
+                            savableInputs[id].value = defaultValues[id] !== undefined ? defaultValues[id] : '';
+                            savableInputs[id].dispatchEvent(new Event('input'));
+                        }
+                    });
+                    // NEW: Reset weight mode to default (Final Weight)
+                    isFlourWeightMode = false;
+                    if (weightModeToggle) weightModeToggle.checked = false;
+                    updateWeightModeUI();
+                    ls.setObject(WEIGHT_MODE_KEY, false); // Save reset mode
+
+                    errorMessage.textContent = "Fields reset to defaults.";
+                    setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
+                }
+            }
+
+            // --- Math Evaluation (unchanged) ---
+            function evaluateMathExpression(expression) { /* ... unchanged ... */
+                if (!expression || typeof expression !== 'string') return NaN;
+                const expr = expression.trim();
+                if (expr === '') return NaN;
+                const allowedCharsRegex = /^\s*[\d\s().+\-*/]+\s*$/;
+                if (!allowedCharsRegex.test(expr)) { console.warn("Invalid chars:", expr); return NaN; }
+                if (/[^0-9().+\-*/\s]/.test(expr.replace(/\s+/g, ''))) { console.warn("Unsafe expr:", expr); return NaN; }
+                try {
+                    const calculate = new Function('return ' + expr);
+                    const result = calculate();
+                    return (typeof result === 'number' && isFinite(result)) ? result : NaN;
+                } catch (error) { console.error("Calc error:", expr, error); return NaN; }
+            }
+
+            // --- Helper Function to Highlight Results (unchanged) ---
+            function highlightResultSpan(spanElement) { /* ... unchanged ... */
+                if (!spanElement) return;
+                spanElement.classList.add('highlight-update');
+                setTimeout(() => { spanElement.classList.remove('highlight-update'); }, 500);
+            }
+
+            // --- Core Calculation Logic (MODIFIED) ---
+            function calculateWeights() {
+                if (!errorMessage || !primaryWeightInput) return;
+                errorMessage.textContent = '';
+                scaleErrorMessage.textContent = '';
+
+                const primaryWeightString = primaryWeightInput.value;
+                const primaryWeightValue = evaluateMathExpression(primaryWeightString);
+                const percentages = getCurrentPercentages();
+
+                // Validation
+                let error = false;
+                const inputName = isFlourWeightMode ? "Flour Weight" : "Final Weight";
+                if (isNaN(primaryWeightValue)) { errorMessage.textContent = `Invalid ${inputName} format (e.g., use 1000 or 5*200).`; error = true; }
+                else if (primaryWeightValue <= 0) { errorMessage.textContent = `${inputName} must be greater than 0.`; error = true; }
+                else if (percentages.hydration < 0 || percentages.yeast < 0 || percentages.salt < 0 || percentages.sugar < 0 || percentages.fat < 0) { errorMessage.textContent = 'Percentages cannot be negative.'; error = true; }
+                else if (percentages.totalPercentage <= 0) { errorMessage.textContent = 'Total percentage cannot be zero or negative.'; error = true; }
+
+                if (error) {
+                    resetResultsDisplay(false);
+                    return;
+                }
+
+                // Calculation - BRANCH BASED ON MODE
+                let flourWeight, waterWeight, yeastWeight, saltWeight, sugarWeight, fatWeight, calculatedTotalWeight;
+                const totalPercentage = percentages.totalPercentage;
+
+                if (isFlourWeightMode) {
+                    // Input is Flour Weight
+                    flourWeight = primaryWeightValue;
+                    if (flourWeight <= 0) { // Should be caught above, but double check
+                         errorMessage.textContent = 'Flour Weight cannot be zero or negative.';
+                         resetResultsDisplay(false);
+                         return;
+                    }
+                    const weightPerPercent = flourWeight / 100; // Flour is base
+                    waterWeight = weightPerPercent * percentages.hydration;
+                    yeastWeight = weightPerPercent * percentages.yeast;
+                    saltWeight = weightPerPercent * percentages.salt;
+                    sugarWeight = weightPerPercent * percentages.sugar;
+                    fatWeight = weightPerPercent * percentages.fat;
+                    calculatedTotalWeight = weightPerPercent * totalPercentage; // Calculate the final total weight
+
+                } else {
+                    // Input is Final Weight
+                    const finalWeight = primaryWeightValue;
+                     if (totalPercentage <= 0) { // Should be caught above, but double check
+                         errorMessage.textContent = 'Total percentage cannot be zero or negative for Final Weight mode.';
+                         resetResultsDisplay(false);
+                         return;
+                     }
+                    const weightPerPercent = finalWeight / totalPercentage;
+                    flourWeight = weightPerPercent * 100;
+                    waterWeight = weightPerPercent * percentages.hydration;
+                    yeastWeight = weightPerPercent * percentages.yeast;
+                    saltWeight = weightPerPercent * percentages.salt;
+                    sugarWeight = weightPerPercent * percentages.sugar;
+                    fatWeight = weightPerPercent * percentages.fat;
+                    // Recalculate total from ingredients for verification/display
+                    calculatedTotalWeight = flourWeight + waterWeight + yeastWeight + saltWeight + sugarWeight + fatWeight;
+                }
+
+                // Display Results & Highlight
+                updateResultSpan(flourWeightSpan, flourWeight.toFixed(1));
+                updateResultSpan(waterWeightSpan, waterWeight.toFixed(1));
+                updateResultSpan(yeastWeightSpan, yeastWeight.toFixed(2));
+                updateResultSpan(saltWeightSpan, saltWeight.toFixed(1));
+                updateResultSpan(sugarWeightSpan, sugarWeight.toFixed(1));
+                updateResultSpan(fatWeightSpan, fatWeight.toFixed(1));
+                updateResultSpan(totalPercentageSpan, totalPercentage.toFixed(1));
+                updateResultSpan(calculatedTotalWeightSpan, calculatedTotalWeight.toFixed(1));
+            }
+
+            // Helper to update span and trigger highlight (unchanged)
+            function updateResultSpan(span, value) { /* ... unchanged ... */
+                if (span && span.textContent !== value) {
+                    span.textContent = value;
+                    highlightResultSpan(span);
+                } else if (span) {
+                    span.textContent = value;
+                }
+            }
+
+            // --- Reset Results Display Only (unchanged) ---
+            function resetResultsDisplay(shouldHighlight = false) { /* ... unchanged ... */
+                 const defaultValue = '-';
+                if (shouldHighlight) {
+                    updateResultSpan(flourWeightSpan, defaultValue); updateResultSpan(waterWeightSpan, defaultValue);
+                    updateResultSpan(yeastWeightSpan, defaultValue); updateResultSpan(saltWeightSpan, defaultValue);
+                    updateResultSpan(sugarWeightSpan, defaultValue); updateResultSpan(fatWeightSpan, defaultValue);
+                    updateResultSpan(totalPercentageSpan, defaultValue); updateResultSpan(calculatedTotalWeightSpan, defaultValue);
+                } else {
+                    resultSpans.forEach(span => { if(span) span.textContent = defaultValue; });
+                }
+            }
+
+            // --- Load Last Input State (uses correct input IDs) ---
+            function loadLastInputValues() {
+                inputIds.forEach(id => {
+                    if (savableInputs[id]) {
+                        const savedValue = ls.get(id);
+                        if (savedValue !== null) {
+                            savableInputs[id].value = savedValue;
+                        }
+                    }
+                });
+            }
+
+            // --- Event Listeners Setup ---
+            function setupEventListeners() {
+                // Input fields
+                inputIds.forEach(id => {
+                    if (savableInputs[id]) {
+                        savableInputs[id].addEventListener('input', () => {
+                            calculateWeights();
+                            ls.set(id, savableInputs[id].value);
+                        });
+                    }
+                });
+
+                // Dark Mode
+                if (darkModeToggle) darkModeToggle.addEventListener('change', toggleDarkMode);
+
+                // Weight Mode (NEW)
+                if (weightModeToggle) weightModeToggle.addEventListener('change', toggleWeightMode);
+
+                // Reset
+                if (resetBtn) resetBtn.addEventListener('click', resetForm);
+
+                // Recipe Management
+                if (saveRecipeBtn) saveRecipeBtn.addEventListener('click', saveCurrentRecipe);
+                if (loadRecipeBtn) loadRecipeBtn.addEventListener('click', loadSelectedRecipe);
+                if (deleteRecipeBtn) deleteRecipeBtn.addEventListener('click', deleteSelectedRecipe);
+
+                // Scaling
+                if (scaleByFactorBtn) scaleByFactorBtn.addEventListener('click', () => scaleRecipe('factor'));
+                if (scaleToTotalBtn) scaleToTotalBtn.addEventListener('click', () => scaleRecipe('total'));
+                if (scaleToFlourBtn) scaleToFlourBtn.addEventListener('click', () => scaleRecipe('flour'));
+            }
+
+            // --- Initialization ---
+            applyDarkModePreference();
+            applyWeightModePreference(); // NEW: Apply weight mode preference
+            populateRecipeDropdown();
+            loadLastInputValues(); // Load last entered values AFTER applying modes and populating dropdowns
+            setupEventListeners();
+            calculateWeights(); // Perform initial calculation based on loaded state and mode
+
+        });
+        // --- JavaScript Ends ---
+    </script>
+
+</body>
+</html>

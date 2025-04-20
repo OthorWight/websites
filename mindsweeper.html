@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fancy Minesweeper</title>
+    <style>
+        :root {
+            --bg-color: #2c3e50; /* Midnight Blue */
+            --cell-hidden-color: #95a5a6; /* Concrete */
+            --cell-hidden-hover: #bdc3c7; /* Silver */
+            --cell-revealed-color: #ecf0f1; /* Clouds */
+            --border-color: #7f8c8d; /* Asbestos */
+            --text-color: #2c3e50;
+            --header-bg: #34495e; /* Wet Asphalt */
+            --header-text: #ecf0f1;
+            --button-bg: #3498db; /* Peter River */
+            --button-hover: #2980b9; /* Belize Hole */
+            --button-text: #ffffff;
+            --danger-color: #e74c3c; /* Alizarin */
+            --safe-color: #2ecc71; /* Emerald */
+            --flag-color: #f1c40f; /* Sun Flower */
+            --hint-highlight: rgba(46, 204, 113, 0.5); /* Transparent Emerald for box-shadow */
+
+            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+            --color-1: #3498db; /* Peter River */
+            --color-2: #2ecc71; /* Emerald */
+            --color-3: #e74c3c; /* Alizarin */
+            --color-4: #9b59b6; /* Amethyst */
+            --color-5: #f39c12; /* Orange */
+            --color-6: #1abc9c; /* Turquoise */
+            --color-7: #34495e; /* Wet Asphalt */
+            --color-8: #7f8c8d; /* Asbestos */
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-color);
+            color: var(--header-text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            user-select: none; /* Prevent text selection during gameplay */
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* IE/Edge */
+        }
+
+        .game-container {
+            background-color: var(--header-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 100%; /* Limits container width */
+            box-sizing: border-box; /* Include padding in width calculation */
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--header-text);
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 10px; /* Spacing between control items */
+            padding: 10px;
+            background-color: rgba(0,0,0,0.1);
+            border-radius: 5px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .controls label, .controls span {
+            font-size: 0.9em;
+        }
+
+        .controls select, .controls button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .controls select:focus, .controls button:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.5); /* Focus ring */
+        }
+
+        .controls button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .controls button#reset-button {
+             background-color: #f39c12; /* Orange */
+        }
+        .controls button#reset-button:hover {
+             background-color: #e67e22; /* Carrot */
+        }
+         .controls button#hint-button {
+             background-color: var(--safe-color);
+        }
+        .controls button#hint-button:hover {
+             background-color: #27ae60; /* Nephritis */
+        }
+        .controls button:disabled {
+            background-color: #95a5a6; /* Concrete */
+            cursor: not-allowed;
+        }
+
+        .status-display {
+            padding: 8px 12px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            min-width: 60px; /* Ensure minimum width */
+            text-align: center;
+            font-weight: bold;
+            font-size: 1em;
+            display: inline-block; /* Fit content */
+        }
+
+        .status-display span {
+            font-size: 1.1em;
+        }
+
+        .game-board {
+            /* grid-template-columns will be set by JS */
+            gap: 2px; /* Space between cells */
+            margin: 20px auto; /* Center the board */
+            border: 5px solid var(--border-color);
+            background-color: var(--border-color); /* Fill gaps */
+            display: inline-grid; /* Crucial: makes grid size to content */
+            max-width: 100%; /* Crucial: Prevents grid from exceeding parent width */
+            overflow: auto; /* Crucial: Adds scrollbars TO THE GRID if content overflows */
+            box-sizing: border-box; /* Include border in width */
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            background-color: var(--cell-hidden-color);
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.1s ease;
+            color: var(--text-color);
+            position: relative; /* Needed for potential absolute positioned elements later if desired */
+        }
+
+        .cell:hover:not(.revealed):not(.flagged):not(.hint-icon) { /* Don't change bg on hover if it's hinted */
+            background-color: var(--cell-hidden-hover);
+        }
+
+        .cell.revealed {
+            background-color: var(--cell-revealed-color);
+            cursor: default;
+            border: 1px solid #bdc3c7; /* Lighter border for revealed */
+        }
+
+        .cell.mine {
+            background-color: var(--danger-color);
+            color: white; /* Make emoji visible */
+        }
+         .cell.mine.exploded {
+            background-color: #c0392b; /* Pomegranate */
+        }
+
+        .cell.flagged {
+            background-color: var(--flag-color);
+            color: white;
+        }
+
+        /* Hint Styling - Icon takes precedence */
+        .cell.hint-icon {
+             /* Optional: Keep shadow effect? */
+            /* box-shadow: 0 0 15px 5px var(--hint-highlight); */
+            /* transition: box-shadow 0.5s ease-out; */
+            font-size: 1.5em; /* Make icon slightly larger */
+            line-height: 1; /* Adjust line height for icon */
+        }
+
+        /* Number colors */
+        .cell.revealed[data-count="1"] { color: var(--color-1); }
+        .cell.revealed[data-count="2"] { color: var(--color-2); }
+        .cell.revealed[data-count="3"] { color: var(--color-3); }
+        .cell.revealed[data-count="4"] { color: var(--color-4); }
+        .cell.revealed[data-count="5"] { color: var(--color-5); }
+        .cell.revealed[data-count="6"] { color: var(--color-6); }
+        .cell.revealed[data-count="7"] { color: var(--color-7); }
+        .cell.revealed[data-count="8"] { color: var(--color-8); }
+
+        .game-message {
+            margin-top: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            min-height: 20px; /* Reserve space */
+        }
+
+        .win { color: var(--safe-color); }
+        .lose { color: var(--danger-color); }
+
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Fancy Minesweeper</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                 <label for="difficulty">Difficulty:</label>
+                 <select id="difficulty">
+                     <option value="easy">Easy (9x9, 10 Mines)</option>
+                     <option value="medium" selected>Medium (16x16, 40 Mines)</option>
+                     <option value="hard">Hard (16x30, 99 Mines)</option> <!-- Swapped WxH display -->
+                 </select>
+                 <button id="reset-button">😊 Play Again?</button> <!-- Updated default text -->
+            </div>
+             <div class="control-group">
+                 <button id="hint-button">💡 Hint</button>
+            </div>
+            <div class="control-group">
+                <span class="status-display">🚩 <span id="flags-left">0</span></span>
+                <span class="status-display">⏱️ <span id="timer">0</span></span>
+            </div>
+        </div>
+
+        <div id="game-board" class="game-board" oncontextmenu="return false;">
+            <!-- Cells will be generated here -->
+        </div>
+
+        <div id="game-message" class="game-message"></div>
+    </div>
+
+    <script>
+        const gameBoard = document.getElementById('game-board');
+        const difficultySelector = document.getElementById('difficulty');
+        const resetButton = document.getElementById('reset-button');
+        const hintButton = document.getElementById('hint-button');
+        const flagsLeftDisplay = document.getElementById('flags-left');
+        const timerDisplay = document.getElementById('timer');
+        const gameMessage = document.getElementById('game-message');
+
+        let rows, cols, mineCount;
+        let grid = []; // Array of cell objects { mine, revealed, flagged, count }
+        let flagsPlaced = 0;
+        let revealedCount = 0;
+        let timerInterval = null;
+        let startTime = 0;
+        let gameOver = false;
+        let firstClick = true;
+        let hintTimeout = null; // To clear hint icon/highlight
+
+        const difficulties = {
+            easy: { rows: 9, cols: 9, mines: 10 },
+            medium: { rows: 16, cols: 16, mines: 40 },
+            hard: { rows: 16, cols: 30, mines: 99 } // Note: WxH is 30x16
+        };
+
+        function clearPreviousHint() {
+            if (hintTimeout) {
+                clearTimeout(hintTimeout);
+                const previousHint = gameBoard.querySelector('.hint-icon');
+                if (previousHint) {
+                    previousHint.textContent = '';
+                    previousHint.classList.remove('hint-icon');
+                }
+                hintTimeout = null;
+            }
+        }
+
+        function initGame() {
+            // Clear previous state
+            stopTimer();
+            clearPreviousHint(); // Clear hint on reset
+            gameBoard.innerHTML = '';
+            gameBoard.style.gridTemplateColumns = ''; // Reset grid columns
+            gameMessage.textContent = '';
+            gameMessage.className = 'game-message'; // Reset message style
+
+            // Set difficulty
+            const selectedDifficulty = difficultySelector.value;
+            const settings = difficulties[selectedDifficulty];
+            rows = settings.rows;
+            cols = settings.cols;
+            mineCount = settings.mines;
+
+            // Reset game state variables
+            grid = [];
+            flagsPlaced = 0;
+            revealedCount = 0;
+            gameOver = false;
+            firstClick = true;
+            startTime = 0;
+            timerDisplay.textContent = '0';
+            resetButton.textContent = '😊 New Game'; // Set initial button text
+            updateFlagsDisplay();
+
+            // Adjust board style
+            gameBoard.style.gridTemplateColumns = `repeat(${cols}, 30px)`;
+
+            // Create grid data structure
+            createGridArray();
+            // We place mines *after* the first click now for safety guarantee
+            renderBoard();
+
+            // Enable buttons
+            hintButton.disabled = false;
+        }
+
+        function createGridArray() {
+            for (let r = 0; r < rows; r++) {
+                grid[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    grid[r][c] = {
+                        mine: false,
+                        revealed: false,
+                        flagged: false,
+                        count: 0, // Adjacent mines
+                        element: null // Reference to the DOM element
+                    };
+                }
+            }
+        }
+
+        function placeMines(firstClickRow, firstClickCol) {
+            let minesToPlace = mineCount;
+            let safeRadius = 1; // Ensure a 3x3 area around first click is safe
+
+            while (minesToPlace > 0) {
+                const r = Math.floor(Math.random() * rows);
+                const c = Math.floor(Math.random() * cols);
+
+                // Ensure mine isn't placed on the first click or within the safe radius
+                const isFirstClickZone = Math.abs(r - firstClickRow) <= safeRadius && Math.abs(c - firstClickCol) <= safeRadius;
+
+                if (!grid[r][c].mine && !(firstClick && isFirstClickZone)) {
+                    grid[r][c].mine = true;
+                    minesToPlace--;
+                }
+            }
+        }
+
+
+        function calculateNumbers() {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r][c].mine) continue;
+                    let count = 0;
+                    getNeighbors(r, c).forEach(([nr, nc]) => {
+                        if (grid[nr][nc].mine) {
+                            count++;
+                        }
+                    });
+                    grid[r][c].count = count;
+                }
+            }
+        }
+
+        function renderBoard() {
+            gameBoard.innerHTML = ''; // Clear previous board elements
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    // Store reference
+                    grid[r][c].element = cell;
+
+                    // Left Click Listener
+                    cell.addEventListener('click', () => handleLeftClick(r, c));
+                    // Right Click Listener (Flagging)
+                    cell.addEventListener('contextmenu', (e) => {
+                        e.preventDefault(); // Prevent default context menu
+                        handleRightClick(r, c);
+                    });
+
+                    gameBoard.appendChild(cell);
+                }
+            }
+        }
+
+        function updateCellAppearance(r, c) {
+            const cellData = grid[r][c];
+            const cellElement = cellData.element;
+            if (!cellElement) return;
+
+            // Clear previous state classes/content
+            const hadHintIcon = cellElement.classList.contains('hint-icon'); // Check before resetting class
+            cellElement.className = 'cell'; // Reset classes
+            cellElement.textContent = '';
+            cellElement.removeAttribute('data-count');
+
+            // If this cell was being hinted, make sure the hint state is cleared
+            if (hadHintIcon) {
+                 clearPreviousHint(); // Clears timeout and icon
+            }
+
+            if (gameOver && cellData.mine && !cellData.flagged) {
+                 cellElement.classList.add('mine');
+                 cellElement.textContent = '💣';
+            } else if (gameOver && !cellData.mine && cellData.flagged) {
+                // Indicate wrongly placed flag
+                cellElement.classList.add('revealed'); // Show it's not a mine
+                cellElement.textContent = '❌';
+                cellElement.style.backgroundColor = '#bdc3c7'; // Greyish background
+            } else if (cellData.flagged) {
+                cellElement.classList.add('flagged');
+                cellElement.textContent = '🚩';
+            } else if (cellData.revealed) {
+                cellElement.classList.add('revealed');
+                if (cellData.mine) { // Should only happen on game over click
+                    cellElement.classList.add('mine', 'exploded');
+                    cellElement.textContent = '💥';
+                } else if (cellData.count > 0) {
+                    cellElement.textContent = cellData.count;
+                    cellElement.dataset.count = cellData.count; // For CSS styling
+                }
+                // If count is 0, it remains blank
+            }
+            // If cell is hidden & unflagged, it remains blank with default styling
+        }
+
+
+        function handleLeftClick(r, c) {
+            if (gameOver || grid[r][c].revealed || grid[r][c].flagged) {
+                return; // Ignore clicks on revealed/flagged cells or if game is over
+            }
+
+             // If the clicked cell is the one being hinted, clear the hint immediately
+             if (grid[r][c].element?.classList.contains('hint-icon')) {
+                clearPreviousHint();
+            }
+
+            // First Click Logic
+            if (firstClick) {
+                placeMines(r, c); // Place mines away from the first click
+                calculateNumbers(); // Calculate numbers *after* mines are placed
+                startTimer();
+                firstClick = false;
+            }
+
+            const cellData = grid[r][c];
+            cellData.revealed = true;
+            revealedCount++;
+
+            // Update appearance *before* recursion/game over check
+            updateCellAppearance(r, c); // Needs to be done here to clear potential hint icon
+
+            if (cellData.mine) {
+                cellData.element.classList.add('exploded'); // Mark the clicked mine visually
+                cellData.element.textContent = '💥'; // Show explosion immediately
+                triggerGameOver(false); // Player lost
+            } else {
+                if (cellData.count === 0) {
+                    // Reveal adjacent cells recursively if it's a blank cell
+                    revealAdjacent(r, c);
+                }
+                checkWinCondition();
+            }
+        }
+
+        function handleRightClick(r, c) {
+            if (gameOver || grid[r][c].revealed) {
+                return; // Ignore right-clicks on revealed cells or if game is over
+            }
+
+             // If the clicked cell is the one being hinted, clear the hint immediately
+             if (grid[r][c].element?.classList.contains('hint-icon')) {
+                clearPreviousHint();
+            }
+
+            const cellData = grid[r][c];
+            cellData.flagged = !cellData.flagged; // Toggle flag
+
+            if (cellData.flagged) {
+                flagsPlaced++;
+            } else {
+                flagsPlaced--;
+            }
+
+            updateFlagsDisplay();
+            updateCellAppearance(r, c);
+            // Optional: Check win condition on flag placement (strict win)
+            // checkWinCondition();
+        }
+
+        function revealAdjacent(r, c) {
+            getNeighbors(r, c).forEach(([nr, nc]) => {
+                const neighborData = grid[nr][nc];
+                // Only reveal if it's not already revealed, not flagged, and not a mine
+                if (!neighborData.revealed && !neighborData.flagged && !neighborData.mine) {
+                    neighborData.revealed = true;
+                    revealedCount++;
+                    updateCellAppearance(nr, nc); // Update appearance
+                    if (neighborData.count === 0) {
+                        // If this neighbor is also blank, recurse
+                        revealAdjacent(nr, nc);
+                    }
+                }
+            });
+        }
+
+        function getNeighbors(r, c) {
+            const neighbors = [];
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue; // Skip self
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (isValid(nr, nc)) {
+                        neighbors.push([nr, nc]);
+                    }
+                }
+            }
+            return neighbors;
+        }
+
+        function isValid(r, c) {
+            return r >= 0 && r < rows && c >= 0 && c < cols;
+        }
+
+        function updateFlagsDisplay() {
+            flagsLeftDisplay.textContent = Math.max(0, mineCount - flagsPlaced); // Don't show negative flags
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval); // Clear existing timer
+            startTime = Date.now();
+            timerDisplay.textContent = '0'; // Reset display
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        function updateTimer() {
+            const now = Date.now();
+            const timeElapsed = Math.floor((now - startTime) / 1000);
+            timerDisplay.textContent = timeElapsed;
+        }
+
+        function checkWinCondition() {
+            const totalSafeCells = rows * cols - mineCount;
+            if (!gameOver && revealedCount === totalSafeCells) { // Ensure not already game over
+                triggerGameOver(true); // Player won
+            }
+        }
+
+        function triggerGameOver(isWin) {
+             if (gameOver) return; // Prevent multiple triggers
+
+            gameOver = true;
+            stopTimer();
+            clearPreviousHint(); // Clear hint on game over
+            hintButton.disabled = true; // Disable hint button
+
+            if (isWin) {
+                gameMessage.textContent = '😎 You Win! 😎';
+                gameMessage.className = 'game-message win';
+                resetButton.textContent = '😎 Play Again?';
+                 // Auto-flag remaining mines on win
+                 for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                         if (grid[r][c].mine && !grid[r][c].flagged) {
+                            grid[r][c].flagged = true;
+                            flagsPlaced++;
+                         }
+                         // Update appearance for final state (flags / revealed)
+                          if (!grid[r][c].revealed) { // Ensure all cells have final appearance
+                             updateCellAppearance(r, c);
+                          }
+                    }
+                }
+                updateFlagsDisplay();
+
+            } else {
+                gameMessage.textContent = '😭 Boom! Game Over 😭';
+                gameMessage.className = 'game-message lose';
+                resetButton.textContent = '😭 Try Again?';
+                // Reveal all mines and incorrect flags
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        // Reveal mines that weren't flagged, and mark incorrect flags
+                        if (grid[r][c].mine && !grid[r][c].flagged) {
+                             grid[r][c].revealed = true; // Mark as revealed to trigger appearance update
+                             updateCellAppearance(r, c);
+                        } else if (!grid[r][c].mine && grid[r][c].flagged) {
+                             grid[r][c].revealed = true; // Mark as revealed to trigger appearance update
+                             updateCellAppearance(r, c); // Will show the 'X' mark
+                        } else if (grid[r][c].mine && grid[r][c].flagged) {
+                             // Correctly flagged mines can just stay flagged
+                             updateCellAppearance(r, c);
+                        }
+                        // The clicked mine (exploded) is already handled by handleLeftClick
+                    }
+                }
+            }
+        }
+
+        // --- Hint Logic ---
+        function getHint() {
+            if (gameOver || firstClick) return; // No hints before game starts or after it ends
+
+            clearPreviousHint(); // Clear any existing hint first
+
+            let hintedCellCoords = null; // Store coords [r, c]
+
+            // Strategy 1: Find a guaranteed safe cell next to a numbered cell
+            // A cell is guaranteed safe if a revealed neighbor number N has exactly N flags adjacent to it.
+            searchLoop: // Label for breaking outer loop
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cellData = grid[r][c];
+                    if (cellData.revealed && cellData.count > 0) {
+                        let flaggedNeighbors = 0;
+                        let hiddenNeighborsCoords = [];
+                        getNeighbors(r, c).forEach(([nr, nc]) => {
+                            const neighbor = grid[nr][nc];
+                            if (neighbor.flagged) {
+                                flaggedNeighbors++;
+                            } else if (!neighbor.revealed) {
+                                hiddenNeighborsCoords.push([nr, nc]);
+                            }
+                        });
+
+                        if (flaggedNeighbors === cellData.count && hiddenNeighborsCoords.length > 0) {
+                            // All mines around this number are flagged, remaining hidden are safe
+                            hintedCellCoords = hiddenNeighborsCoords[0]; // Hint the first safe one found
+                            break searchLoop; // Found a guaranteed hint, stop searching
+                        }
+                    }
+                }
+            }
+
+             // Strategy 2 (Fallback): Find any unrevealed, unflagged, non-mine cell randomly
+             if (!hintedCellCoords) {
+                let potentialHintsCoords = [];
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (!grid[r][c].revealed && !grid[r][c].flagged && !grid[r][c].mine) {
+                            potentialHintsCoords.push([r, c]);
+                        }
+                    }
+                }
+                if (potentialHintsCoords.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * potentialHintsCoords.length);
+                    hintedCellCoords = potentialHintsCoords[randomIndex];
+                }
+             }
+
+            // Apply hint if found
+            if (hintedCellCoords) {
+                const [hr, hc] = hintedCellCoords;
+                const hintElement = grid[hr][hc].element;
+                if (hintElement) {
+                    hintElement.textContent = '💡'; // Add the lightbulb icon
+                    hintElement.classList.add('hint-icon'); // Add class to identify/style
+
+                    // Set timeout to clear this specific hint
+                    hintTimeout = setTimeout(() => {
+                         // Check if the element *still* has the icon before clearing
+                         // (Could have been clicked/flagged in the meantime)
+                         if (hintElement.classList.contains('hint-icon')) {
+                             hintElement.textContent = '';
+                             hintElement.classList.remove('hint-icon');
+                         }
+                         hintTimeout = null; // Mark timeout as finished
+                     }, 1500); // Show icon for 1.5 seconds
+                }
+            } else {
+                 // No safe hint available (might only be mines left or require guessing)
+                 gameMessage.textContent = "🤔 No obvious safe move found...";
+                 setTimeout(() => { if (!gameOver) gameMessage.textContent = ''; }, 2000);
+            }
+        }
+
+        // Event Listeners
+        resetButton.addEventListener('click', initGame);
+        difficultySelector.addEventListener('change', initGame);
+        hintButton.addEventListener('click', getHint);
+
+        // Initial game setup
+        initGame();
+
+    </script>
+</body>
+</html>

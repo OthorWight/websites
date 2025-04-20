@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crossword Generator</title>
+    <style>
+        /* Basic Reset & Variables */
+        :root {
+            --bg-color-light: #f8f9fa;
+            --text-color-light: #212529;
+            --border-color-light: #dee2e6;
+            --input-bg-light: #fff;
+            --button-bg-light: #0d6efd;
+            --button-text-light: #fff;
+            --grid-cell-bg-light: #fff;
+            --grid-empty-bg-light: #343a40;
+            --grid-border-light: #adb5bd;
+            --grid-text-light: #212529;
+            --number-color-light: #495057;
+
+            --bg-color-dark: #212529;
+            --text-color-dark: #f8f9fa;
+            --border-color-dark: #495057;
+            --input-bg-dark: #343a40;
+            --button-bg-dark: #6c757d;
+            --button-text-dark: #fff;
+            --grid-cell-bg-dark: #495057;
+            --grid-empty-bg-dark: #000;
+            --grid-border-dark: #6c757d;
+            --grid-text-dark: #f8f9fa;
+            --number-color-dark: #adb5bd;
+
+            --cell-size: 35px; /* Adjust grid cell size */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: var(--bg-color-light);
+            color: var(--text-color-light);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Dark Mode */
+        body.dark-mode {
+            background-color: var(--bg-color-dark);
+            color: var(--text-color-dark);
+        }
+
+        /* --- Layout --- */
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            overflow: hidden;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color-light);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        body.dark-mode header {
+            border-bottom-color: var(--border-color-dark);
+        }
+
+        h1 { font-size: 1.8em; }
+
+        .controls {
+            margin-bottom: 30px;
+            padding: 15px;
+            background-color: var(--input-bg-light);
+            border: 1px solid var(--border-color-light);
+            border-radius: 5px;
+        }
+        body.dark-mode .controls {
+            background-color: var(--input-bg-dark);
+            border-color: var(--border-color-dark);
+        }
+
+        .controls label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .controls textarea,
+        .controls input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color-light);
+            border-radius: 3px;
+            background-color: var(--input-bg-light);
+            color: var(--text-color-light);
+        }
+        body.dark-mode .controls textarea,
+        body.dark-mode .controls input[type="number"] {
+            background-color: var(--input-bg-dark);
+            color: var(--text-color-dark);
+            border-color: var(--border-color-dark);
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 1em;
+            transition: background-color 0.2s;
+        }
+
+        #generateBtn {
+            background-color: var(--button-bg-light);
+            color: var(--button-text-light);
+        }
+        body.dark-mode #generateBtn {
+            background-color: var(--button-bg-dark);
+            color: var(--button-text-dark);
+        }
+        #generateBtn:hover { opacity: 0.9; }
+
+        #toggleDarkModeBtn {
+            background-color: #6c757d;
+            color: #fff;
+        }
+        body.dark-mode #toggleDarkModeBtn {
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+
+
+        .output {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 30px;
+        }
+
+        #puzzleGrid {
+            flex-shrink: 0; /* Don't shrink grid container */
+            margin-bottom: 20px; /* Space below grid if clues wrap */
+            overflow-x: auto; /* Allow horizontal scroll if grid too wide */
+        }
+
+        #puzzleGrid table {
+            border-collapse: collapse;
+            border: 2px solid var(--grid-empty-bg-light); /* Thicker outer border */
+        }
+        body.dark-mode #puzzleGrid table {
+            border-color: var(--grid-empty-bg-dark);
+        }
+
+
+        #puzzleGrid td {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            border: 1px solid var(--grid-border-light);
+            text-align: center;
+            vertical-align: middle;
+            position: relative;
+            font-size: calc(var(--cell-size) * 0.5); /* Scale font size with cell */
+            background-color: var(--grid-cell-bg-light);
+            color: var(--grid-text-light);
+            padding: 0; /* Remove padding for input */
+        }
+        body.dark-mode #puzzleGrid td {
+            border-color: var(--grid-border-dark);
+            background-color: var(--grid-cell-bg-dark);
+            color: var(--grid-text-dark);
+        }
+
+        #puzzleGrid td.empty {
+            background-color: var(--grid-empty-bg-light);
+            border-color: var(--grid-empty-bg-light);
+        }
+        body.dark-mode #puzzleGrid td.empty {
+            background-color: var(--grid-empty-bg-dark);
+            border-color: var(--grid-empty-bg-dark);
+        }
+
+        #puzzleGrid .number {
+            position: absolute;
+            top: 1px;
+            left: 2px;
+            font-size: calc(var(--cell-size) * 0.25); /* Smaller number */
+            font-weight: bold;
+            color: var(--number-color-light);
+            line-height: 1;
+        }
+        body.dark-mode #puzzleGrid .number {
+            color: var(--number-color-dark);
+        }
+
+        #puzzleGrid .cell-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            text-align: center;
+            font-size: inherit; /* Inherit from td */
+            background-color: transparent;
+            color: inherit; /* Inherit from td */
+            text-transform: uppercase;
+            padding: 0;
+            outline: none; /* Remove focus outline if desired */
+            font-family: inherit;
+        }
+
+        #clues {
+            flex-grow: 1; /* Allow clues to take remaining space */
+            min-width: 250px; /* Minimum width for clue section */
+        }
+
+        #clues h2 {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-color-light);
+            padding-bottom: 5px;
+        }
+        body.dark-mode #clues h2 {
+            border-bottom-color: var(--border-color-dark);
+        }
+
+
+        #clues ol {
+            list-style-position: inside;
+            padding-left: 0;
+        }
+
+        #clues li {
+            margin-bottom: 8px;
+        }
+
+        #message {
+            margin-top: 15px;
+            font-style: italic;
+            color: #dc3545; /* Error/warning color */
+        }
+        body.dark-mode #message {
+            color: #f8d7da;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Themed Crossword Generator</h1>
+            <button id="toggleDarkModeBtn">Toggle Dark Mode</button>
+        </header>
+
+        <div class="controls">
+            <label for="theme">Theme (Optional Title):</label>
+            <input type="text" id="theme" placeholder="e.g., Computer Science Basics">
+
+            <label for="wordList">Word List (one word per line, provide clue after word with :: separator):</label>
+            <textarea id="wordList" rows="10" placeholder="Example:
+ALGORITHM::A set of rules to be followed.
+VARIABLE::A storage location with a name.
+LOOP::Repeating a section of code.
+FUNCTION::A block of reusable code."></textarea>
+
+            <label for="gridSize">Approx. Grid Size (e.g., 15 for 15x15):</label>
+            <input type="number" id="gridSize" value="15" min="5" max="50">
+
+            <button id="generateBtn">Generate Crossword</button>
+            <div id="message"></div>
+        </div>
+
+        <div class="output">
+            <div id="puzzleGrid">
+                <!-- Grid will be generated here -->
+            </div>
+            <div id="clues">
+                <div id="cluesAcross">
+                    <h2>Across</h2>
+                    <ol></ol>
+                </div>
+                <div id="cluesDown">
+                    <h2>Down</h2>
+                    <ol></ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const themeInput = document.getElementById('theme');
+        const wordListInput = document.getElementById('wordList');
+        const gridSizeInput = document.getElementById('gridSize');
+        const generateBtn = document.getElementById('generateBtn');
+        const puzzleGridDiv = document.getElementById('puzzleGrid');
+        const cluesAcrossOl = document.querySelector('#cluesAcross ol');
+        const cluesDownOl = document.querySelector('#cluesDown ol');
+        const messageDiv = document.getElementById('message');
+        const toggleDarkModeBtn = document.getElementById('toggleDarkModeBtn');
+        const body = document.body;
+
+        const EMPTY_CELL = '.'; // Represents an empty (black) square
+        const FILL_CELL = null; // Represents a fillable square before a letter is placed
+
+        // --- Dark Mode ---
+        function applyDarkModePreference() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const savedMode = localStorage.getItem('darkMode');
+            if (savedMode === 'true' || (savedMode === null && prefersDark)) {
+                body.classList.add('dark-mode');
+            } else {
+                body.classList.remove('dark-mode');
+            }
+        }
+
+        function toggleDarkMode() {
+            body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
+        }
+
+        toggleDarkModeBtn.addEventListener('click', toggleDarkMode);
+        document.addEventListener('DOMContentLoaded', applyDarkModePreference); // Apply on load
+
+
+        // --- Crossword Generation Logic ---
+        generateBtn.addEventListener('click', generateCrossword);
+
+        function generateCrossword() {
+            clearOutput();
+            const theme = themeInput.value.trim();
+            if (theme) {
+                // You could potentially display the theme somewhere if desired
+                console.log("Theme:", theme);
+            }
+
+            const rawWords = wordListInput.value.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0 && line.includes('::'));
+
+            if (rawWords.length < 2) {
+                setMessage("Please provide at least two words with clues (format: WORD::Clue).");
+                return;
+            }
+
+            const wordsData = rawWords.map(line => {
+                const parts = line.split('::');
+                return {
+                    word: parts[0].trim().toUpperCase().replace(/[^A-Z]/g, ''), // Clean word
+                    clue: parts[1].trim()
+                };
+            }).filter(data => data.word.length > 1); // Filter out empty/single letter words
+
+            if (wordsData.length < 1) {
+                setMessage("No valid words/clues found after cleaning. Ensure words are alphabetic and longer than 1 letter.");
+                return;
+            }
+
+
+            // Sort words by length, descending (helps placement)
+            wordsData.sort((a, b) => b.word.length - a.word.length);
+
+            const gridSize = parseInt(gridSizeInput.value, 10);
+            if (isNaN(gridSize) || gridSize < 5 || gridSize > 50) {
+                setMessage("Please enter a valid grid size between 5 and 50.");
+                return;
+            }
+
+            // --- Simple Placement Algorithm ---
+            // This is basic: place the first word, then try to intersect others.
+            let grid = createEmptyGrid(gridSize);
+            let placedWords = []; // { wordData, row, col, direction }
+
+            // 1. Place the first (longest) word near the center
+            const firstWord = wordsData.shift(); // Take the longest word out
+            const startPos = Math.floor(gridSize / 2) - Math.floor(firstWord.word.length / 4); // Heuristic start
+            let placedFirst = false;
+            if (tryPlaceWord(grid, firstWord, startPos, startPos, 'across', placedWords)) {
+                placedWords.push({ wordData: firstWord, row: startPos, col: startPos, direction: 'across' });
+                placedFirst = true;
+            } else if (tryPlaceWord(grid, firstWord, startPos, startPos, 'down', placedWords)) {
+                placedWords.push({ wordData: firstWord, row: startPos, col: startPos, direction: 'down' });
+                placedFirst = true;
+            }
+
+            if (!placedFirst) {
+                setMessage("Could not place the first word. Try a larger grid or different words.");
+                return; // Cannot continue if first word fails
+            }
+
+
+            // 2. Try to place remaining words by finding intersections
+            let wordsToPlace = [...wordsData]; // Copy remaining words
+            let remainingWords = [];
+            const MAX_ATTEMPTS = 3; // Try placing words multiple times
+            let attempts = 0;
+
+            while (wordsToPlace.length > 0 && attempts < MAX_ATTEMPTS) {
+                remainingWords = []; // Words that couldn't be placed in this pass
+                for (const currentWordData of wordsToPlace) {
+                    let bestPlacement = findBestPlacement(grid, currentWordData, placedWords);
+
+                    if (bestPlacement) {
+                        if (tryPlaceWord(grid, currentWordData, bestPlacement.row, bestPlacement.col, bestPlacement.direction, placedWords)) {
+                            placedWords.push({ wordData: currentWordData, row: bestPlacement.row, col: bestPlacement.col, direction: bestPlacement.direction });
+                        } else {
+                        console.warn(`Placement conflict for ${currentWordData.word} at calculated best spot?`);
+                        remainingWords.push(currentWordData); // Retry later if logic failed
+                        }
+                    } else {
+                        remainingWords.push(currentWordData); // Could not find intersection
+                    }
+                }
+                wordsToPlace = remainingWords;
+                attempts++;
+                console.log(`Placement Pass ${attempts}. Remaining words: ${wordsToPlace.length}`);
+            }
+
+
+            if (remainingWords.length > 0) {
+                setMessage(`Generated crossword. Could not place ${remainingWords.length} words: ${remainingWords.map(w => w.word).join(', ')}`);
+            } else {
+                setMessage("Crossword generated successfully!");
+            }
+
+            // 3. Finalize grid (replace null with EMPTY_CELL) and generate clues
+            finalizeGrid(grid);
+            const clues = generateClues(grid, placedWords);
+
+            // 4. Render
+            renderGrid(grid, clues.numberMap);
+            renderClues(clues.across, clues.down);
+        }
+
+        function createEmptyGrid(size) {
+            return Array.from({ length: size }, () => Array(size).fill(FILL_CELL));
+        }
+
+        function finalizeGrid(grid) {
+            for (let r = 0; r < grid.length; r++) {
+                for (let c = 0; c < grid[r].length; c++) {
+                    if (grid[r][c] === FILL_CELL) {
+                        grid[r][c] = EMPTY_CELL;
+                    }
+                }
+            }
+        }
+
+        function isWithinBounds(grid, r, c) {
+            return r >= 0 && r < grid.length && c >= 0 && c < grid[0].length;
+        }
+
+        // Tries to find the best intersection point for a new word
+        function findBestPlacement(grid, wordData, placedWords) {
+            let bestPlacement = null;
+            let maxIntersections = -1; // Prioritize placements that intersect
+
+            for (const placed of placedWords) {
+                for (let i = 0; i < placed.wordData.word.length; i++) { // Iterate letters of placed word
+                    const placedLetter = placed.wordData.word[i];
+                    const placedRow = placed.direction === 'across' ? placed.row : placed.row + i;
+                    const placedCol = placed.direction === 'down' ? placed.col : placed.col + i;
+
+                    for (let j = 0; j < wordData.word.length; j++) { // Iterate letters of new word
+                        if (wordData.word[j] === placedLetter) {
+                            // Potential intersection found
+                            const newDirection = placed.direction === 'across' ? 'down' : 'across';
+                            const newRow = newDirection === 'across' ? placedRow : placedRow - j;
+                            const newCol = newDirection === 'down' ? placedCol : placedCol - j;
+
+                            let placementData = checkPlacement(grid, wordData, newRow, newCol, newDirection, placedWords);
+                            if (placementData && placementData.intersections >= maxIntersections) {
+                                maxIntersections = placementData.intersections;
+                                bestPlacement = {
+                                    row: newRow,
+                                    col: newCol,
+                                    direction: newDirection,
+                                    intersections: placementData.intersections
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            // If no intersection found, could potentially add logic here to place anywhere valid
+            // but for simplicity, we only place if intersecting
+            return bestPlacement;
+        }
+
+        // Checks if a word *can* be placed at a location (doesn't place it)
+        // Returns null if invalid, or { intersections: count } if valid
+        function checkPlacement(grid, wordData, r, c, direction, placedWords) {
+            let intersections = 0;
+            const word = wordData.word;
+            const len = word.length;
+            const gridSize = grid.length;
+
+            // --- Basic Boundary Checks ---
+            if (direction === 'across') {
+                if (c < 0 || c + len > gridSize || r < 0 || r >= gridSize) return null;
+            } else { // 'down'
+                if (r < 0 || r + len > gridSize || c < 0 || c >= gridSize) return null;
+            }
+
+            // --- Check cell BEFORE the start and AFTER the end ---
+            // This prevents words from "touching" without intersecting
+            if (direction === 'across') {
+                // Check cell before start (if not at edge)
+                if (c > 0 && isWithinBounds(grid, r, c - 1) && grid[r][c - 1] !== EMPTY_CELL && grid[r][c-1] !== FILL_CELL) return null;
+                // Check cell after end (if not at edge)
+                if (c + len < gridSize && isWithinBounds(grid, r, c + len) && grid[r][c + len] !== EMPTY_CELL && grid[r][c+len] !== FILL_CELL) return null;
+            } else { // 'down'
+                // Check cell before start (if not at edge)
+                if (r > 0 && isWithinBounds(grid, r - 1, c) && grid[r - 1][c] !== EMPTY_CELL && grid[r-1][c] !== FILL_CELL) return null;
+                // Check cell after end (if not at edge)
+                if (r + len < gridSize && isWithinBounds(grid, r + len, c) && grid[r + len][c] !== EMPTY_CELL && grid[r+len][c] !== FILL_CELL) return null;
+            }
+
+            // --- Check each cell the word will occupy ---
+            for (let i = 0; i < len; i++) {
+                const currentRow = direction === 'across' ? r : r + i;
+                const currentCol = direction === 'down' ? c : c + i;
+
+                // Double check bounds for safety (should be covered by initial check)
+                if (!isWithinBounds(grid, currentRow, currentCol)) return null;
+
+                const existingCell = grid[currentRow][currentCol];
+                const wordChar = word[i];
+
+                // --- Check the actual cell content ---
+                if (existingCell === EMPTY_CELL) {
+                    // console.log(`Conflict: Trying to place '${wordChar}' over EMPTY at (${currentRow},${currentCol})`);
+                    return null; // Cannot place over a black square
+                } else if (existingCell === FILL_CELL) {
+                    // Cell is empty, potential placement ok for this cell.
+                    // BUT, we need to check adjacent cells in the perpendicular direction.
+                    if (direction === 'across') {
+                        // Check above and below
+                        if (isWithinBounds(grid, currentRow - 1, currentCol) && grid[currentRow - 1][currentCol] !== EMPTY_CELL && grid[currentRow - 1][currentCol] !== FILL_CELL) return null; // Letter directly above
+                        if (isWithinBounds(grid, currentRow + 1, currentCol) && grid[currentRow + 1][currentCol] !== EMPTY_CELL && grid[currentRow + 1][currentCol] !== FILL_CELL) return null; // Letter directly below
+                    } else { // 'down'
+                        // Check left and right
+                        if (isWithinBounds(grid, currentRow, currentCol - 1) && grid[currentRow][currentCol - 1] !== EMPTY_CELL && grid[currentRow][currentCol - 1] !== FILL_CELL) return null; // Letter directly left
+                        if (isWithinBounds(grid, currentRow, currentCol + 1) && grid[currentRow][currentCol + 1] !== EMPTY_CELL && grid[currentRow][currentCol + 1] !== FILL_CELL) return null; // Letter directly right
+                    }
+                    // If adjacent checks pass, this empty cell is currently valid.
+                    continue;
+                } else if (existingCell === wordChar) {
+                    // Matches existing letter (this IS an intersection point)
+                    intersections++;
+                    // Adjacent checks are implicitly okay here *because* this is an intersection.
+                    // The intersecting word already occupies the adjacent cells correctly.
+                    continue;
+                } else {
+                    // Conflict: trying to place a letter over a DIFFERENT existing letter
+                    // console.log(`Conflict: Trying to place '${wordChar}' over '${existingCell}' at (${currentRow},${currentCol})`);
+                    return null;
+                }
+            }
+
+            // --- Final Intersection Check ---
+            // After the first word, any new word *must* intersect with at least one existing word.
+            if (placedWords.length > 0 && intersections === 0) {
+                // console.log(`No intersection found for ${word} at ${r},${c} ${direction}`);
+                return null; // Must intersect with *something* after the first word
+            }
+
+            // If we've passed all checks, the placement is valid.
+            return { intersections };
+        }
+
+        // Helper function - checks if a cell coordinate is part of *any* placed word
+        // (This simpler version replaces the previous isPartOfPerpendicularWord,
+        // as the main logic now handles adjacent checks more directly).
+        // We might not even need this helper anymore with the revised checkPlacement.
+        // Let's comment it out for now, if checkPlacement breaks, we might need a revised helper.
+        /*
+        function isCellOccupiedByPlacedWord(placedWords, checkR, checkC) {
+            for (const placed of placedWords) {
+                if (placed.direction === 'across') {
+                    if (checkR === placed.row && checkC >= placed.col && checkC < placed.col + placed.wordData.word.length) {
+                        return true;
+                    }
+                } else { // down
+                    if (checkC === placed.col && checkR >= placed.row && checkR < placed.row + placed.wordData.word.length) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        */
+
+        // Helper to check if an adjacent cell is part of a known word running perpendicular to the current check
+        function isPartOfPerpendicularWord(placedWords, adjR, adjC, currentR, currentC) {
+            for(const placed of placedWords) {
+                if (placed.direction === 'across') {
+                    if (adjR === placed.row && adjC >= placed.col && adjC < placed.col + placed.wordData.word.length) {
+                        // adj cell is part of an across word, check if current placement is down
+                        if (adjR === currentR -1 || adjR === currentR+1) return true; // Okay if it's above/below a down word
+                    }
+                } else { // down
+                    if (adjC === placed.col && adjR >= placed.row && adjR < placed.row + placed.wordData.word.length) {
+                        // adj cell is part of a down word, check if current placement is across
+                        if (adjC === currentC - 1 || adjC === currentC+1) return true; // Okay if it's left/right of an across word
+                    }
+                }
+            }
+            return false;
+        }
+
+
+        // Actually places the word onto the grid if checkPlacement passes implicitly
+        function tryPlaceWord(grid, wordData, r, c, direction, placedWords) {
+            // Re-check placement before modifying grid (safety)
+            if (!checkPlacement(grid, wordData, r, c, direction, placedWords)) {
+                // console.warn(`Attempted to place ${wordData.word} invalidly at ${r},${c} ${direction}`);
+                return false;
+            }
+
+            const word = wordData.word;
+            for (let i = 0; i < word.length; i++) {
+                if (direction === 'across') {
+                    grid[r][c + i] = word[i];
+                } else { // 'down'
+                    grid[r + i][c] = word[i];
+                }
+            }
+            return true;
+        }
+
+
+        function generateClues(grid, placedWords) {
+            let clues = { across: [], down: [], numberMap: {} }; // numberMap: "r,c" -> number
+            let clueNumber = 1;
+
+            // Sort placedWords by position (top-to-bottom, then left-to-right) for consistent numbering
+            placedWords.sort((a, b) => {
+                if (a.row !== b.row) return a.row - b.row;
+                return a.col - b.col;
+            });
+
+            let assignedStarts = new Set(); // Keep track of "r,c" that got a number
+
+            for (const placed of placedWords) {
+                const key = `${placed.row},${placed.col}`;
+                let number;
+
+                if (assignedStarts.has(key)) {
+                    number = clues.numberMap[key]; // Use existing number if another word starts here
+                } else {
+                    number = clueNumber++;
+                    clues.numberMap[key] = number;
+                    assignedStarts.add(key);
+                }
+
+                const clueData = {
+                    number: number,
+                    text: placed.wordData.clue,
+                    word: placed.wordData.word // Keep for potential answer checking later
+                };
+
+                if (placed.direction === 'across') {
+                    clues.across.push(clueData);
+                } else {
+                    clues.down.push(clueData);
+                }
+            }
+
+            // Sort clues by number within each direction
+            clues.across.sort((a, b) => a.number - b.number);
+            clues.down.sort((a, b) => a.number - b.number);
+
+            return clues;
+        }
+
+        function renderGrid(grid, numberMap) {
+            puzzleGridDiv.innerHTML = ''; // Clear previous grid
+            const table = document.createElement('table');
+            const tbody = document.createElement('tbody');
+
+            for (let r = 0; r < grid.length; r++) {
+                const tr = document.createElement('tr');
+                for (let c = 0; c < grid[r].length; c++) {
+                    const td = document.createElement('td');
+                    const cellKey = `${r},${c}`;
+
+                    if (grid[r][c] === EMPTY_CELL) {
+                        td.classList.add('empty');
+                    } else {
+                        // Add number if this cell starts a word
+                        if (numberMap[cellKey]) {
+                            const numSpan = document.createElement('span');
+                            numSpan.classList.add('number');
+                            numSpan.textContent = numberMap[cellKey];
+                            td.appendChild(numSpan);
+                        }
+
+                        // Add input field for the letter
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.maxLength = 1;
+                        input.classList.add('cell-input');
+                        input.dataset.row = r;
+                        input.dataset.col = c;
+                        // input.value = grid[r][c]; // Optional: pre-fill solution for debugging
+                        input.setAttribute('aria-label', `Grid cell ${r+1}, ${c+1}`);
+                        td.appendChild(input);
+                    }
+                    tr.appendChild(td);
+                }
+                tbody.appendChild(tr);
+            }
+            table.appendChild(tbody);
+            puzzleGridDiv.appendChild(table);
+
+            // Add simple keyboard navigation
+            addGridNavigation();
+        }
+
+        function renderClues(acrossClues, downClues) {
+            cluesAcrossOl.innerHTML = '';
+            cluesDownOl.innerHTML = '';
+
+            acrossClues.forEach(clue => {
+                const li = document.createElement('li');
+                li.textContent = `${clue.number}. ${clue.text}`;
+                cluesAcrossOl.appendChild(li);
+            });
+
+            downClues.forEach(clue => {
+                const li = document.createElement('li');
+                li.textContent = `${clue.number}. ${clue.text}`;
+                cluesDownOl.appendChild(li);
+            });
+        }
+
+        function addGridNavigation() {
+            const inputs = puzzleGridDiv.querySelectorAll('.cell-input');
+            inputs.forEach(input => {
+                input.addEventListener('keydown', handleGridKeyDown);
+                input.addEventListener('input', handleGridInput); // Auto-move on input
+            });
+        }
+
+        function handleGridInput(e) {
+            // Move focus to next cell in the current direction after typing a letter
+            // Basic implementation: just move right for now
+            if (e.target.value.length === 1) {
+                const currentCol = parseInt(e.target.dataset.col, 10);
+                const currentRow = parseInt(e.target.dataset.row, 10);
+                const nextInput = puzzleGridDiv.querySelector(`input[data-row="${currentRow}"][data-col="${currentCol + 1}"]`);
+                if (nextInput) {
+                    nextInput.focus();
+                    nextInput.select(); // Select text if needed
+                }
+            }
+        }
+
+        function handleGridKeyDown(e) {
+            const target = e.target;
+            const row = parseInt(target.dataset.row, 10);
+            const col = parseInt(target.dataset.col, 10);
+            let nextRow = row;
+            let nextCol = col;
+            let moved = false;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    nextRow--;
+                    moved = true;
+                    break;
+                case 'ArrowDown':
+                    nextRow++;
+                    moved = true;
+                    break;
+                case 'ArrowLeft':
+                    nextCol--;
+                    moved = true;
+                    break;
+                case 'ArrowRight':
+                    nextCol++;
+                    moved = true;
+                    break;
+                case 'Backspace':
+                    // Move focus to previous cell on backspace if current is empty
+                    if(target.value === '') {
+                        // Basic implementation: just move left
+                        nextCol--;
+                        moved = true;
+                    }
+                    break; // Allow default backspace behaviour otherwise
+                default:
+                    // Allow typing letters/numbers
+                    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        // Optionally clear the input before typing new char
+                        // target.value = '';
+                    }
+                    return; // Don't prevent default for typing
+            }
+
+            if (moved) {
+                e.preventDefault(); // Prevent default arrow key scroll, etc.
+                // Find the next non-empty cell in the chosen direction
+                let nextInput = findNextInput(row, col, e.key); // Use key to determine search direction better later
+                if (!nextInput && (e.key === 'Backspace' || e.key === 'ArrowLeft')) { // Simple fallback for backspace/left
+                    nextInput = puzzleGridDiv.querySelector(`input[data-row="${row}"][data-col="${col - 1}"]`);
+                } else if (!nextInput && e.key === 'ArrowRight') { // Simple fallback for right
+                    nextInput = puzzleGridDiv.querySelector(`input[data-row="${row}"][data-col="${col + 1}"]`);
+                }
+                // Add more robust findNextInput logic as needed...
+
+                // Basic navigation for now:
+                if (e.key !== 'Backspace') nextInput = puzzleGridDiv.querySelector(`input[data-row="${nextRow}"][data-col="${nextCol}"]`);
+
+
+                if (nextInput) {
+                    nextInput.focus();
+                    nextInput.select(); // Select content for easy replacement
+                }
+            }
+        }
+
+        // Placeholder for more advanced navigation logic (finding next *fillable* cell)
+        function findNextInput(startRow, startCol, directionKey) {
+            // This needs more complex logic to skip over black squares correctly
+            // based on intended word direction (across/down).
+            // For now, returning null to use the basic adjacent cell finding.
+            return null;
+        }
+
+
+        function clearOutput() {
+            puzzleGridDiv.innerHTML = '<!-- Grid will appear here -->';
+            cluesAcrossOl.innerHTML = '';
+            cluesDownOl.innerHTML = '';
+            messageDiv.textContent = '';
+        }
+
+        function setMessage(msg) {
+            messageDiv.textContent = msg;
+        }
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, height=device-height">
+    <title>My Wordle Clone (No Scroll)</title>
+    <style>
+        /* Basic Styling */
+        :root {
+            --key-bg: #d3d6da;
+            --key-fg: #1a1a1b;
+            --absent-bg: #787c7e;
+            --present-bg: #c9b458;
+            --correct-bg: #6aaa64;
+            --tile-text-color: #ffffff;
+            --border-color-empty: #d3d6da;
+            --border-color-filled: #878a8c;
+            --warning-bg: #f57c00;
+            --info-bg: #1976d2; /* Added for helper button */
+
+            /* Dynamic Sizes based on Viewport Height */
+            --vh1: max(1px, 1vh); /* Ensure at least 1px for vh units */
+        }
+
+        html { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Arial', sans-serif; display: flex; justify-content: space-between;
+            align-items: center; flex-direction: column; height: 100%; max-height: 100vh;
+            background-color: #f4f4f4; margin: 0;
+            padding: clamp(2px, calc(var(--vh1) * 1), 8px) 5px; /* Slightly reduced padding */
+            box-sizing: border-box; touch-action: manipulation; overflow: hidden;
+        }
+
+        #game-container {
+            display: flex; flex-direction: column; align-items: center;
+            flex-grow: 1; justify-content: center; width: 100%; max-width: 500px;
+            padding: 0 8px; box-sizing: border-box; overflow: hidden; min-height: 0;
+        }
+
+        #title {
+            font-size: clamp(1.4rem, calc(var(--vh1) * 3.5), 2.2rem); /* Slightly smaller */
+            margin-bottom: clamp(4px, calc(var(--vh1) * 1), 10px); /* Reduced margin */
+            color: #333; text-align: center; flex-shrink: 0;
+            margin-top: 0;
+        }
+
+        #message-area {
+            height: clamp(18px, calc(var(--vh1) * 2.8), 22px); /* Slightly smaller */
+            margin-bottom: clamp(4px, calc(var(--vh1) * 1), 8px);
+            font-size: clamp(0.75rem, calc(var(--vh1) * 1.7), 1rem); /* Slightly smaller */
+            font-weight: bold; color: var(--absent-bg); text-align: center;
+            flex-shrink: 0; line-height: 1.2;
+        }
+
+        #grid-container {
+            display: grid; grid-template-rows: repeat(6, 1fr);
+            grid-gap: clamp(3px, calc(var(--vh1) * 0.6), 4px); /* Slightly reduced gap */
+            height: clamp(220px, calc(var(--vh1) * 50), 330px); /* Reduced height */
+            width: calc(clamp(220px, calc(var(--vh1) * 50), 330px) * 5 / 6); /* Maintain aspect ratio */
+            max-width: 88vw; /* Slightly reduced max width */
+            margin-bottom: clamp(4px, calc(var(--vh1) * 1.5), 10px); /* Reduced margin */
+            flex-shrink: 1; min-height: 0;
+        }
+
+        .grid-row { display: grid; grid-template-columns: repeat(5, 1fr); grid-gap: clamp(3px, calc(var(--vh1) * 0.6), 4px); }
+        .grid-cell {
+            width: 100%; height: 100%; /* Let grid control size */
+            border: max(1px, clamp(1px, calc(var(--vh1) * 0.25), 2px)) solid var(--border-color-empty);
+            display: flex; justify-content: center; align-items: center;
+            font-size: clamp(1.1rem, calc(var(--vh1) * 3.2), 1.8rem); /* Slightly smaller font */
+            font-weight: bold; text-transform: uppercase; color: var(--key-fg);
+            box-sizing: border-box; transition: transform 0.3s ease, background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease;
+            position: relative; /* Needed for typing indicator */
+        }
+
+        .grid-cell.typing-indicator::after {
+            content: ''; position: absolute;
+            bottom: clamp(2px, calc(var(--vh1) * 0.8), 5px); left: 40%; right: 40%;
+            height: clamp(2px, calc(var(--vh1) * 0.4), 3px); background-color: var(--key-fg);
+            animation: blink 1s infinite step-end;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .grid-cell.filled { border-color: var(--border-color-filled); }
+        .grid-cell.correct { background-color: var(--correct-bg); border-color: var(--correct-bg); color: var(--tile-text-color); transform: rotateX(360deg); }
+        .grid-cell.present { background-color: var(--present-bg); border-color: var(--present-bg); color: var(--tile-text-color); transform: rotateX(360deg); }
+        .grid-cell.absent { background-color: var(--absent-bg); border-color: var(--absent-bg); color: var(--tile-text-color); transform: rotateX(360deg); }
+
+        .grid-cell.current-input { animation: pulse 0.2s ease-in-out; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); }
+            30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); }
+        }
+
+        /* --- Button Container --- */
+        #button-container {
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap */
+            justify-content: center;
+            gap: 8px; /* Space between buttons */
+            margin-top: clamp(4px, calc(var(--vh1) * 0.8), 8px); /* Reduced margin */
+            flex-shrink: 0; /* Don't shrink this container */
+        }
+
+        /* --- Shared Button Styles --- */
+        .game-button {
+            padding: clamp(5px, calc(var(--vh1) * 0.9), 7px) clamp(8px, calc(var(--vh1) * 1.8), 12px); /* Slightly smaller */
+            font-size: clamp(0.7rem, calc(var(--vh1) * 1.4), 0.9rem); /* Slightly smaller */
+            cursor: pointer; color: white; border: none; border-radius: 4px;
+            transition: opacity 0.2s ease;
+        }
+        .game-button:hover { opacity: 0.9; }
+        .game-button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* --- Individual Button Styles --- */
+        #restart-button { background-color: var(--correct-bg); }
+        #give-up-button { background-color: var(--warning-bg); }
+        #show-possible-button { background-color: var(--info-bg); } /* Blue button */
+
+        /* --- Possible Words Display --- */
+        #possible-words-container {
+            width: 95%;
+            max-width: 480px;
+            max-height: clamp(50px, calc(var(--vh1) * 10), 80px); /* Limit height */
+            overflow-y: auto; /* Allow scrolling */
+            background-color: #e0e0e0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 5px;
+            margin-top: 8px; /* Space below buttons */
+            font-size: clamp(0.7rem, calc(var(--vh1) * 1.5), 0.9rem);
+            text-align: center;
+            flex-shrink: 0; /* Don't shrink */
+            box-sizing: border-box;
+        }
+        #possible-words-container span {
+            display: inline-block;
+            margin: 2px 4px;
+            padding: 1px 3px;
+            background-color: #f8f8f8;
+            border: 1px solid #d0d0d0;
+            border-radius: 3px;
+            font-family: monospace; /* Good for fixed-width letters */
+        }
+
+        /* --- Key Press Animation --- */
+        @keyframes keyPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); } /* Scale up slightly in the middle */
+        }
+
+        .key.key-pressed {
+            animation: keyPulse 0.15s ease-in-out; /* Apply the animation */
+            /* Optional: Add a slightly darker background during press */
+            /* background-color: #bdbfc2; */
+        }
+
+        /* Keyboard Styling */
+        #keyboard-container {
+            width: 100%; max-width: 500px;
+            padding: clamp(2px, calc(var(--vh1) * 0.8), 5px) 3px; /* Reduced padding */
+            box-sizing: border-box; flex-shrink: 0; /* Prevent shrinking */
+        }
+        .keyboard-row { display: flex; justify-content: center; margin-bottom: clamp(3px, calc(var(--vh1) * 0.7), 6px); width: 100%; }
+        .keyboard-row:last-child { margin-bottom: 0; }
+
+        .key {
+            font-family: inherit; font-weight: bold;
+            font-size: clamp(0.65rem, calc(var(--vh1) * 1.7), 0.95rem); /* Slightly adjusted font */
+            border: none; padding: 0; margin: 0 clamp(1px, calc(var(--vh1) * 0.4), 2px); /* Reduced margin */
+            height: clamp(30px, calc(var(--vh1) * 6), 45px); /* Slightly smaller height */
+            border-radius: 4px; cursor: pointer; text-transform: uppercase;
+            background-color: var(--key-bg); color: var(--key-fg);
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            min-width: clamp(18px, 6.5vw, 23px); /* Adjusted min width */
+            max-width: clamp(32px, 8.5vw, 42px); /* Adjusted max width */
+            transition: background-color 0.2s ease, color 0.2s ease;
+            user-select: none; /* Prevent text selection on click */
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
+        .key:hover { background-color: #bdbfc2; } /* Simple hover */
+
+        .key.functional {
+            flex-grow: 1.5;
+            min-width: clamp(32px, 10vw, 42px);
+            max-width: clamp(45px, 13vw, 60px);
+            font-size: clamp(0.55rem, calc(var(--vh1) * 1.4), 0.8rem);
+        }
+        .key.correct { background-color: var(--correct-bg); color: var(--tile-text-color); }
+        .key.present { background-color: var(--present-bg); color: var(--tile-text-color); }
+        .key.absent { background-color: var(--absent-bg); color: var(--tile-text-color); }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1 id="title">Wordle Clone</h1>
+        <div id="message-area">Loading words...</div> <!-- Initial message -->
+        <div id="grid-container"></div>
+        <div id="button-container">
+            <button id="show-possible-button" class="game-button" disabled>Suggest Words</button> <!-- Start disabled -->
+            <button id="give-up-button" class="game-button" disabled>Give Up</button> <!-- Start disabled -->
+            <button id="restart-button" class="game-button" disabled>New Game</button> <!-- Start disabled -->
+        </div>
+        <!-- Container for Possible Words -->
+        <div id="possible-words-container" style="display: none;"> <!-- Initially hidden -->
+            Possible words will appear here...
+        </div>
+    </div>
+
+    <div id="keyboard-container"></div>
+
+
+    <script>
+        // --- Configuration & Constants ---
+        const GRID_SIZE = 5;
+        const MAX_GUESSES = 6;
+        const KEYBOARD_LAYOUT = [ "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM←" ]; // Standard layout
+        const WORD_FILE_PATH = 'words.txt'; // Path to your word list file
+
+        // --- Global Variables ---
+        // These will be populated by loadWordsAndStartGame()
+        let ANSWER_LIST = [];
+        let ALLOWED_GUESSES = new Set();
+        let WORD_POOL_FOR_SUGGESTIONS = [];
+
+        let secretWord = '';
+        let currentRowIndex = 0;
+        let currentGuess = '';
+        let isGameOver = false;
+        let gridCells = []; // Stores the DOM elements for grid cells
+        let keyboardKeys = {}; // Stores the DOM elements for letter keys { 'A': buttonElement, ... }
+
+        // --- State for Word Suggestions ---
+        let knownCorrect = Array(GRID_SIZE).fill(null); // ['P', null, 'P', null, 'E']
+        let knownPresent = new Set();                   // {'P', 'A', 'E'}
+        let knownAbsent = new Set();                    // {'R', 'S', 'T'}
+        let minLetterCounts = {};                       // {'P': 2, 'A': 1, 'E': 1}
+        let wrongPosition = {};                         // {'A': new Set([0]), 'E': new Set([1])}
+
+        // --- DOM Element References ---
+        const gridContainer = document.getElementById('grid-container');
+        const messageArea = document.getElementById('message-area');
+        const restartButton = document.getElementById('restart-button');
+        const giveUpButton = document.getElementById('give-up-button');
+        const keyboardContainer = document.getElementById('keyboard-container');
+        const showPossibleButton = document.getElementById('show-possible-button');
+        const possibleWordsContainer = document.getElementById('possible-words-container');
+
+        // --- Functions ---
+
+        function resetSuggestionState() {
+            knownCorrect = Array(GRID_SIZE).fill(null);
+            knownPresent.clear();
+            knownAbsent.clear();
+            minLetterCounts = {};
+            wrongPosition = {};
+            possibleWordsContainer.style.display = 'none';
+            possibleWordsContainer.innerHTML = '';
+            if (showPossibleButton) showPossibleButton.disabled = isGameOver; // Re-enable if game not over
+        }
+
+        function initializeGame() {
+            // Ensure word list is loaded and non-empty
+            if (!ANSWER_LIST || ANSWER_LIST.length === 0) {
+                console.error("Cannot initialize game: Word list is empty or not loaded.");
+                showMessage("Error: Word list empty.");
+                // Keep buttons disabled if initialization fails
+                if (restartButton) restartButton.disabled = true;
+                if (giveUpButton) giveUpButton.disabled = true;
+                if (showPossibleButton) showPossibleButton.disabled = true;
+                return;
+            }
+
+            // Select a random word from the loaded list
+            secretWord = ANSWER_LIST[Math.floor(Math.random() * ANSWER_LIST.length)];
+            console.log("Secret Word (for debugging):", secretWord); // Log for easier testing
+
+            // Reset game state variables
+            currentRowIndex = 0;
+            currentGuess = '';
+            isGameOver = false;
+            gridCells = []; // Clear grid cell references
+            keyboardKeys = {}; // Clear keyboard key references
+            messageArea.textContent = ''; // Clear any previous messages
+            gridContainer.innerHTML = ''; // Clear previous grid DOM elements
+            keyboardContainer.innerHTML = ''; // Clear previous keyboard DOM elements
+            gridContainer.classList.remove('shake'); // Ensure shake animation isn't stuck
+
+            resetSuggestionState(); // Reset word suggestion state
+
+            // --- Create Grid DOM Elements ---
+            for (let i = 0; i < MAX_GUESSES; i++) {
+                const row = document.createElement('div');
+                row.classList.add('grid-row');
+                row.id = `row-${i}`;
+                let rowCells = []; // Store cell elements for this row
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.id = `cell-${i}-${j}`;
+                    row.appendChild(cell);
+                    rowCells.push(cell);
+                }
+                gridContainer.appendChild(row);
+                gridCells.push(rowCells); // Add this row's cells to the main grid array
+            }
+
+            // --- Create Keyboard DOM Elements ---
+            keyboardKeys = {}; // Ensure it's empty before creating
+            KEYBOARD_LAYOUT.forEach(rowString => {
+                const rowDiv = document.createElement('div');
+                rowDiv.classList.add('keyboard-row');
+                rowString.split('').forEach(keyChar => {
+                    const keyButton = document.createElement('button');
+                    keyButton.classList.add('key');
+                    // Display 'DEL' for backspace, otherwise the character itself
+                    keyButton.textContent = keyChar === '←' ? 'DEL' : keyChar;
+                    keyButton.dataset.key = keyChar; // Store the actual key value ('←', 'ENTER', 'A', etc.)
+
+                    if (keyChar === 'ENTER' || keyChar === '←') {
+                        keyButton.classList.add('functional');
+                    }
+
+                    // Add click listener for virtual keyboard
+                    keyButton.addEventListener('click', () => handleKeyPress(keyChar));
+                    rowDiv.appendChild(keyButton);
+
+                    // Store references to letter keys for easy status updates
+                    if (keyChar !== 'ENTER' && keyChar !== '←') {
+                        keyboardKeys[keyChar] = keyButton;
+                    }
+                });
+                keyboardContainer.appendChild(rowDiv);
+            });
+
+            updateTypingIndicator(); // Set initial cursor position
+
+            // --- Enable Buttons ---
+            if(giveUpButton) giveUpButton.disabled = false;
+            if(restartButton) restartButton.disabled = false;
+            if(showPossibleButton) showPossibleButton.disabled = false;
+
+            // --- Event Listeners ---
+            // Remove existing listener before adding a new one to prevent duplicates on restart
+            document.removeEventListener('keydown', handleKeyDown);
+            document.addEventListener('keydown', handleKeyDown); // Listen for physical keyboard input
+            if(restartButton) restartButton.onclick = initializeGame; // Assign restart action
+            if(giveUpButton) giveUpButton.onclick = handleGiveUp;     // Assign give up action
+            if(showPossibleButton) showPossibleButton.onclick = displayPossibleWords; // Assign suggestion action
+        }
+
+        // Handles physical keyboard input
+        function handleKeyDown(event) {
+            // Ignore if modifier keys are pressed
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+            // Ignore if focus is on an input/textarea (allows typing elsewhere)
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+
+            let key = event.key.toUpperCase();
+            let preventDefault = false; // Flag to prevent default browser actions
+
+            if (key === 'ENTER') {
+                handleKeyPress('ENTER'); // Process Enter key
+                preventDefault = true;
+            } else if (key === 'BACKSPACE') {
+                handleKeyPress('←'); // Map Backspace to our internal symbol
+                preventDefault = true;
+            } else if (key.length === 1 && key >= 'A' && key <= 'Z') {
+                handleKeyPress(key); // Process letter keys
+                preventDefault = true;
+            }
+
+            // Prevent default browser action (like scrolling on Enter/Backspace) if we handled the key
+            if (preventDefault) {
+                event.preventDefault();
+            }
+        }
+
+        // Handles both physical and virtual key presses
+        function handleKeyPress(key) {
+            if (isGameOver) return; // Ignore input if game is over
+
+            let targetKeyButton = null; // To animate the corresponding virtual key
+
+            // Find the virtual keyboard button element using its stored data-key attribute
+            targetKeyButton = keyboardContainer.querySelector(`.key[data-key="${key}"]`);
+
+            // Apply a short visual pulse animation to the virtual key
+            if (targetKeyButton) {
+                targetKeyButton.classList.add('key-pressed');
+                // Remove the animation class shortly after
+                setTimeout(() => {
+                    // Check if the button still exists in the DOM before removing class
+                    if (targetKeyButton && document.body.contains(targetKeyButton)) {
+                        targetKeyButton.classList.remove('key-pressed');
+                    }
+                }, 150); // Duration matches CSS animation
+            }
+
+            // Perform the corresponding game action based on the key pressed
+            if (key === 'ENTER') {
+                submitGuess();
+            } else if (key === '←') { // Use the internal symbol for backspace
+                deleteLetter();
+            } else if (key.length === 1 && key >= 'A' && key <= 'Z') { // Check if it's a letter
+                addLetter(key);
+            }
+        }
+
+        // Updates the visual cursor (blinking underline) in the grid
+        function updateTypingIndicator() {
+            // Remove indicator from all cells first
+            gridCells.flat().forEach(cell => { if(cell) cell.classList.remove('typing-indicator'); });
+
+            // Add indicator to the next empty cell in the current row, if the game isn't over and row isn't full
+            if (!isGameOver && currentRowIndex < MAX_GUESSES && currentGuess.length < GRID_SIZE) {
+                // Check if the target cell exists
+                if (gridCells[currentRowIndex] && gridCells[currentRowIndex][currentGuess.length]) {
+                    gridCells[currentRowIndex][currentGuess.length].classList.add('typing-indicator');
+                }
+            }
+        }
+
+        // Adds a letter to the current guess and updates the grid
+        function addLetter(letter) {
+            // Only add if the current guess is not full and game isn't over
+            if (currentGuess.length < GRID_SIZE && !isGameOver) {
+                // Check if the target cell exists in our gridCells array
+                if (gridCells[currentRowIndex] && gridCells[currentRowIndex][currentGuess.length]) {
+                    const cell = gridCells[currentRowIndex][currentGuess.length];
+                    cell.textContent = letter; // Set the letter
+                    cell.classList.add('filled', 'current-input'); // Add styling for filled cell + pulse effect
+                    currentGuess += letter; // Append letter to the internal guess string
+
+                    // Remove the pulse effect class shortly after adding
+                    setTimeout(() => { if (cell) cell.classList.remove('current-input'); }, 200);
+                    updateTypingIndicator(); // Move the typing indicator to the next cell
+                } else {
+                    console.error("Error: Target cell for adding letter is missing or out of bounds.");
+                }
+            }
+        }
+
+        // Removes the last letter from the current guess and updates the grid
+        function deleteLetter() {
+            // Only delete if there are letters in the guess and game isn't over
+            if (currentGuess.length > 0 && !isGameOver) {
+                const cellIndex = currentGuess.length - 1; // Index of the cell to clear
+                // Check if the target cell exists
+                if (gridCells[currentRowIndex] && gridCells[currentRowIndex][cellIndex]) {
+                    const cell = gridCells[currentRowIndex][cellIndex];
+                    cell.textContent = ''; // Clear the letter display
+                    cell.classList.remove('filled'); // Remove filled style
+                    currentGuess = currentGuess.slice(0, -1); // Remove last letter from internal guess string
+                    updateTypingIndicator(); // Move indicator back
+                } else {
+                    console.error("Error: Target cell for deleting letter is missing or out of bounds.");
+                }
+            }
+        }
+
+        // Called when the user presses Enter or clicks the Enter key
+        function submitGuess() {
+            // Don't submit if game is over or we're past the last row
+            if (isGameOver || currentRowIndex >= MAX_GUESSES) return;
+
+            // Check for incomplete guess
+            if (currentGuess.length !== GRID_SIZE) {
+                showMessage("Not enough letters");
+                shakeRow(currentRowIndex); // Shake the current row for feedback
+                return;
+            }
+
+            // Ensure ALLOWED_GUESSES Set is populated before checking
+            if (!ALLOWED_GUESSES || ALLOWED_GUESSES.size === 0) {
+                console.error("ALLOWED_GUESSES set is empty. Cannot validate guess.");
+                showMessage("Error: Word list not ready.");
+                return;
+            }
+
+            // Check if the guess is a valid word in the loaded list
+            if (!ALLOWED_GUESSES.has(currentGuess)) {
+                showMessage("Not in word list");
+                shakeRow(currentRowIndex);
+                return;
+            }
+
+            // Clear any previous message before starting evaluation
+            messageArea.textContent = '';
+
+            // Evaluate the guess against the secret word
+            const evaluationResults = evaluateGuess(currentGuess);
+            // Update the state used for word suggestions based on the results
+            updateSuggestionState(currentGuess, evaluationResults);
+
+            // Calculate total animation time for the row flip
+            const animationDuration = (GRID_SIZE * 150) + 300; // Delay per cell + buffer
+            // Check if the game has ended (win/loss) AFTER the flip animation completes
+            setTimeout(() => {
+                checkForEndOfGame(currentGuess);
+            }, animationDuration);
+        }
+
+        // Compares the guess to the secret word and determines cell statuses
+        function evaluateGuess(guess) {
+            const guessLetters = guess.split('');
+            const secretLetters = secretWord.split('');
+            const rowCells = gridCells[currentRowIndex]; // Get DOM elements for the current row
+            const tempSecretCounts = {}; // Track letter counts in secret word for duplicate handling
+
+            // Count occurrences of each letter in the secret word
+            secretLetters.forEach(letter => { tempSecretCounts[letter] = (tempSecretCounts[letter] || 0) + 1; });
+
+            // Initialize results array (all 'absent' by default)
+            const results = Array(GRID_SIZE).fill('absent');
+
+            // First pass: Check for correct letters in the correct position (green)
+            for (let i = 0; i < GRID_SIZE; i++) {
+                if (guessLetters[i] === secretLetters[i]) {
+                    results[i] = 'correct';
+                    tempSecretCounts[guessLetters[i]]--; // Decrement count for this matched letter
+                }
+            }
+
+            // Second pass: Check for present letters in the wrong position (yellow)
+            for (let i = 0; i < GRID_SIZE; i++) {
+                // Only check if it's not already marked 'correct'
+                if (results[i] !== 'correct') {
+                    // Check if the letter exists in the secret word AND we haven't used up all instances of it
+                    if (secretLetters.includes(guessLetters[i]) && tempSecretCounts[guessLetters[i]] > 0) {
+                        results[i] = 'present';
+                        tempSecretCounts[guessLetters[i]]--; // Decrement count
+                    }
+                }
+            }
+
+            // Apply visual styles to the grid cells with animation delay
+            rowCells.forEach((cell, i) => {
+                if (cell) { // Ensure cell exists
+                    cell.classList.remove('typing-indicator'); // Remove cursor before flipping
+                    applyCellStyle(cell, results[i], i * 150); // Apply style with staggered delay
+                } else {
+                    console.error(`Error: Cell at row ${currentRowIndex}, index ${i} is missing during evaluation.`);
+                }
+            });
+
+            // Update the colors of the virtual keyboard keys
+            updateKeyboard(guess, results);
+
+            return results; // Return the evaluation results ('correct', 'present', 'absent')
+        }
+
+
+        // Updates the suggestion state based on the latest guess evaluation
+        function updateSuggestionState(guess, results) {
+            const guessLetters = guess.split('');
+            const currentGuessCounts = {}; // Count letters in the current guess
+            guessLetters.forEach(letter => { currentGuessCounts[letter] = (currentGuessCounts[letter] || 0) + 1; });
+
+            // Determine the minimum required count for each letter based on green/yellow in this guess
+            const currentMinCounts = {};
+            for (let i = 0; i < GRID_SIZE; i++) {
+                const letter = guessLetters[i];
+                if (results[i] === 'correct' || results[i] === 'present') {
+                    currentMinCounts[letter] = (currentMinCounts[letter] || 0) + 1;
+                }
+            }
+
+            // Update the overall minimum required counts (take the max seen so far)
+            for (const letter in currentMinCounts) {
+                minLetterCounts[letter] = Math.max(minLetterCounts[letter] || 0, currentMinCounts[letter]);
+            }
+
+            // Update known correct, present, absent, and wrong positions
+            for (let i = 0; i < GRID_SIZE; i++) {
+                const letter = guessLetters[i];
+                const status = results[i];
+
+                if (status === 'correct') {
+                    knownCorrect[i] = letter;       // Mark correct letter at this position
+                    knownPresent.add(letter);       // It's definitely present
+                    knownAbsent.delete(letter);     // Cannot be absent if correct
+                    if (wrongPosition[letter]) {    // Clear any previous wrong position info
+                        wrongPosition[letter].delete(i); // Specifically remove this index if present
+                        if (wrongPosition[letter].size === 0) { delete wrongPosition[letter]; } // Clean up empty set
+                    }
+
+                } else if (status === 'present') {
+                    knownPresent.add(letter);       // Mark as present
+                    knownAbsent.delete(letter);     // Cannot be absent if present
+                    // Record that this specific position 'i' is wrong for this letter
+                    if (!wrongPosition[letter]) wrongPosition[letter] = new Set();
+                    wrongPosition[letter].add(i);
+
+                } else { // Absent (grey)
+                    // Only mark as truly absent if it's not known to be present/correct anywhere
+                    if (!knownPresent.has(letter)) {
+                        knownAbsent.add(letter);
+                    }
+                    // Handle cases like guess 'SASSY' for word 'PASTY'
+                    // The second 'S' is grey, but 'S' is present (from the first 'S').
+                    // Record that position 'i' is a wrong position for 'S'.
+                    else {
+                        if (!wrongPosition[letter]) wrongPosition[letter] = new Set();
+                        wrongPosition[letter].add(i);
+                    }
+                }
+            }
+
+            // Clear the displayed suggestion list whenever state changes
+            possibleWordsContainer.style.display = 'none';
+            possibleWordsContainer.innerHTML = '';
+        }
+
+
+        // Filters the word list based on the current known game state
+        function findPossibleWords() {
+            // Return empty array if the suggestion pool isn't ready
+            if (!WORD_POOL_FOR_SUGGESTIONS || WORD_POOL_FOR_SUGGESTIONS.length === 0) {
+                console.warn("Word pool for suggestions is empty or not loaded.");
+                return [];
+            }
+
+            return WORD_POOL_FOR_SUGGESTIONS.filter(word => {
+                const wordLetters = word.split('');
+                const wordLetterCounts = {}; // Count letters in the potential word
+                wordLetters.forEach(l => wordLetterCounts[l] = (wordLetterCounts[l] || 0) + 1);
+
+                // --- Apply Filtering Rules ---
+                for (let i = 0; i < GRID_SIZE; i++) {
+                    const correctLetter = knownCorrect[i];
+                    const wordLetter = wordLetters[i];
+
+                    // Rule 1: Must match known correct letters at the exact position
+                    if (correctLetter && correctLetter !== wordLetter) return false;
+
+                    // Rule 3: Cannot have a known present letter in a position where it's known to be wrong
+                    if (wrongPosition[wordLetter] && wrongPosition[wordLetter].has(i)) return false;
+                }
+
+                // Rule 2: Cannot contain known absent letters, UNLESS that letter is also required elsewhere
+                // (e.g., required minimum count > 0, or correct in another position)
+                for (const absentLetter of knownAbsent) {
+                    if (wordLetters.includes(absentLetter)) {
+                        // Check if this absent letter MUST be in the word anyway
+                        let isRequired = minLetterCounts[absentLetter] > 0;
+                        if (!isRequired) { // Double check if it's correct in a different slot
+                            for(let k=0; k<GRID_SIZE; k++) {
+                                if(knownCorrect[k] === absentLetter) {
+                                    isRequired = true;
+                                    break;
+                                }
+                            }
+                        }
+                        // If it includes an absent letter that is NOT required elsewhere, filter it out
+                        if (!isRequired) return false;
+                    }
+                }
+
+                // Rule 4: Must contain ALL letters known to be present
+                for (const presentLetter of knownPresent) {
+                    if (!wordLetters.includes(presentLetter)) return false;
+                }
+
+                // Rule 5: Must meet the minimum required count for each present/correct letter
+                for (const letter in minLetterCounts) {
+                    if ((wordLetterCounts[letter] || 0) < minLetterCounts[letter]) return false;
+                }
+
+                return true; // If all rules pass, keep the word
+            });
+        }
+
+        // Displays the filtered list of possible words
+        function displayPossibleWords() {
+            if (isGameOver) { // Don't show suggestions if game is over
+                possibleWordsContainer.innerHTML = '<span>Game is over.</span>';
+                possibleWordsContainer.style.display = 'block';
+                return;
+            }
+
+            const words = findPossibleWords(); // Get the filtered list
+            possibleWordsContainer.innerHTML = ''; // Clear previous suggestions
+
+            if (words.length > 0) {
+                const maxToShow = 100; // Limit displayed words for performance/readability
+                const headerText = words.length > maxToShow
+                    ? `Found ${words.length} words (displaying first ${maxToShow}):`
+                    : `Found ${words.length} possible word(s):`;
+
+                const headerSpan = document.createElement('span'); // Create span for header
+                headerSpan.textContent = headerText;
+                possibleWordsContainer.appendChild(headerSpan); // Add header first
+
+                // Add each word as a separate span
+                words.slice(0, maxToShow).forEach(word => {
+                    const span = document.createElement('span');
+                    span.textContent = word;
+                    possibleWordsContainer.appendChild(span);
+                });
+            } else {
+                // Message if no words match the criteria
+                possibleWordsContainer.innerHTML = '<span>No matching words found in list.</span>';
+            }
+            possibleWordsContainer.style.display = 'block'; // Make the container visible
+            possibleWordsContainer.scrollTop = 0; // Scroll to the top of the list
+        }
+
+        // Applies CSS class to a cell with a delay for animation
+        function applyCellStyle(cell, styleClass, delay) {
+        setTimeout(() => {
+            // Check if cell still exists in the DOM before modifying
+            if (cell && document.body.contains(cell)) {
+                cell.classList.remove('correct', 'present', 'absent'); // Clear previous results
+                cell.classList.add(styleClass); // Add the new result class
+            }
+        }, delay);
+        }
+
+        // Updates the virtual keyboard key colors based on guess results
+        function updateKeyboard(guess, results) {
+            const guessLetters = guess.split('');
+            for (let i = 0; i < guessLetters.length; i++) {
+                const letter = guessLetters[i];
+                const status = results[i]; // 'correct', 'present', or 'absent'
+                const keyButton = keyboardKeys[letter]; // Get the corresponding key DOM element
+
+                if (keyButton) { // Check if the key element exists
+                    // --- Determine current status priority ---
+                    const currentStatusPriority = { 'correct': 3, 'present': 2, 'absent': 1, 'default': 0 };
+                    let currentStatus = 'default';
+                    if (keyButton.classList.contains('correct')) currentStatus = 'correct';
+                    else if (keyButton.classList.contains('present')) currentStatus = 'present';
+                    else if (keyButton.classList.contains('absent')) currentStatus = 'absent';
+
+                    // --- Update only if the new status is higher or equal priority ---
+                    // ('correct' overrides all, 'present' overrides 'absent' and 'default')
+                    if (currentStatusPriority[status] >= currentStatusPriority[currentStatus]) {
+                        keyButton.classList.remove('present', 'absent', 'correct'); // Clear existing status
+                        keyButton.classList.add(status); // Add the new status class
+                    }
+                }
+            }
+        }
+
+        // Checks if the game has ended (win or loss)
+        function checkForEndOfGame(guess) {
+            if (isGameOver) return; // Don't process if already marked as over
+
+            if (guess === secretWord) { // Win condition
+                showMessage("You Win!", true); // Show success message
+                isGameOver = true;
+            } else { // Not a win, check for loss
+                currentRowIndex++; // Move to the next row
+                currentGuess = ''; // Clear the guess for the new row
+                if (currentRowIndex >= MAX_GUESSES) { // Loss condition (out of guesses)
+                    showMessage(`Game Over! Word was: ${secretWord}`); // Show failure message and reveal word
+                    isGameOver = true;
+                } else {
+                    // Game continues, update the typing indicator for the new row
+                    updateTypingIndicator();
+                }
+            }
+
+            // If the game is now marked as over, disable controls
+            if (isGameOver) {
+                if (giveUpButton) giveUpButton.disabled = true;
+                if (showPossibleButton) showPossibleButton.disabled = true;
+                document.removeEventListener('keydown', handleKeyDown); // Stop listening for key presses
+                updateTypingIndicator(); // Ensure typing indicator is removed
+            }
+        }
+
+        // Handles the "Give Up" button click
+        function handleGiveUp() {
+            if (isGameOver) return; // Do nothing if already over
+            isGameOver = true;
+            showMessage(`Word was: ${secretWord}`); // Reveal the word
+            // Disable buttons
+            if (giveUpButton) giveUpButton.disabled = true;
+            if (showPossibleButton) showPossibleButton.disabled = true;
+            document.removeEventListener('keydown', handleKeyDown); // Stop keyboard input
+            updateTypingIndicator(); // Remove typing indicator
+        }
+
+        // Displays messages to the user (e.g., "Not enough letters", "You Win!")
+        function showMessage(msg, isSuccess = false) {
+            messageArea.textContent = msg;
+            // Use different colors for success/error messages
+            messageArea.style.color = isSuccess ? 'var(--correct-bg)' : 'var(--absent-bg)';
+        }
+
+        // Applies the shake animation to a specific row
+        function shakeRow(rowIndex) {
+            // Basic validation
+            if (rowIndex < 0 || rowIndex >= MAX_GUESSES || !gridCells[rowIndex]) return;
+
+            const rowElement = document.getElementById(`row-${rowIndex}`);
+            if (rowElement) {
+                rowElement.classList.add('shake');
+                // Remove the class after the animation duration (500ms)
+                setTimeout(() => {
+                    // Re-select element in case it was removed during animation
+                    const currentElement = document.getElementById(`row-${rowIndex}`);
+                    if (currentElement) currentElement.classList.remove('shake');
+                }, 500);
+            }
+        }
+
+        // --- Word Loading and Game Initialization ---
+        async function loadWordsAndStartGame() {
+            try {
+                const response = await fetch(WORD_FILE_PATH); // Fetch the word list file
+                if (!response.ok) { // Check if the fetch was successful
+                    throw new Error(`HTTP error! status: ${response.status} - Could not fetch ${WORD_FILE_PATH}`);
+                }
+                const text = await response.text(); // Read the file content as text
+
+                // Process the text to get a clean word list
+                const words = text
+                    .split(/\r?\n/) // Split into lines (handles Windows/Unix endings)
+                    .map(word => word.trim().toUpperCase()) // Trim whitespace, convert to uppercase
+                    // Filter for valid words (correct length, only letters)
+                    .filter(word => word.length === GRID_SIZE && /^[A-Z]+$/.test(word));
+
+                // Check if any valid words were found
+                if (words.length === 0) {
+                    throw new Error(`No valid ${GRID_SIZE}-letter words found in ${WORD_FILE_PATH}.`);
+                }
+
+                // Populate the global word list variables
+                ANSWER_LIST = words;
+                ALLOWED_GUESSES = new Set(ANSWER_LIST); // Use the same list for allowed guesses
+                WORD_POOL_FOR_SUGGESTIONS = [...ANSWER_LIST]; // Create a copy for suggestions
+
+                console.log(`Loaded ${ANSWER_LIST.length} words.`);
+                initializeGame(); // *** Start the actual game now that words are loaded ***
+
+            } catch (error) { // Handle errors during loading/processing
+                console.error('Error loading or processing words:', error);
+                showMessage(`Error loading words: ${error.message}`);
+                // Keep buttons disabled if loading fails, preventing game start
+                if(restartButton) restartButton.disabled = true;
+                if(giveUpButton) giveUpButton.disabled = true;
+                if(showPossibleButton) showPossibleButton.disabled = true;
+            }
+        }
+
+        // --- Start the process ---
+        // Add listener to run loadWordsAndStartGame only after the basic HTML structure is ready
+        document.addEventListener('DOMContentLoaded', loadWordsAndStartGame);
+
+    </script>
+
+</body>
+</html>

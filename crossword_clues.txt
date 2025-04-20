@@ -1,0 +1,811 @@
+ALGAE::Pond scum that’s greener than your smoothie.
+ALIBI::Excuse that keeps suspects out of stripes.
+ALMOND::Nut behind many a non‑dairy “milk.”
+ANCHOR::Heavy metal keeping ships chill.
+ANGLE::Math’s point of view.
+APEX::Top of the food chain—or a mountain.
+ARCHER::Bow‑tied occupation at a range.
+AROMA::Nose‑worthy aura from coffee or cookies.
+BANDIT::Outlaw with a flair for kerchiefs.
+BANJO::Plucky bluegrass six‑string cousin.
+BANYAN::Indian fig tree with wandering roots.
+BASIL::Pesto’s leafy backbone.
+BASSO::Deep voice that rattles chandeliers.
+BEACON::Guiding light for lost mariners.
+BEAGLE::Snoopy’s real‑world breed.
+BUREAU::Tall dresser—or a federal department.
+CABANA::Beach hut where towels retire.
+CADDIS::Larval fly building stick condos.
+CAMBRIA::Old name of Wales (and a serif font).
+CANTEEN::Portable hydration station for hikers.
+CAPSULE::Pill you swallow—or rocket room.
+CARAFE::Tabletop vessel for ambitious caffeine quotas.
+CARNET::Customs booklet for globe‑trotting gear.
+CASHEW::Curved nut that never shells itself.
+DAGGER::Knife with Shakespearean stage presence.
+DAISY::Flower begging to be plucked “loves‑me.”
+DALLAS::Texas city of big‑hair legends.
+DEBRIS::Mess after fireworks, storms, toddlers.
+DEBUT::First bow on life’s stage.
+DELTA::Triangle‑shaped river mouth.
+DERBY::Fancy hat—or Kentucky horse race.
+DORSAL::Back‑side adjective for fins and spines.
+EAGLET::Fluffy future raptor.
+EBONY::Dark, dense wood in piano keys.
+ECLIPSE::When the moon photobombs the sun.
+ECUADOR::Equatorial nation hugging Andes peaks.
+EELGRASS::Ribbon‑like salad for seahorses.
+EFFIGY::Protest puppet nobody invites to dinner.
+ELIXIR::Legendary cure‑all in shiny vial.
+EMERALD::May birthstone, Wizard‑approved hue.
+FABRIC::What yarn becomes after teamwork.
+FALCON::Fast bird wearing leather hoods.
+FARINA::Cream‑of‑Wheat’s fancy name.
+FENNEL::Licorice‑flavored bulb for fancy salads.
+FESTER::Rot with a flair for drama.
+FIBULA::Calf‑side leg bone—spare part.
+FLANGE::Rim engineers love to bolt.
+FORGE::Blacksmith’s hot idea factory.
+GADGET::Any doohickey you forgot you needed.
+GALAXY::Star collection; ours has spiral arms.
+GAMBIT::Opening chess ploy with ulterior motive.
+GARLIC::Vampire repellent that tastes divine.
+GELATO::Italian ice cream’s silkier cousin.
+GENTOO::Penguin sporting white bonnet stripes.
+GIMMICK::Sales hook with questionable longevity.
+GONDOLA::Venice taxi propelled by serenades.
+HABIT::Behavior groove you can’t un‑wear.
+HAGGIS::Scottish stomach stuffed with mystery meats.
+HALBERD::Medieval axe‑spear combo—two‑for‑one.
+HAMLET::Danish prince—or tiny village.
+HARBOR::Water parking lot for boats.
+HAZMAT::Suit for when things get chemically spicy.
+HELIUM::Gas that pitches voices sky‑high.
+HORIZON::Earth‑sky handshake line.
+IBEX::Alpine goat moonlighting on cliffs.
+ICARUS::Greek who flew too ambitiously close.
+ICICLE::Winter fang hanging from rooftops.
+IGNITE::Start fire—or passion (handle wisely).
+IMBIBE::Sip with gusto.
+INCUBUS::Nightmare‑inducing demon; gothic band.
+INDIGO::Blue with a purple secret.
+IONIAN::Sea between Greece and Italy.
+JACKAL::Cackling scavenger of savannas.
+JAGUAR::Spotted cat—and a V‑8 namesake.
+JASMINE::Fragrant flower in nighttime tea.
+JAVELIN::Olympic spear you hope lands far.
+JETWAY::Accordion hallway from gate to plane.
+JIGSAW::Puzzle requiring edge‑piece management.
+JOIST::Beam supporting upstairs stompers.
+JUBILEE::Big anniversary bash.
+KABOB::Dinner conveniently on a stick.
+KARATE::Martial art where boards fear fists.
+KAYAK::One‑person canoe that flips palindromically.
+KESTREL::Tiny falcon hovering like a drone.
+KEYPAD::Mini keyboard for PIN drama.
+KHAKIS::Pants with office‑casual superpower.
+KOALA::Eucalyptus‑enthusiast marsupial.
+KUDOS::Verbal high‑five.
+LABRUM::Ring of cartilage in shoulders, hips.
+LAGOON::Shallow pool between reef and shore.
+LANTERN::Portable light before batteries bragged.
+LARVAE::Baby bugs evading rent.
+LARYNX::Voice‑box HQ.
+LATTICE::Criss‑cross pie‑top architecture.
+LEMON::Citrus that turns faces inside‑out.
+LYRIC::Song line that sticks in brains.
+MACAW::Rainbow parrot with volume knob broken.
+MAGNET::Object that’s uncomfortably attractive.
+MALLET::Hammer’s softer cousin.
+MANTIS::Praying insect with kung‑fu stance.
+MARBLE::Rock for statues—or shooter game.
+MARZIPAN::Almond candy shaped like anything.
+MEADOW::Grassland inviting picnics and ticks.
+MOSAIC::Picture built from tiny colorful shards.
+NABOB::Wealthy bigwig—Scrabble‑friendly.
+NARCISSUS::Flower named for self‑absorbed youth.
+NECTAR::Bee fuel of floral origin.
+NEMESIS::Archenemy who ruins brunch plans.
+NICKEL::Coin worth five—or plating.
+NOMAD::Person with no forwarding address.
+NOSTRIL::Twin nose portals.
+NUCLEUS::Cell’s command center.
+OBELISK::Pointy monument, Washington’s tall stick.
+OBOE::Woodwind with a reedy attitude.
+OCARINA::Pottery flute from Zelda quests.
+OCTAGON::Eight‑sided figure—or MMA cage.
+ODYSSEY::Epic trip with wrong turns.
+OLIVE::Martini’s little life raft.
+OMELET::Folded breakfast holding fridge leftovers.
+ORACLE::Cryptic prophet with zero phone support.
+PAGODA::Tiered Asian temple roof stack.
+PALETTE::Artist’s color buffet board.
+PANACEA::Cure‑all that pharmacists eye warily.
+PARADOX::Statement that cancels itself elegantly.
+PARSNIP::Carrot’s paler cousin.
+PELICAN::Bird with built‑in grocery bag.
+PHALANX::Ancient Greek shield wall.
+PIXEL::Tiny square of screen real estate.
+QUACK::Duck noise—or a fake doctor.
+QUAGMIRE::Sticky situation; boots optional.
+QUARTZ::Common crystal powering watches.
+QUASAR::Galaxy core beaming cosmic lighthouse.
+QUEEN::Bee, chess piece, or Freddie.
+QUENCH::Satisfy thirst or temper steel.
+QUIBBLE::Petty argument over semantics.
+QUIETUS::Poetic end of life.
+RACCOON::Trash‑panda with bandit mask.
+RADIUM::Glow‑in‑the‑dark element Marie loved.
+RAMEN::Budget‑savvy noodle bowl.
+RAMPART::Defensive wall—cue anthem lyric.
+RAPTOR::Bird of prey—or clever dinosaur.
+REBATE::Money boomerang from retailers.
+RHYTHM::Word flaunting vowel scarcity.
+RIPTIDE::Current that drags surfers sideways.
+SABER::Curved cavalry sword.
+SAGUARO::Cactus doing victory pose.
+SALMON::Pink fish that fights upstream.
+SAPPHIRE::Blue gem fit for royals.
+SATCHEL::Cross‑body carryall for adventurers.
+SCYTHE::Grim Reaper’s lawn tool.
+SEQUOIA::Tree taller than excuses.
+SYNAPSE::Neural handshake transmitting thoughts.
+TACIT::Understood without saying a word.
+TAFFETA::Rustly fabric of prom nightmares.
+TANGERINE::Orange cousin with peel‑ease.
+TAROT::Deck for fortune‑telling freelancers.
+TESSERA::Single tile in ancient mosaics.
+THIMBLE::Finger hardhat for sewists.
+TOMATO::Salad fruit pretending to be veg.
+TYPHOON::Pacific hurricane alias.
+UBIQUITY::Everywhere‑ness; Wi‑Fi’s dream.
+UKULELE::Tiny Hawaiian strummer.
+UMBRAGE::Offense you might take (but return).
+UNCOUTH::Lacking polish; bowl slurper.
+UNICORN::Mythic horse with built‑in skewer.
+UNISON::Musical agreement—one voice many throats.
+UNTANGLE::Remove knots from earbuds—or plots.
+URCHIN::Spiny sea critter; street kid.
+VACUUM::Space that sucks—or cleans.
+VALIANT::Bravery wearing a cape.
+VARNISH::Glossy wood topcoat.
+VECTORS::Arrows beloved by physicists.
+VELVET::Fabric smoother than apologies.
+VERBENA::Fragrant flowering herb.
+VESSEL::Container—or seagoing craft.
+VORTEX::Whirling funnel of chaos.
+WAFER::Thin crispy layer in KitKats.
+WALRUS::Tusked blubbered beachgoer.
+WALTZ::Three‑four‑time ballroom glide.
+WARLOCK::Male witch; spell guy.
+WEASEL::Slender mammal; slippery metaphor.
+WHARF::Pier for cargo gossip.
+WIDGET::Placeholder gadget in business slides.
+WISTERIA::Purple vine that devours pergolas.
+XENON::Noble gas lighting projectors.
+XEROX::Copy brand turned verb.
+XERUS::African ground squirrel.
+XIPHOID::Sword‑like tip of sternum.
+XMAS::Abbrev. for December spree.
+XYLOPHONE::Percussion with rainbow bars.
+XYSTUS::Ancient Greek covered walkway.
+XENIAL::Friendly toward guests.
+YACHT::Luxury boat with shoe policy.
+YAMMER::Chat incessantly about nothing.
+YARDARM::Spar on a square‑rigged mast.
+YODEL::Swiss mountain vocal rollercoaster.
+YONDER::Over there in folksy speak.
+YORKER::Cricket pitch aimed at toes.
+YOUTHFUL::Possessing energy and zero back pain.
+YUCCA::Desert plant with sword leaves.
+ZAGREB::Capital Croatia calls home.
+ZAIRE::Former name of DR Congo.
+ZEALOT::Fan so devoted it’s scary.
+ZEBRA::Striped equid confusing barcodes.
+ZENITH::Highest point in sky—or career.
+ZEOLITE::Mineral behind kitty‑litter magic.
+ZESTY::Full of tang and pep.
+ZYGOTE::Single cell on a mission to multiply.
+AA::Battery size for remotes
+AB::Set of show‑off abs, briefly
+AD::Magazine promo piece
+AH::Sound of sudden insight
+AI::Zero score in tennis
+AL::Gulf Coast state abbr.
+AM::Morning time designation
+AN::Article before a vowel sound
+AS::Word after “same” or “just”
+AT::E‑mail symbol when spoken
+AW::Syllable of sympathy (“__ poor thing”)
+AX::Tool swung by a lumberjack
+AY::Old sailor’s “yes”
+BE::Simply exist
+BI::Prefix meaning “two”
+BY::Next to, near
+CO::Business abbr. on a letterhead
+DA::City prosecutor, for short
+DE::German article meaning “the”
+DO::Perform or accomplish
+ED::Past‑tense ending letters
+EF::Name of the sixth alphabet letter
+EL::Letter that precedes M
+EM::Printing dash unit
+EN::Dash that’s shorter than an em
+EX::Former partner
+GO::Proceed or depart
+HA::One syllable of laughter
+HE::Pronoun for a guy
+HI::Friendly greeting
+HM::Thoughtful hesitation sound
+HO::One of Santa’s trio
+ID::Driver’s‑license info, for short
+IF::Conditional conjunction
+IL::Abbr. on Chicago mail
+IN::Opposite of “out”
+IO::Volcanic moon of Jupiter
+IP::Address that routes data
+IS::Equals, grammatically
+IT::Pronoun for a thing
+IV::Hospital drip, for short
+IX::Nine, in old Rome
+JO::Scottish term of endearment
+KA::Ancient Egyptian life force
+KC::Half of a Midwestern metro abbr.
+KI::Life energy, in Reiki
+KO::Knockout on a scorecard
+KY::Bluegrass State abbr.
+LA::Note just below “ti”
+LI::Chemical symbol for lithium
+LO::Biblical “behold!”
+MA::Informal mom
+ME::Pronoun for the speaker
+MI::Third sol‑fège syllable
+MM::“Mmm” of tasty approval, minus vowels
+MO::Calendar abbreviation for month
+MU::Greek letter after lambda
+NA::Table‑salt half, chem. symbol
+NE::Compass dir. opposite SW
+NI::Shrubbery‑seeking Knights’ cry
+NO::Negative response
+NU::Greek letter after mu
+NY::Big Apple’s state abbr.
+OB::Prefix meaning “against”
+OD::Drug overdose, briefly
+OE::North Atlantic wind in crosswords
+OF::Belonging to
+OH::Expression of surprise
+OI::Brit’s attention‑getter
+OK::Approval word
+OM::Meditation mantra
+ON::Powered and operating
+OP::Surgical procedure, for short
+OR::Word of alternative choice
+OS::Computer core, briefly
+OU::Startled howl (“__ch!” as in pain)
+OW::Cry after a stubbed toe
+OX::Big draft animal
+OY::Yiddish lament
+PA::Informal dad
+PC::Personal computer
+PE::Gym class abbr.
+PI::Irrational circle ratio
+PO::Military mailing abbr.
+QI::Vital energy in Chinese medicine
+QU::Rare letter pair in English
+RA::Egyptian sun deity
+RE::Note following “do”
+RI::Ocean State postal abbr.
+SA::Weekend abbr. on a calendar
+SE::Compass dir. opposite NW
+SI::“Ti” in fixed‑do notation
+SO::Therefore; also a note after “fa”
+ST::Road abbr. on a sign
+SU::Sun. abbr. on planners
+TA::Classroom aide, briefly
+TE::Note between re and fa
+TI::Seventh note on the scale
+TO::Preposition paired with “fro”
+UM::Verbal filler while thinking
+UN::Global peace grp.
+UP::Not down
+UR::Ancient Mesopotamian city
+US::You and I collectively
+UT::Old sol‑fège for “do”
+UV::Sunburn‑causing rays, briefly
+UX::Designer’s focus on user feel
+VA::Commonwealth north of NC
+VE::Half of “I’ve” contraction
+WE::Plural of “I”
+XI::Greek letter between nu and omicron
+XL::Clothing size above L
+XO::Letters for hugs and kisses
+YA::Casual “yes” in slang
+YE::Old‑timey “you”
+YO::Attention‑getting shout
+YR::Abbr. for 365 days
+ZA::Pizza, in slang
+ZE::Gender‑neutral pronoun
+ZI::Last half of a zigzag? crossword fill
+ZO::Meditative Buddhist chant variant
+AAH::Sigh of sudden relief  
+AAL::Indian dye‑yielding tree  
+ABA::US lawyers’ org., briefly  
+ABC::The basics, informally  
+ACE::Top pilot or tennis serve  
+ACT::Perform onstage  
+ADA::Diabetes‑focused health grp.  
+ADD::Do arithmetic, say  
+ADO::Much fuss about nothing  
+AFT::Toward a ship’s stern  
+AGA::Ottoman bigwig title  
+AGE::Get older  
+AGO::In years past  
+AHA::“Now I see!”  
+AID::Render assistance  
+AIL::Feel unwell  
+AIM::Point a dart  
+AIR::Broadcast over radio  
+ALA::In the style of  
+ALE::Pub pint  
+ALP::Swiss peak  
+AMP::Guitarist’s speaker stack  
+AND::Conjunction on lists  
+ANT::Tiny hill builder  
+ANY::No particular one  
+AOK::Absolutely fine  
+APE::Imitate like a monkey  
+APT::Fitting; appropriate  
+ARC::Rainbow shape  
+ARE::Second‑person verb “to be”  
+ARF::Dog’s bark in comics  
+ARM::Limb with an elbow  
+ART::Gallery display  
+ASH::Fireplace residue  
+ASK::Pose a question  
+ASP::Cleopatra‑biting viper  
+ATE::Had a meal  
+ATM::Cash‑dispensing machine  
+AWE::Reverent wonder  
+AWL::Leather‑punching tool  
+AXE::Chopping implement  
+AYE::Vote in favor  
+BAD::Not good at all  
+BAG::Carry‑on sack  
+BAH::“Humbug!” cousin  
+BAN::Official prohibition  
+BAR::Tavern counter  
+BAT::Nocturnal flier  
+BAY::Coastal inlet  
+BED::Place to snooze  
+BEE::Honey maker  
+BEL::Root unit of decibel  
+BET::Casino wager  
+BIO::Life story, briefly  
+BIT::Tiny amount  
+BOA::Feathered wrap  
+BOB::Short haircut  
+BOG::Wetland swamp  
+BOO::Ghost’s word  
+BOT::Automated web helper  
+BOX::Square container  
+BOY::Male youngster  
+BRA::Support garment  
+BUG::Software glitch  
+BUM::Vagrant; hobo  
+BUN::Burger holder  
+BUS::City transport  
+BUT::However  
+CAB::City taxi  
+CAD::Dishonorable fellow  
+CAM::Video lens, for short  
+CAN::Tin container  
+CAP::Bottle topper  
+CAR::Road vehicle  
+CAT::Purring pet  
+CEO::Top exec in org.  
+CHI::Greek letter after phi  
+CIA::Langley spy org.  
+COD::Fish in fish‑n‑chips  
+COG::Gear tooth  
+COP::Beat patrol officer  
+COT::Portable camp bed  
+COW::Bovine milk source  
+COY::Playfully shy  
+CPU::Computer’s “brain,” abbr.  
+CRU::French wine grade  
+CUB::Baby bear or lion  
+CUE::Signal to begin  
+CUP::Coffee vessel  
+CUR::Mangy mutt  
+CUT::Slice with scissors  
+DAD::Pop, informally  
+DAM::Beaver’s wall  
+DAY::24‑hour period  
+DEA::Drug‑enforcement agency  
+DEB::Young society débutante  
+DEE::Name of the letter D  
+DEL::Keyboard erase key  
+DEN::Cozy study  
+DEW::Morning moisture  
+DEX::D&D agility stat  
+DIE::Cubical game piece  
+DIG::Excavate or “get”  
+DIN::Loud racket  
+DIP::Nacho sauce  
+DOC::Movie, informally  
+DOE::Female deer  
+DOG::Man’s best friend  
+DON::Put on clothing  
+DOT::Polka partner  
+DRY::Not moist  
+DUB::Give a new soundtrack  
+DUE::Owed payment  
+DUO::Musical twosome  
+EAR::Hearing organ  
+EAT::Consume food  
+EBB::Recede, as tide  
+EEL::Slippery fish  
+EGG::Breakfast oval  
+EGO::Sense of self  
+ELI::Yale student, old term  
+ELK::Antlered grazer  
+ELM::Shade‑providing tree  
+EMO::Angsty rock genre  
+EMU::Flightless Aussie bird  
+END::Finish line  
+ENS::Junior naval officer  
+ERA::Historical span  
+ERG::Tiny work unit  
+ERR::Make a mistake  
+ETA::Arrival guess, abbr.  
+EWE::Female sheep  
+EYE::See‑ing organ  
+FAD::Short‑lived craze  
+FAN::Sports enthusiast  
+FAR::Opposite of near  
+FAX::Old office sender  
+FBI::Top US investigators  
+FEE::Service charge  
+FIG::Newton cookie fruit  
+FIN::Fish limb  
+FIR::Christmas tree type  
+FLU::Winter bug  
+FOE::Opponent  
+FOG::Thick mist  
+FOR::In favor of  
+FUR::Animal pelt  
+GAG::Practical joke  
+GAL::Young woman  
+GAP::Blank space  
+GAS::Vehicle fuel  
+GEL::Hair fixative  
+GEM::Precious stone  
+GET::Obtain  
+GIG::Musician’s one‑night job  
+GIN::Martini liquor  
+GNU::Free‑software mascot  
+GOD::Supreme being  
+GUM::Chewable sweet  
+GUN::Firearm  
+GUT::Belly region  
+GUY::Fellow  
+GYM::Workout place  
+HAM::Holiday meat  
+HAN::Early Chinese dynasty  
+HAT::Headwear  
+HEY::Informal “hello!”  
+HIP::Stylishly cool  
+HIS::Belonging to him  
+HIT::Chart‑topping song  
+HOE::Garden tool  
+HOG::Greedy pig  
+HOP::Short jump  
+HOT::Spicy or sexy  
+HUB::Central connection point  
+HUE::Color shade  
+HUM::Tuneless tune  
+ICE::Chill in cubes  
+ICY::Very cold  
+IDE::Shadlike freshwater fish  
+INK::Pen fluid  
+ION::Charged atom  
+IRE::Intense anger  
+IRS::Tax‑collecting org.  
+ITS::Belonging to it  
+IVY::Clinging vine  
+JAB::Quick boxing punch  
+JAM::Fruit spread  
+JAR::Glass container  
+JET::Fast plane  
+JIG::Lively dance  
+JOG::Easy run  
+JOE::Cup of coffee, casually  
+JOY::Great delight  
+JUG::Milk container  
+KEN::One’s range of knowledge  
+KEG::Beer barrel  
+KID::Young goat or child  
+KIN::Family members  
+KIT::Set of tools  
+KOI::Japanese pond fish  
+LAB::Science class room  
+LAC::Resin used in shellac  
+LAD::Young boy  
+LAG::Internet latency  
+LAM::Fugitives go “on the ___”  
+LAP::Circuit around a track  
+LAW::System of rules  
+LAX::Los Angeles airport code  
+LAY::Put down gently  
+LEA::Grassy meadow  
+LED::Guided the way  
+LEE::Sheltered side  
+LEG::Drumstick piece  
+LEI::Hawaiian garland  
+LET::Tennis net serve  
+LID::Jar top  
+LIE::Tell a falsehood  
+LOB::High tennis shot  
+LOG::Timber piece  
+LOO::British restroom  
+LOT::Parking area  
+LOW::Not high  
+MAC::Apple computer  
+MAD::Angry  
+MAG::Glossy periodical  
+MAN::Adult human male  
+MAP::Fold‑out guide  
+MAT::Doormat  
+MAW::Beast’s gaping mouth  
+MAX::Greatest amount  
+MAY::Fifth month  
+MEN::Adult males  
+MET::NYC opera house nickname  
+MEW::Kitten’s cry  
+MIA::Missing in action  
+MIC::Stage mike, abbr.  
+MID::Center point  
+MIL::Thousand‑inch unit or mom‑in‑law  
+MIN::Minute, abbr.  
+MIX::Combine ingredients  
+MOB::Angry crowd  
+MOD::Hip ’60s Brit style  
+MOO::Cow’s complaint  
+MOP::Floor cleaner  
+MOW::Cut the grass  
+MRI::Magnetic imaging scan  
+MVP::Star of the game  
+NAP::Quick snooze  
+NAY::Negative vote  
+NEE::Born as  
+NET::After deductions  
+NEW::Fresh, unused  
+NIB::Pen point  
+NIL::Soccer score “zero”  
+NIP::Little sip or pinch  
+NIT::Picky criticism  
+NIX::Veto emphatically  
+NOD::Silent “yes”  
+NOG::Yuletide drink  
+NOR::Neither partner  
+NOS::Abbrev. on medicine bottles  
+NOT::Opposite of is  
+NOW::At this moment  
+NUN::Convent resident  
+NUT::Bolt’s mate  
+OAF::Clumsy lout  
+OAK::Sturdy hardwood tree  
+OAR::Rowing tool  
+OAT::Granola grain  
+ODE::Poetic tribute  
+OFF::Not powered  
+OFT::Frequently  
+OHM::Unit of resistance  
+OIL::Slippery energy source  
+OLE::Toreador’s cheer  
+OMG::Text “no way!”  
+ONO::Yoko of art rock  
+OPT::Make a choice  
+ORB::Royal scepter companion  
+ORE::Metal‑bearing rock  
+ORC::Tolkien ogre  
+ORT::Table scrap  
+OSE::Sugar suffix in chem.  
+OTT::Over‑the‑top, abbr.  
+OUR::Belonging to us  
+OUT::No longer hidden  
+OVA::Egg cells  
+OWL::Nocturnal hooter  
+OWN::Possess  
+PAD::Notepad or crash cushion  
+PAL::Buddy  
+PAN::Skillet  
+PAR::Golf standard score  
+PAT::Light tap  
+PAW::Dog foot  
+PEA::Split‑soup veggie  
+PEG::Clothesline fastener  
+PEN::Writing tool  
+PEP::Extra energy  
+PER::Each  
+PET::Domesticated animal  
+PEW::Church bench  
+PHI::Golden‑ratio letter  
+PIC::Snapshot, slang  
+PIE::Sliced dessert  
+PIG::Pen resident  
+PIN::Four‑digit ATM security  
+PIT::Stone fruit center  
+PIX::Digital pictures, slang  
+POE::Macabre writer Edgar  
+POI::Hawaiian taro paste  
+POP::Fizzed soda  
+POT::Cooking vessel  
+POW::Captured soldier status  
+PRY::Snoop nosily  
+PSA::Public‑service spot  
+PSI::Tire‑pressure abbr.  
+PUB::British bar  
+PUG::Wrinkly‑faced dog  
+PUN::Wordplay joke  
+PUP::Young dog  
+PUT::Place down  
+PYX::Eucharist container  
+QAT::Chewed Arabian leaf  
+QUA::In the role of  
+QUE::Spanish for “what”  
+QUI::Start of “vive” alert phrase  
+QUO::Status ___  
+RAD::Totally cool, slang  
+RAG::Old cloth  
+RAH::Pep‑rally cheer  
+RAM::Male sheep  
+RAN::Jogged  
+RAP::Rhythmic talk‑song  
+RAT::Despicable rodent  
+RAW::Uncooked  
+RED::Stop‑sign color  
+REF::Sports official  
+REM::Dream‑heavy sleep phase  
+REP::Gym repetition  
+RES::Latin “things,” in law  
+RIB::BBQ bone  
+RID::Free from  
+RIG::Set up equipment  
+RIM::Basketball hoop edge  
+RIO::Carnaval city, briefly  
+RIP::Tear or tomb letters  
+RNA::Genetic cousin of DNA  
+ROB::Steal  
+ROE::Fish eggs  
+ROW::Argument; line of seats  
+RUB::Massage  
+RUE::Regret deeply  
+RUG::Area carpet  
+RUN::Operate or jog  
+RUT::Muddy wheel groove  
+RYE::Whiskey grain  
+SAD::Unhappy  
+SAG::Droop downward  
+SAL::Nickname for Salvador  
+SAP::Tree fluid  
+SAT::Weekend abbr. in cals.  
+SAW::Tool with sharp teeth  
+SAY::Utter words  
+SEA::Large saltwater body  
+SEC::Brief moment  
+SEE::Observe  
+SET::Match trio in tennis  
+SEW::Stitch with thread  
+SHE::Female pronoun  
+SHY::Timid or bashful  
+SIC::Insert when quoting errors  
+SIN::Moral wrongdoing  
+SIP::Small drink  
+SIR::Polite address  
+SIS::Female sibling  
+SIT::Take a seat  
+SKI::Alpine gear sport  
+SKY::Overhead expanse  
+SOB::Cry loudly  
+SON::Male child  
+SOP::Standard procedure, abbr.  
+SPA::Health resort  
+SPF::Sunblock rating letters  
+SPY::Secret agent  
+SQL::Database query language  
+SRO::Standing‑room only  
+SSN::Tax‑form digits  
+STY::Pig pen  
+SUB::Sandwich or replacement  
+SUE::Bring to court  
+SUN::Our closest star  
+SUP::“What’s up?” slang  
+TAD::Small amount  
+TAG::Playground chase word  
+TAJ::___ Mahal  
+TAN::Beach result  
+TAR::Road‑paving goo  
+TAX::Government levy  
+TEA::Afternoon drink  
+TED::Ideas‑sharing conference  
+TEE::Golf starting peg  
+TEN::Perfect score  
+TIC::Facial twitch  
+TIE::Score knot or neckwear  
+TIN::Metal can material  
+TIP::Helpful pointer  
+TOE::Foot digit  
+TOO::Also, likewise  
+TOP::Uppermost part  
+TOR::Rocky peak  
+TOT::Little tyke  
+TOW::Pull with a cable  
+TOY::Kid’s plaything  
+TRY::Make an attempt  
+TSK::Cluck of disapproval  
+TUB::Old‑fashioned bath  
+TUG::Hard pull  
+TUX::Formalwear suit  
+TWO::Number right of one  
+UGH::“Gross!” sound  
+UKE::Tiny Hawaiian strummer  
+UMP::Baseball arbiter  
+UNI::University, for short  
+UNO::Colorful card game  
+UPI::Old newswire org.  
+UPS::Brown delivery co.  
+URN::Ash container  
+USA::Stars‑and‑stripes land  
+USE::Put into service  
+UVA::Charlottesville university  
+UZI::Israeli submachine gun  
+VAC::Household cleaner, short  
+VAN::Panel truck type  
+VAT::Large tub or tax  
+VET::Animal doctor  
+VEX::Annoy greatly  
+VIA::By way of  
+VIP::Important person  
+VOX::Latin “voice”; news site  
+WAD::Crumpled bundle  
+WAG::Playful canine tail action  
+WAR::Armed conflict  
+WAS::Past‑tense “is”  
+WEB::Internet locale  
+WED::Marry  
+WEE::Very small  
+WET::Not dry  
+WHO::UN health agency  
+WHY::Question of reason  
+WIN::Come out ahead  
+WOK::Stir‑fry pan  
+WON::South Korean currency  
+WOW::Impress greatly  
+WRY::Dryly humorous  
+WYE::Y‑shaped pipe joint  
+XED::Marked with an X  
+XER::Photocopier, informally  
+XII::Roman numeral twelve  
+XIS::Greek letters plural of xi  
+XOX::Hugs and kisses letters  
+YAK::Talk incessantly  
+YAM::Thanksgiving tuber  
+YAP::Small dog’s bark  
+YAW::Plane’s side‑turn  
+YEA::Affirmative vote  
+YEN::Japanese currency  
+YES::Affirmative word  
+YET::Still, nevertheless  
+YOU::Second‑person pronoun  
+YUM::“Tasty!” exclamation  
+ZAG::Opposite of zig  
+ZAP::Laser sound effect  
+ZED::British “Z”  
+ZEE::American “Z”  
+ZEN::Meditative school  
+ZIG::Angle’s sharp turn  
+ZIP::Nada; zero  
+ZIT::Teenage blemish  
+ZOO::Animal park  
+ZZZ::Comic sleep symbol

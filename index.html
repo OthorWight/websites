@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML File Index</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Available HTML Files</h1>
+        <ul id="file-list">
+            
+        </ul>
+    </div>
+
+    <script>
+        const htmlFiles = ["BakerPercentage.html", "Crossword.html", "Wordle.html", "klondike.html", "mindsweeper.html", "sudoku.html", "tetris.html"]; // Files are embedded here by Python
+        const fileListElement = document.getElementById('file-list');
+
+        if (htmlFiles.length > 0 && fileListElement) {
+            htmlFiles.forEach(filename => {
+                const listItem = document.createElement('li');
+                const link = document.createElement('a');
+                link.href = filename; // Link directly to the file
+                link.textContent = filename.replace(/\.html$/i, ''); // Display name without .html
+                listItem.appendChild(link);
+                fileListElement.appendChild(listItem);
+            });
+        }
+    </script>
+</body>
+</html>

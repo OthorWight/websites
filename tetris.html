@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris – Enhanced Edition</title>
+    <style>
+        :root{
+            --bg:#0e0f13;--panel:#1b1d24;--accent:#4fd1c5;--text:#e2e8f0; --ghost: rgba(255, 255, 255, 0.2);
+            --font:"Inter",system-ui,-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",sans-serif;
+            --block-size: 24px; /* Define block size as CSS variable */
+            --board-width: calc(var(--block-size) * 10);
+            --board-height: calc(var(--block-size) * 20);
+            --preview-size: calc(var(--block-size) * 4);
+        }
+        *{margin:0;padding:0;box-sizing:border-box;}html,body{height:100%;}
+        body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased; line-height: 1.4;}
+        header,footer{background:var(--panel);text-align:center;padding:1rem 0;}header h1{font-size:1.6rem;font-weight:600;letter-spacing:.03em;color:var(--accent);}footer{font-size:.75rem;opacity:.6; margin-top: auto;} /* Push footer down */
+        main{flex:1;display:flex;justify-content:center;align-items:center;padding:1rem;}
+        #game{display:flex;gap:1.5rem; align-items: flex-start;} /* Align items to top */
+        canvas{background:#181a21;border-radius:6px;display:block;}
+        #board { width: var(--board-width); height: var(--board-height); }
+        #next, #hold { width: var(--preview-size); height: var(--preview-size); }
+        .side{width:180px;display:flex;flex-direction:column;gap:1rem;}
+        .panel{background:var(--panel);padding:.75rem;border-radius:6px;text-align:center;}
+        .panel h3{font-size:.85rem;font-weight:500;color:var(--accent);margin-bottom:.5rem;}
+        .stats p{font-size:.9rem;margin:.2rem 0;}
+        .controls{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-top:.5rem;}
+        button{flex:1 1 70px;padding:.4rem .6rem;border:none;border-radius:4px;background:var(--accent);color:#0e0f13;font-weight:600;cursor:pointer;transition:background .2s;}button:hover{background:#38b2ac;} button:disabled { background: #555; color: #aaa; cursor: not-allowed; }
+        .hint{font-size:.7rem;opacity:.7;margin-top:.3rem; text-align: center;}
+        @media(max-width:700px){#game{flex-direction:column;align-items:center}.side{flex-direction:row;width:auto; flex-wrap: wrap; justify-content: center;} .panel { flex-basis: 120px; } .hint { width: 100%; text-align: center; margin-top: 1rem;}}
+    </style>
+</head>
+<body>
+<header><h1>Tetris</h1></header>
+<main>
+    <div id="game">
+        <canvas id="board" aria-label="Tetris board"></canvas>
+        <div class="side">
+            <div class="panel"><h3>Next</h3><canvas id="next"></canvas></div>
+            <div class="panel"><h3>Hold</h3><canvas id="hold"></canvas></div>
+            <div class="panel stats">
+                <h3>Stats</h3>
+                <p>Score: <span id="score">0</span></p>
+                <p>Lines: <span id="lines">0</span></p>
+                <p>Level: <span id="level">1</span></p>
+            </div>
+            <div class="panel controls">
+                <button id="start">Start</button>
+                <button id="pause">Pause</button>
+                <button id="reset">Reset</button>
+            </div>
+            <p class="hint">Keys: ← → move | ↑ rotate CW | Z rotate CCW | ↓ soft‑drop | Space hard‑drop | C hold | P pause</p>
+        </div>
+    </div>
+</main>
+<footer><span id="copyright"></span> Tetris · Vanilla JS</footer>
+<script>
+(()=>{
+    /* ----- CONFIG ----- */
+    const COLS = 10;
+    const ROWS = 20;
+    const BLOCK_SIZE = 24; // Match CSS variable if possible, or use it directly
+    const HIDDEN_ROWS = 2; // Rows above the visible area for spawning
+
+    // Piece definitions: [color, initial shape matrix]
+    // Shapes are defined assuming (0,0) is the pivot point where possible
+    const PIECES = {
+        'I': ['#00f0f0', [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]],
+        'O': ['#f0f000', [[2,2],[2,2]]],
+        'T': ['#a000f0', [[0,3,0],[3,3,3],[0,0,0]]],
+        'S': ['#00f000', [[0,4,4],[4,4,0],[0,0,0]]],
+        'Z': ['#f00000', [[5,5,0],[0,5,5],[0,0,0]]],
+        'J': ['#0000f0', [[6,0,0],[6,6,6],[0,0,0]]],
+        'L': ['#f0a000', [[0,0,7],[7,7,7],[0,0,0]]]
+    };
+    const PIECE_IDS = Object.keys(PIECES);
+    const COLORS = [null, ...PIECE_IDS.map(id => PIECES[id][0]), 'var(--ghost)']; // Add ghost color
+    const GHOST_COLOR_INDEX = COLORS.length - 1;
+
+    const SCORE_PER_LINE = [0, 40, 100, 300, 1200]; // 0, 1, 2, 3, 4 lines
+    const BASE_DROP_INTERVAL = 1000; // ms for level 1
+    const LEVEL_LINE_THRESHOLD = 10; // Lines per level increase
+
+    // SRS Wall Kick Data: [rotation state transition] -> [test offsets (dx, dy)]
+    // Y direction is inverted from the wiki standard (positive Y is DOWN in our coords)
+    const WALL_KICK_DATA_JLSTZ = { // For J, L, S, T, Z pieces
+        '0->1': [[ 0, 0], [-1, 0], [-1,-1], [ 0,+2], [-1,+2]], // Wiki: [[0,0], [-1,0], [-1,+1], [0,-2], [-1,-2]] -> Note Y inversion
+        '1->0': [[ 0, 0], [+1, 0], [+1,+1], [ 0,-2], [+1,-2]], // Wiki: [[0,0], [+1,0], [+1,-1], [0,+2], [+1,+2]]
+        '1->2': [[ 0, 0], [+1, 0], [+1,+1], [ 0,-2], [+1,-2]], // Wiki: [[0,0], [+1,0], [+1,-1], [0,+2], [+1,+2]]
+        '2->1': [[ 0, 0], [-1, 0], [-1,-1], [ 0,+2], [-1,+2]], // Wiki: [[0,0], [-1,0], [-1,+1], [0,-2], [-1,-2]]
+        '2->3': [[ 0, 0], [+1, 0], [+1,-1], [ 0,+2], [+1,+2]], // Wiki: [[0,0], [+1,0], [+1,+1], [0,-2], [+1,-2]] -> Note Y inversion
+        '3->2': [[ 0, 0], [-1, 0], [-1,+1], [ 0,-2], [-1,-2]], // Wiki: [[0,0], [-1,0], [-1,-1], [0,+2], [-1,+2]]
+        '3->0': [[ 0, 0], [-1, 0], [-1,+1], [ 0,-2], [-1,-2]], // Wiki: [[0,0], [-1,0], [-1,-1], [0,+2], [-1,+2]]
+        '0->3': [[ 0, 0], [+1, 0], [+1,-1], [ 0,+2], [+1,+2]], // Wiki: [[0,0], [+1,0], [+1,+1], [0,-2], [+1,-2]] -> Note Y inversion
+    };
+    const WALL_KICK_DATA_I = { // For I piece (Y inverted)
+        '0->1': [[ 0, 0], [-2, 0], [+1, 0], [-2,+1], [+1,-2]], // Wiki: [[0,0], [-2,0], [+1,0], [-2,-1], [+1,+2]]
+        '1->0': [[ 0, 0], [+2, 0], [-1, 0], [+2,-1], [-1,+2]], // Wiki: [[0,0], [+2,0], [-1,0], [+2,+1], [-1,-2]]
+        '1->2': [[ 0, 0], [-1, 0], [+2, 0], [-1,-2], [+2,+1]], // Wiki: [[0,0], [-1,0], [+2,0], [-1,+2], [+2,-1]]
+        '2->1': [[ 0, 0], [+1, 0], [-2, 0], [+1,+2], [-2,-1]], // Wiki: [[0,0], [+1,0], [-2,0], [+1,-2], [-2,+1]]
+        '2->3': [[ 0, 0], [+2, 0], [-1, 0], [+2,-1], [-1,+2]], // Wiki: [[0,0], [+2,0], [-1,0], [+2,+1], [-1,-2]]
+        '3->2': [[ 0, 0], [-2, 0], [+1, 0], [-2,+1], [+1,-2]], // Wiki: [[0,0], [-2,0], [+1,0], [-2,-1], [+1,+2]]
+        '3->0': [[ 0, 0], [+1, 0], [-2, 0], [+1,+2], [-2,-1]], // Wiki: [[0,0], [+1,0], [-2,0], [+1,-2], [-2,+1]]
+        '0->3': [[ 0, 0], [-1, 0], [+2, 0], [-1,-2], [+2,+1]], // Wiki: [[0,0], [-1,0], [+2,0], [-1,+2], [+2,-1]]
+    };
+
+    /* ----- CANVAS & Contexts ----- */
+    const canvasBoard = document.getElementById('board');
+    const ctxBoard = canvasBoard.getContext('2d');
+    const canvasNext = document.getElementById('next');
+    const ctxNext = canvasNext.getContext('2d');
+    const canvasHold = document.getElementById('hold');
+    const ctxHold = canvasHold.getContext('2d');
+
+    // Set canvas dimensions based on config
+    canvasBoard.width = COLS * BLOCK_SIZE;
+    canvasBoard.height = ROWS * BLOCK_SIZE;
+    canvasNext.width = 4 * BLOCK_SIZE; // Standard preview box size
+    canvasNext.height = 4 * BLOCK_SIZE;
+    canvasHold.width = 4 * BLOCK_SIZE;
+    canvasHold.height = 4 * BLOCK_SIZE;
+
+    /* ----- DOM Elements ----- */
+    const scoreEl = document.getElementById('score');
+    const linesEl = document.getElementById('lines');
+    const levelEl = document.getElementById('level');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resetBtn = document.getElementById('reset');
+    const copyrightEl = document.getElementById('copyright');
+
+    /* ----- GAME STATE ----- */
+    let board;
+    let piece;        // Current falling piece { id, matrix, pos {x, y}, rotation }
+    let nextPieceId;  // ID of the next piece
+    let holdPieceId;  // ID of the held piece
+    let ghostPiecePos;// Position for the ghost piece {x, y}
+    let canHold;      // Flag: Can the player use hold? (Resets each time a piece locks)
+    let score;
+    let lines;
+    let level;
+    let dropCounter;
+    let dropInterval; // Time between auto-drops in ms
+    let lastTime;
+    let isRunning;    // Is the game loop active?
+    let isPaused;     // Is the game paused?
+    let isGameOver;
+    let animationFrameId;
+    let pieceBag;     // For 7-bag random generator
+
+    /* ----- HELPER FUNCTIONS ----- */
+
+    // Initialize or reset the game board
+    const initBoard = () => {
+        board = Array.from({ length: ROWS + HIDDEN_ROWS }, () => Array(COLS).fill(0));
+    };
+
+    // Shuffle array in place (Fisher-Yates)
+    const shuffleBag = (array) => {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    };
+
+    // Get the next piece from the 7-bag randomizer
+    const getNextPieceIdFromBag = () => {
+        if (!pieceBag || pieceBag.length === 0) {
+            pieceBag = [...PIECE_IDS]; // Create a new bag
+            shuffleBag(pieceBag);      // Shuffle it
+        }
+        return pieceBag.pop(); // Get the next piece ID
+    };
+
+    // Create a new piece object
+    const createPiece = (id) => {
+        const [colorCode, shape] = PIECES[id];
+        const matrix = shape.map(row => [...row]); // Deep copy
+        const piece = {
+            id: id,
+            matrix: matrix,
+            pos: { x: 0, y: 0 },
+            rotation: 0 // Initial rotation state
+        };
+        // Set initial spawn position (centered horizontally, above visible board)
+        piece.pos.x = Math.floor((COLS - piece.matrix[0].length) / 2);
+        piece.pos.y = (piece.id === 'I' ? HIDDEN_ROWS - 2 : HIDDEN_ROWS - 1); // I spawns lower in SRS guideline
+        return piece;
+    };
+
+    // Helper: Basic matrix rotation (clockwise)
+    const rotateMatrix = (matrix) => {
+        const N = matrix.length;
+        const rotated = Array.from({ length: N }, () => Array(N).fill(0));
+        for (let i = 0; i < N; ++i) {
+            for (let j = 0; j < N; ++j) {
+                rotated[i][j] = matrix[N - 1 - j][i];
+            }
+        }
+        return rotated;
+    };
+
+    // Helper: Basic matrix rotation (counter-clockwise)
+    const rotateMatrixCCW = (matrix) => {
+        const N = matrix.length;
+        const rotated = Array.from({ length: N }, () => Array(N).fill(0));
+        for (let i = 0; i < N; ++i) {
+            for (let j = 0; j < N; ++j) {
+                rotated[i][j] = matrix[j][N - 1 - i];
+            }
+        }
+        return rotated;
+    };
+
+
+    // Check for collision at a given position
+    const checkCollision = (currentBoard, currentPiece, checkPos) => {
+        const { matrix } = currentPiece;
+        const { x: pieceX, y: pieceY } = checkPos;
+
+        for (let y = 0; y < matrix.length; y++) {
+            for (let x = 0; x < matrix[y].length; x++) {
+                if (!matrix[y][x]) continue; // Skip empty parts of the piece matrix
+
+                const boardX = pieceX + x;
+                const boardY = pieceY + y;
+
+                // Check boundaries
+                if (boardX < 0 || boardX >= COLS || boardY >= (ROWS + HIDDEN_ROWS)) {
+                    return true; // Collision with wall or floor
+                }
+
+                // Check collision with existing blocks on the board (only if within board bounds)
+                if (boardY >= 0 && currentBoard[boardY] && currentBoard[boardY][boardX]) {
+                    return true; // Collision with another block
+                }
+            }
+        }
+        return false; // No collision
+    };
+
+    // Merge the piece onto the board
+    const mergePiece = () => {
+        piece.matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value) {
+                    const boardY = piece.pos.y + y;
+                    const boardX = piece.pos.x + x;
+                    // Only merge if within the board bounds (prevents errors if piece somehow locks OOB)
+                    if (boardY >= 0 && boardY < (ROWS + HIDDEN_ROWS) && boardX >= 0 && boardX < COLS) {
+                        board[boardY][boardX] = PIECE_IDS.indexOf(piece.id) + 1; // Use index+1 as board value
+                    }
+                }
+            });
+        });
+    };
+
+    // Clear completed lines and return the number of lines cleared
+    const clearLines = () => {
+        let linesCleared = 0;
+        for (let y = board.length - 1; y >= 0; ) { // Start from bottom row
+            // Check if row 'y' is full (use HIDDEN_ROWS offset implicitly)
+            if (board[y].every(cell => cell !== 0)) {
+                // Remove the full row
+                board.splice(y, 1);
+                // Add a new empty row at the top (index 0)
+                board.unshift(Array(COLS).fill(0));
+                linesCleared++;
+                // Don't decrement y, check the new row at the same index 'y'
+            } else {
+                y--; // Move to the row above
+            }
+        }
+        return linesCleared;
+    };
+
+    // Update score, lines, level based on cleared lines
+    const updateScore = (clearedCount) => {
+        if (clearedCount > 0) {
+            score += SCORE_PER_LINE[clearedCount] * level;
+            lines += clearedCount;
+            const newLevel = Math.floor(lines / LEVEL_LINE_THRESHOLD) + 1;
+            if (newLevel > level) {
+                level = newLevel;
+                // Increase speed (decrease interval), with a minimum interval
+                dropInterval = Math.max(BASE_DROP_INTERVAL * Math.pow(0.85, level - 1), 100); // Cap speed
+                console.log(`Level up: ${level}, Interval: ${dropInterval.toFixed(0)}ms`);
+            }
+            updateStatsDisplay();
+        }
+    };
+
+    // Calculate the ghost piece position
+    const calculateGhostPosition = () => {
+        if (!piece) return;
+        ghostPiecePos = { ...piece.pos };
+        while (!checkCollision(board, piece, { x: ghostPiecePos.x, y: ghostPiecePos.y + 1 })) {
+            ghostPiecePos.y++;
+        }
+    };
+
+    /* ----- RENDERING ----- */
+
+    // Draw a single block
+    const drawBlock = (ctx, x, y, colorIndex) => {
+        ctx.fillStyle = COLORS[colorIndex];
+        // Adjust y to only draw visible rows
+        const drawY = y - HIDDEN_ROWS;
+        if (drawY >= 0) {
+            ctx.fillRect(x * BLOCK_SIZE, drawY * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            // Optional: Add a subtle border
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x * BLOCK_SIZE, drawY * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        }
+    };
+
+    // Draw the ghost piece
+    const drawGhostPiece = (ctx) => {
+        if (!ghostPiecePos || !piece) return;
+        ctx.globalAlpha = 0.3; // Make ghost semi-transparent
+        piece.matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value) {
+                    // Use a dedicated ghost color or the piece's color index
+                    // drawBlock(ctx, ghostPiecePos.x + x, ghostPiecePos.y + y, GHOST_COLOR_INDEX);
+                    drawBlock(ctx, ghostPiecePos.x + x, ghostPiecePos.y + y, PIECE_IDS.indexOf(piece.id) + 1);
+                }
+            });
+        });
+        ctx.globalAlpha = 1.0; // Reset alpha
+    };
+
+    // Draw the entire game state (board, piece, ghost)
+    const drawBoard = () => {
+        // Clear board canvas (only the visible area)
+        ctxBoard.fillStyle = '#181a21'; // Background color
+        ctxBoard.fillRect(0, 0, canvasBoard.width, canvasBoard.height);
+
+        // Draw landed blocks
+        for (let y = HIDDEN_ROWS; y < ROWS + HIDDEN_ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                if (board[y][x]) {
+                    drawBlock(ctxBoard, x, y, board[y][x]);
+                }
+            }
+        }
+
+        // Draw ghost piece first
+        if (ghostPiecePos) {
+            drawGhostPiece(ctxBoard);
+        }
+
+        // Draw current falling piece
+        if (piece) {
+            piece.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        drawBlock(ctxBoard, piece.pos.x + x, piece.pos.y + y, PIECE_IDS.indexOf(piece.id) + 1);
+                    }
+                });
+            });
+        }
+    };
+
+    // Draw a piece in a preview box (Next or Hold)
+    const drawPreviewPiece = (ctx, canvas, pieceId) => {
+        ctx.fillStyle = '#181a21'; // Background
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (!pieceId) return; // Nothing to draw if no piece ID
+
+        const tempPiece = createPiece(pieceId);
+        const matrix = tempPiece.matrix;
+        const colorIndex = PIECE_IDS.indexOf(pieceId) + 1;
+
+        // Calculate centering offset
+        const matrixSize = matrix.length;
+        const blockSize = canvas.width / 4; // Assume 4x4 grid for preview
+
+        // Find actual bounds of the piece shape to center it better
+        let minX = matrixSize, minY = matrixSize, maxX = -1, maxY = -1;
+        matrix.forEach((row, y) => row.forEach((val, x) => {
+            if (val) {
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            }
+        }));
+        const pieceWidth = (maxX - minX + 1);
+        const pieceHeight = (maxY - minY + 1);
+
+        const offsetX = (canvas.width - pieceWidth * blockSize) / 2 - minX * blockSize;
+        const offsetY = (canvas.height - pieceHeight * blockSize) / 2 - minY * blockSize;
+
+
+        ctx.fillStyle = COLORS[colorIndex];
+        matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value) {
+                    ctx.fillRect(offsetX + x * blockSize, offsetY + y * blockSize, blockSize -1, blockSize -1); // Slightly smaller blocks
+                }
+            });
+        });
+    };
+
+    // Draw all elements
+    const draw = () => {
+        drawBoard();
+        drawPreviewPiece(ctxNext, canvasNext, nextPieceId);
+        drawPreviewPiece(ctxHold, canvasHold, holdPieceId);
+    };
+
+    // Update the Score/Lines/Level display
+    const updateStatsDisplay = () => {
+        scoreEl.textContent = score;
+        linesEl.textContent = lines;
+        levelEl.textContent = level;
+    };
+
+
+    /* ----- GAME LOGIC ----- */
+
+    // Spawn a new piece
+    const spawnPiece = () => {
+        piece = createPiece(nextPieceId);
+        nextPieceId = getNextPieceIdFromBag(); // Get the next one ready
+        canHold = true; // Allow holding the new piece
+        calculateGhostPosition();
+
+        // Game Over Check: If the new piece immediately collides, it's game over
+        if (checkCollision(board, piece, piece.pos)) {
+            gameOver();
+        }
+    };
+
+    // Attempt to rotate the piece using SRS wall kicks
+    const rotatePiece = (direction) => { // direction: 1 for CW, -1 for CCW
+        if (!piece || piece.id === 'O') return false; // O piece doesn't rotate / need kicks
+
+        // Store original state in case rotation fails
+        const originalMatrix = piece.matrix;
+        const originalPos = { ...piece.pos };
+        const originalRotation = piece.rotation;
+
+        // 1. Perform basic rotation on a temporary matrix first
+        const rotatedMatrix = direction === 1 ? rotateMatrix(piece.matrix) : rotateMatrixCCW(piece.matrix);
+
+        // 2. Determine next rotation state
+        const nextRotation = (originalRotation + direction + 4) % 4; // +4 ensures positive result before modulo
+
+        // 3. Get wall kick data (Using the CORRECTED constants defined above)
+        const kickData = (piece.id === 'I') ? WALL_KICK_DATA_I : WALL_KICK_DATA_JLSTZ;
+        const transition = `${originalRotation}->${nextRotation}`;
+        const offsets = kickData[transition]; // Get the list of [dx, dy] offsets
+
+        // Should always find offsets, but add a fallback just in case
+        if (!offsets) {
+            console.warn(`Missing kick data for transition: ${transition}, piece: ${piece.id}`);
+            return false;
+        }
+
+        // Create a temporary piece object with the rotated matrix for collision checks
+        const tempPiece = { ...piece, matrix: rotatedMatrix };
+
+        // 4. Test wall kicks using the temporary piece
+        for (const [dx, dy] of offsets) {
+            const testPos = { x: originalPos.x + dx, y: originalPos.y + dy };
+
+            // Check collision using the rotated matrix (tempPiece) at the kicked position (testPos)
+            if (!checkCollision(board, tempPiece, testPos)) {
+                // Kick successful! Apply rotation, matrix, and position offset to the actual piece
+                piece.pos = testPos;
+                piece.matrix = rotatedMatrix; // Update the actual piece matrix
+                piece.rotation = nextRotation;
+                calculateGhostPosition(); // Update ghost after successful rotation
+                return true; // Rotation succeeded
+            }
+        }
+
+        // 5. If all kicks fail, rotation is not possible. Do nothing (piece remains in original state).
+        return false; // Rotation failed
+    };
+
+    // Move the piece horizontally
+    const movePiece = (direction) => {
+        if (!piece) return;
+        const testPos = { ...piece.pos, x: piece.pos.x + direction };
+        if (!checkCollision(board, piece, testPos)) {
+            piece.pos.x = testPos.x;
+            calculateGhostPosition(); // Update ghost after move
+        }
+    };
+
+    // Soft drop (move down one step)
+    const softDrop = () => {
+        if (!piece) return;
+        const testPos = { ...piece.pos, y: piece.pos.y + 1 };
+        if (!checkCollision(board, piece, testPos)) {
+            piece.pos.y = testPos.y;
+            dropCounter = 0; // Reset auto-drop timer on manual drop
+        } else {
+            // Cannot move down, lock the piece
+            lockPiece();
+        }
+    };
+
+    // Hard drop (move down instantly)
+    const hardDrop = () => {
+        if (!piece) return;
+        piece.pos = { ...ghostPiecePos }; // Move directly to ghost position
+        lockPiece();
+    };
+
+    // Lock the current piece in place
+    const lockPiece = () => {
+        if (!piece) return;
+        mergePiece();
+        const clearedCount = clearLines();
+        updateScore(clearedCount);
+        piece = null; // Clear current piece reference
+        spawnPiece(); // Spawn the next piece
+        // Game over is checked within spawnPiece
+        if (isRunning) draw(); // Update display immediately after lock
+    };
+
+    // Swap current piece with held piece
+    const holdPieceAction = () => {
+        if (!canHold || !piece) return; // Can only hold once per piece spawn
+
+        if (!holdPieceId) { // First hold
+            holdPieceId = piece.id;
+            piece = null; // Important: clear piece before spawning
+            spawnPiece();
+        } else { // Swap
+            [piece.id, holdPieceId] = [holdPieceId, piece.id]; // Swap IDs
+            // Re-create the piece with the new ID, reset rotation and position
+            const newId = piece.id;
+            piece = createPiece(newId); // This resets position and rotation
+            // Game Over Check after swap (if the swapped-in piece collides immediately)
+            if (checkCollision(board, piece, piece.pos)) {
+                gameOver();
+                return; // Stop further processing
+            }
+            calculateGhostPosition();
+        }
+        canHold = false; // Mark hold as used for this turn
+        draw(); // Update previews immediately
+    };
+
+    /* ----- GAME LOOP ----- */
+    const gameLoop = (timestamp = 0) => {
+        if (!isRunning || isPaused || isGameOver) {
+            animationFrameId = null; // Ensure we clear the ID if loop stops
+            return;
+        }
+
+        const deltaTime = timestamp - lastTime;
+        lastTime = timestamp;
+        dropCounter += deltaTime;
+
+        if (dropCounter > dropInterval) {
+            softDrop(); // Attempt to move down automatically
+            dropCounter = 0; // Reset counter even if lock happens
+        }
+
+        draw(); // Render the current state
+        animationFrameId = requestAnimationFrame(gameLoop);
+    };
+
+    /* ----- GAME CONTROL ----- */
+
+    const initGame = () => {
+        console.log("Initializing Game...");
+        initBoard();
+        pieceBag = []; // Reset piece bag
+        nextPieceId = getNextPieceIdFromBag(); // Prime the first piece
+        holdPieceId = null;
+        piece = null; // Start with no piece on board yet
+        score = 0;
+        lines = 0;
+        level = 1;
+        dropInterval = BASE_DROP_INTERVAL;
+        dropCounter = 0;
+        lastTime = 0;
+        canHold = true; // Can hold initially
+        isGameOver = false;
+        isPaused = false;
+        isRunning = false; // Don't start loop automatically
+        ghostPiecePos = null;
+        updateStatsDisplay();
+        draw(); // Initial draw of empty board + previews
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        resetBtn.disabled = false;
+    };
+
+    const startGame = () => {
+        if (isRunning || isGameOver) return; // Prevent starting if already running or game over
+        console.log("Starting Game...");
+        if (!piece) { // If it's a fresh start or reset
+            spawnPiece(); // Spawn the very first piece
+        }
+        isRunning = true;
+        isPaused = false;
+        isGameOver = false;
+        lastTime = performance.now(); // Use performance.now for higher precision
+        dropCounter = 0; // Reset drop counter
+        if (animationFrameId) cancelAnimationFrame(animationFrameId); // Clear any old loops
+        animationFrameId = requestAnimationFrame(gameLoop);
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        pauseBtn.textContent = 'Pause';
+        console.log("Game Started.");
+    };
+
+    const pauseGame = () => {
+        if (!isRunning || isGameOver) return;
+
+        isPaused = !isPaused;
+        if (isPaused) {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = null; // Clear ID when paused
+            pauseBtn.textContent = 'Resume';
+            console.log("Game Paused.");
+            // Optional: Show "Paused" message on canvas
+            ctxBoard.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctxBoard.fillRect(0, canvasBoard.height / 2 - 30, canvasBoard.width, 60);
+            ctxBoard.font = 'Bold 24px var(--font)';
+            ctxBoard.fillStyle = '#f0f0f0'; // Light color for text
+            ctxBoard.fillStyle = 'var(--accent)';
+            ctxBoard.textAlign = 'center';
+            ctxBoard.fillText('Paused', canvasBoard.width / 2, canvasBoard.height / 2 + 8);
+        } else {
+            pauseBtn.textContent = 'Pause';
+            lastTime = performance.now(); // Reset timer reference point
+            if (!animationFrameId) { // Prevent multiple loops if button mashed
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+            console.log("Game Resumed.");
+        }
+    };
+
+    const resetGame = () => {
+        console.log("Resetting Game...");
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        initGame(); // Re-initialize everything
+        // No need to call startGame() here, user must click Start again
+    };
+
+    const gameOver = () => {
+        console.log("Game Over!");
+        isRunning = false;
+        isGameOver = true;
+        isPaused = false; // Not paused, just ended
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        startBtn.disabled = true; // Or maybe enable for "New Game"? -> Reset button is better
+        pauseBtn.disabled = true;
+        pauseBtn.textContent = 'Pause';
+
+        // Display Game Over message
+        ctxBoard.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctxBoard.fillRect(0, canvasBoard.height / 3, canvasBoard.width, canvasBoard.height / 3);
+        ctxBoard.font = 'bold 28px var(--font)';
+        ctxBoard.fillStyle = '#f05050'; // Reddish color for game over
+        ctxBoard.textAlign = 'center';
+        ctxBoard.fillText('Game Over!', canvasBoard.width / 2, canvasBoard.height / 2 - 10);
+        ctxBoard.font = '18px var(--font)';
+        ctxBoard.fillStyle = 'var(--text)';
+        ctxBoard.fillText(`Score: ${score}`, canvasBoard.width / 2, canvasBoard.height / 2 + 20);
+    };
+
+
+    /* ----- INPUT HANDLING ----- */
+    const handleKeyDown = (e) => {
+        if (isGameOver) return; // Ignore input if game over
+
+        if (e.code === 'KeyP') {
+            if (isRunning) pauseGame();
+            return; // Handle pause separately
+        }
+
+        if (!isRunning || isPaused) return; // Ignore game controls if not running or paused
+
+        switch (e.code) {
+            case 'ArrowLeft':   // Move Left
+            case 'KeyA':
+                movePiece(-1);
+                draw(); // Redraw immediately after input
+                break;
+            case 'ArrowRight':  // Move Right
+            case 'KeyD':
+                movePiece(1);
+                draw();
+                break;
+            case 'ArrowDown':   // Soft Drop
+            case 'KeyS':
+                softDrop();
+                draw();
+                break;
+            case 'ArrowUp':     // Rotate Clockwise (CW)
+            case 'KeyW':
+            case 'KeyX':        // Common alternative for CW rotation
+                rotatePiece(1);
+                draw();
+                break;
+            case 'KeyZ':        // Rotate Counter-Clockwise (CCW)
+            case 'ControlLeft': // Common alternative for CCW rotation
+            case 'ControlRight':
+                rotatePiece(-1);
+                draw();
+                break;
+            case 'Space':       // Hard Drop
+                hardDrop();
+                // No draw() needed here, lockPiece calls spawnPiece which redraws if game continues
+                break;
+            case 'KeyC':        // Hold
+                holdPieceAction();
+                // No draw() needed here, holdPieceAction calls draw() or spawnPiece()
+                break;
+        }
+        // Prevent default browser action for arrow keys, space, etc.
+        if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space', 'KeyP', 'KeyC', 'KeyZ', 'KeyX'].includes(e.code)) {
+            e.preventDefault();
+        }
+    };
+
+    /* ----- INITIALIZATION ----- */
+    document.addEventListener('keydown', handleKeyDown);
+    startBtn.addEventListener('click', startGame);
+    pauseBtn.addEventListener('click', pauseGame);
+    resetBtn.addEventListener('click', resetGame);
+
+    // Set dynamic copyright year
+    copyrightEl.textContent = `© ${new Date().getFullYear()}`;
+
+    // Initial setup when script loads
+    initGame();
+
+})();
+</script>
+</body>
+</html>
