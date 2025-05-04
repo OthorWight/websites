@@ -38,6 +38,7 @@ def find_html_files(directory="."):
                     entry.lower().endswith(".html") and
                     entry.lower() != INDEX_FILENAME.lower()):
                 files.append(entry)
+                # print(f"Found HTML file: {entry}")
         files.sort() # Sort alphabetically
         return files
     except FileNotFoundError:
@@ -52,6 +53,7 @@ def generate_index_html(html_files):
     # Safely embed the list of filenames into the JavaScript code
     # json.dumps creates a valid JSON array string, which is also valid JavaScript
     files_json = json.dumps(html_files)
+    # print(f"Generated HTML files list: {files_json}")
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">

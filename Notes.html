@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Notes - Enhanced Smoothing</title>
+    <style>
+        :root {
+            --bg-color: #282c34;
+            --text-color: #abb2bf;
+            --canvas-bg: #1e1e1e;
+            --canvas-border: #3a3f4b;
+            --button-bg: #3a3f4b;
+            --button-text: #abb2bf;
+            --button-active-bg: #528bff;
+            --button-active-text: #ffffff;
+            --draw-color: #e06c75; /* Default draw color */
+            --select-border: #56b6c2;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden; /* Prevent body scrollbars */
+        }
+
+        body.light-mode {
+            --bg-color: #f4f4f4;
+            --text-color: #333333;
+            --canvas-bg: #ffffff;
+            --canvas-border: #cccccc;
+            --button-bg: #e0e0e0;
+            --button-text: #333333;
+            --button-active-bg: #007bff;
+            --button-active-text: #ffffff;
+            --draw-color: #d9534f;
+            --select-border: #5bc0de;
+        }
+
+        #toolbar {
+            padding: 8px;
+            background-color: var(--bg-color);
+            border-bottom: 1px solid var(--canvas-border);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+
+        .tool-btn, #themeBtn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .tool-btn:hover, #themeBtn:hover {
+            opacity: 0.8;
+        }
+
+        .tool-btn.active {
+            background-color: var(--button-active-bg);
+            color: var(--button-active-text);
+        }
+
+        #canvasContainer {
+            flex-grow: 1;
+            position: relative; /* Needed for positioning text input */
+            background-color: var(--bg-color); /* Match body bg */
+            display: flex; /* To center canvas if needed, or just contain it */
+            overflow: hidden; /* Prevent canvas overflow causing scroll */
+        }
+
+        #noteCanvas {
+            display: block; /* Removes bottom space */
+            background-color: var(--canvas-bg);
+            /* width/height set by JS */
+            cursor: default; /* Default cursor */
+        }
+
+        #noteCanvas.draw-cursor { cursor: crosshair; }
+        #noteCanvas.type-cursor { cursor: text; }
+        #noteCanvas.erase-cursor { cursor: crosshair; } /* Or another indicator */
+
+        /* Style for the temporary text input */
+        .temp-textarea {
+            position: absolute;
+            background-color: transparent; /* Or slightly opaque */
+            border: 1px dashed var(--text-color);
+            padding: 2px;
+            margin: 0;
+            font-family: monospace;
+            font-size: 16px; /* Match canvas font size */
+            color: var(--text-color);
+            outline: none;
+            resize: none; /* Prevent manual resizing */
+            overflow: hidden; /* Hide scrollbars initially */
+            line-height: 1.2; /* Adjust as needed */
+            white-space: pre-wrap; /* Respect whitespace and wrap */
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="toolbar">
+        <button id="typeBtn" class="tool-btn">Type</button>
+        <button id="drawBtn" class="tool-btn">Draw</button>
+        <button id="eraseBtn" class="tool-btn">Erase</button>
+        <button id="themeBtn" style="margin-left: auto;">Toggle Theme</button>
+        <label for="colorPicker" style="margin-left: 10px; align-self: center;">Color:</label>
+        <input type="color" id="colorPicker" value="#e06c75" style="align-self: center;">
+    </div>
+
+    <div id="canvasContainer">
+        <canvas id="noteCanvas"></canvas>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('noteCanvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true }); // willReadFrequently hint for getImageData/putImageData
+            const toolbar = document.getElementById('toolbar');
+            const typeBtn = document.getElementById('typeBtn');
+            const drawBtn = document.getElementById('drawBtn');
+            const eraseBtn = document.getElementById('eraseBtn');
+            const themeBtn = document.getElementById('themeBtn');
+            const colorPicker = document.getElementById('colorPicker');
+            const canvasContainer = document.getElementById('canvasContainer');
+
+            let currentTool = 'draw'; // Default tool
+            let isDrawing = false;
+            let startX, startY;
+            let currentPath = []; // Store raw points for drawing
+            let currentBackgroundColor = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim();
+            let currentDrawColor = colorPicker.value;
+            let tempTextArea = null;
+            let eraseRectData = null;
+            let preDrawImageData = null; // To store canvas state before drawing raw line
+
+            // --- Configuration ---
+            const STRAIGHTNESS_THRESHOLD = 25; // Max pixels deviation for a line to be considered straight. Tune this value!
+            const CHAIKIN_ITERATIONS = 7;     // How many times to apply Chaikin smoothing. More = smoother.
+            const MIN_PATH_POINTS_FOR_SMOOTHING = 3; // Need at least 3 points to smooth/straighten
+
+            // --- Canvas Setup & Resizing ---
+            function resizeCanvas() {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                canvas.width = canvasContainer.clientWidth;
+                canvas.height = canvasContainer.clientHeight;
+                updateBackgroundColorVar(); // Update color var used for erase/background fill
+
+                // Fill background *before* restoring image data
+                ctx.fillStyle = currentBackgroundColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                try {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = imageData.width;
+                    tempCanvas.height = imageData.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.putImageData(imageData, 0, 0);
+                    // Draw potentially scaled old content
+                    ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+                } catch (e) {
+                    console.warn("Could not restore canvas content after resize:", e);
+                    // Background is already filled above, so canvas is cleared on error
+                }
+
+                applyCurrentStyles();
+            }
+
+            function applyCurrentStyles() {
+                ctx.strokeStyle = currentDrawColor;
+                ctx.fillStyle = currentDrawColor; // Used for text
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.font = '16px monospace';
+            }
+
+            // --- Theme Handling ---
+            function updateBackgroundColorVar() {
+                currentBackgroundColor = getComputedStyle(canvas).backgroundColor;
+                if (!currentBackgroundColor || currentBackgroundColor === 'rgba(0, 0, 0, 0)' || currentBackgroundColor === 'transparent') {
+                    currentBackgroundColor = getComputedStyle(document.body).getPropertyValue(
+                        document.body.classList.contains('light-mode') ? '--canvas-bg-light' : '--canvas-bg'
+                    ).trim();
+                }
+            }
+
+            function toggleTheme() {
+                document.body.classList.toggle('light-mode');
+                updateBackgroundColorVar();
+
+                if (tempTextArea) {
+                    tempTextArea.style.color = getComputedStyle(document.body).getPropertyValue('--text-color').trim();
+                    tempTextArea.style.borderColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim();
+                }
+
+                applyCurrentStyles();
+
+                // Redraw background (important if canvas bg isn't transparent)
+                ctx.fillStyle = currentBackgroundColor;
+                // We need to redraw everything stored if we want content to persist theme changes robustly
+                // Simple approach: just fill background. A full solution would store all draw commands.
+                // resizeCanvas(); // Using resize is a heavy-handed way to clear and potentially redraw
+                // --- OR --- redraw just the background:
+                // ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // alert("Theme changed. Canvas content might need redraw (feature not fully implemented).");
+                // For now, let's rely on resizeCanvas() to handle the background fill + potential redraw
+                resizeCanvas();
+            }
+
+
+            // --- Tool Switching ---
+            function setActiveTool(tool) {
+                // If finishing a drawing action, finalize it before switching
+                if (isDrawing && currentTool === 'draw') {
+                    finalizeDrawing(); // Process the last path
+                    isDrawing = false; // Ensure drawing stops
+                } else if (isDrawing && currentTool === 'erase' && eraseRectData) {
+                    // If switching while selecting erase area, just cancel the erase
+                    ctx.putImageData(eraseRectData, 0, 0); // Restore original content
+                    eraseRectData = null;
+                    isDrawing = false;
+                    //  canvas.style.cursor = 'grab';
+                }
+
+                currentTool = tool;
+                [typeBtn, drawBtn, eraseBtn].forEach(btn => btn.classList.remove('active'));
+                canvas.classList.remove('type-cursor', 'draw-cursor', 'erase-cursor');
+                removeTemporaryTextArea();
+
+                switch (tool) {
+                    case 'type':
+                        typeBtn.classList.add('active');
+                        canvas.classList.add('type-cursor');
+                        break;
+                    case 'draw':
+                        drawBtn.classList.add('active');
+                        canvas.classList.add('draw-cursor');
+                        break;
+                    case 'erase':
+                        eraseBtn.classList.add('active');
+                        canvas.classList.add('erase-cursor');
+                        break;
+                }
+                applyCurrentStyles();
+            }
+
+            // --- Event Listeners ---
+            typeBtn.addEventListener('click', () => setActiveTool('type'));
+            drawBtn.addEventListener('click', () => setActiveTool('draw'));
+            eraseBtn.addEventListener('click', () => setActiveTool('erase'));
+            themeBtn.addEventListener('click', toggleTheme);
+            colorPicker.addEventListener('input', (e) => {
+                currentDrawColor = e.target.value;
+                applyCurrentStyles();
+            });
+
+            window.addEventListener('resize', resizeCanvas);
+
+            // --- Canvas Interaction ---
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseLeave);
+            canvas.addEventListener('click', handleCanvasClick);
+
+            function getMousePos(evt) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: evt.clientX - rect.left,
+                    y: evt.clientY - rect.top
+                };
+            }
+
+            function handleCanvasClick(e) {
+                if (currentTool === 'type') {
+                    createTemporaryTextArea(e);
+                }
+            }
+
+            function handleMouseDown(e) {
+                if (currentTool === 'type' || e.button !== 0) return; // Only handle left click
+
+                const pos = getMousePos(e);
+                isDrawing = true;
+                startX = pos.x;
+                startY = pos.y;
+
+                if (currentTool === 'draw') {
+                    // Save canvas state *before* drawing the raw preview line
+                    preDrawImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    currentPath = [{ x: startX, y: startY }];
+                    applyCurrentStyles(); // Ensure style is set
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                } else if (currentTool === 'erase') {
+                    // canvas.style.cursor = 'grabbing';
+                    eraseRectData = ctx.getImageData(0, 0, canvas.width, canvas.height); // Save whole canvas
+                }
+            }
+
+            function handleMouseMove(e) {
+                if (!isDrawing || currentTool === 'type') return;
+
+                const pos = getMousePos(e);
+
+                if (currentTool === 'draw') {
+                    // Restore *just before* drawing the next raw segment to avoid buildup
+                    // NOTE: This constant putImageData can be slow. Alternative is to only draw final line on mouseup.
+                    // Let's try drawing raw lines directly for now, and clean up fully on mouseup.
+                    // if (preDrawImageData) {
+                    //      ctx.putImageData(preDrawImageData, 0, 0);
+                    // }
+
+                    currentPath.push({ x: pos.x, y: pos.y });
+
+                    // Draw raw line segment for immediate feedback
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                    // Start new segment path (prevents weird jumps if stroke() isn't immediate)
+                    ctx.beginPath();
+                    ctx.moveTo(pos.x, pos.y);
+
+
+                } else if (currentTool === 'erase') {
+                    if (eraseRectData) {
+                        ctx.putImageData(eraseRectData, 0, 0); // Restore clean state
+                    } else {
+                        console.warn("Missing eraseRectData during mousemove");
+                        eraseRectData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    }
+                    // Draw selection rectangle visual
+                    ctx.save();
+                    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--select-border').trim();
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(startX, startY, pos.x - startX, pos.y - startY);
+                    ctx.restore();
+                }
+            }
+
+            function handleMouseUp(e) {
+                if (!isDrawing || currentTool === 'type' || e.button !== 0) return;
+
+
+                if (currentTool === 'draw') {
+                    finalizeDrawing();
+                } else if (currentTool === 'erase') {
+                    //  canvas.style.cursor = 'grab'; // Reset cursor
+                    if (eraseRectData) {
+                        ctx.putImageData(eraseRectData, 0, 0); // Restore to remove selection box
+                    }
+
+                    const pos = getMousePos(e);
+                    const rectX = Math.min(startX, pos.x);
+                    const rectY = Math.min(startY, pos.y);
+                    const rectW = Math.abs(startX - pos.x);
+                    const rectH = Math.abs(startY - pos.y);
+
+                    ctx.fillStyle = currentBackgroundColor;
+                    ctx.fillRect(rectX, rectY, rectW, rectH);
+
+                    eraseRectData = null;
+                    applyCurrentStyles();
+                }
+                isDrawing = false; // Ensure drawing flag is reset
+            }
+
+            function handleMouseLeave(e) {
+                if (isDrawing) {
+                    if (currentTool === 'draw') {
+                        finalizeDrawing();
+                    } else if (currentTool === 'erase' && eraseRectData) {
+                        // Cancel erase if leaving canvas while selecting
+                        ctx.putImageData(eraseRectData, 0, 0);
+                        eraseRectData = null;
+                        // canvas.style.cursor = 'grab';
+                    }
+                    isDrawing = false; // Stop drawing process
+                }
+            }
+
+            // --- Drawing Finalization & Smoothing ---
+            function finalizeDrawing() {
+                if (!preDrawImageData || !currentPath || currentPath.length < 2) {
+                    console.log("FinalizeDrawing: Not enough data, clearing state.");
+                    isDrawing = false;
+                    preDrawImageData = null;
+                    currentPath = [];
+                    ctx.beginPath(); // Reset any dangling path
+                    return; // Exit if no pre-draw state or not enough points
+                }
+
+                // 1. Restore the canvas to the state *before* the raw line was drawn
+                ctx.putImageData(preDrawImageData, 0, 0);
+                preDrawImageData = null; // Clear saved state
+
+                applyCurrentStyles(); // Ensure correct color/width etc. are set
+
+                const path = currentPath; // Use the collected raw points
+                currentPath = []; // Clear for the next line
+
+                if (path.length < MIN_PATH_POINTS_FOR_SMOOTHING) {
+                    // Draw short paths as simple lines
+                    if (path.length === 2) {
+                        ctx.beginPath();
+                        ctx.moveTo(path[0].x, path[0].y);
+                        ctx.lineTo(path[1].x, path[1].y);
+                        ctx.stroke();
+                    } else if (path.length === 1) {
+                        // Draw a dot (optional)
+                        ctx.beginPath();
+                        ctx.arc(path[0].x, path[0].y, ctx.lineWidth / 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } else {
+                    // 2. Analyze for straightness
+                    const startPoint = path[0];
+                    const endPoint = path[path.length - 1];
+                    const maxDeviation = calculateMaxDeviation(path, startPoint, endPoint);
+
+                    if (maxDeviation < STRAIGHTNESS_THRESHOLD) {
+                        // 3a. Draw a straight line
+                        ctx.beginPath();
+                        ctx.moveTo(startPoint.x, startPoint.y);
+                        ctx.lineTo(endPoint.x, endPoint.y);
+                        ctx.stroke();
+                    } else {
+                        // 3b. Smooth the curve (using Chaikin's algorithm)
+                        const smoothedPath = smoothPathChaikin(path, CHAIKIN_ITERATIONS);
+                        drawPath(smoothedPath);
+                    }
+                }
+
+                ctx.beginPath(); // Reset path state ready for next action
+                isDrawing = false; // Redundant? Ensure it's false.
+            }
+
+            // Calculate the maximum perpendicular distance of points from the line segment start-end
+            function calculateMaxDeviation(path, startPoint, endPoint) {
+                let maxDistSq = 0; // Use squared distance to avoid sqrt
+                const dx = endPoint.x - startPoint.x;
+                const dy = endPoint.y - startPoint.y;
+                const lenSq = dx * dx + dy * dy; // Squared length of the base line segment
+
+                if (lenSq === 0) return 0; // Start and end points are the same
+
+                for (let i = 1; i < path.length - 1; i++) {
+                    const p = path[i];
+                    // Calculate perpendicular distance squared using vector projection / cross product area
+                    // Simplified formula for distance from point (px, py) to line Ax + By + C = 0
+                    // Line eq: dy*x - dx*y + endPoint.x*startPoint.y - endPoint.y*startPoint.x = 0
+                    // A = dy, B = -dx, C = endPoint.x*startPoint.y - endPoint.y*startPoint.x
+                    const dist = Math.abs(dy * p.x - dx * p.y + endPoint.x * startPoint.y - endPoint.y * startPoint.x);
+                    const distSq = (dist * dist) / lenSq; // distance squared
+
+                    if (distSq > maxDistSq) {
+                        maxDistSq = distSq;
+                    }
+                }
+                return Math.sqrt(maxDistSq); // Return the actual distance
+            }
+
+            // Chaikin's Algorithm for smoothing
+            function smoothPathChaikin(path, iterations = 1, ratio = 0.25) {
+                if (path.length < 3) return path; // Cannot smooth less than 3 points
+
+                let currentPath = path;
+                const endRatio = 1 - ratio;
+
+                for (let iter = 0; iter < iterations; iter++) {
+                    const smoothed = [];
+                    smoothed.push(currentPath[0]); // Keep the first point
+
+                    for (let i = 0; i < currentPath.length - 1; i++) {
+                        const p0 = currentPath[i];
+                        const p1 = currentPath[i + 1];
+
+                        const p0x = p0.x, p0y = p0.y;
+                        const p1x = p1.x, p1y = p1.y;
+
+                        // Calculate the two new points for the segment
+                        const qx = p0x * endRatio + p1x * ratio;
+                        const qy = p0y * endRatio + p1y * ratio;
+                        const rx = p0x * ratio + p1x * endRatio;
+                        const ry = p0y * ratio + p1y * endRatio;
+
+                        smoothed.push({ x: qx, y: qy });
+                        smoothed.push({ x: rx, y: ry });
+                    }
+
+                    smoothed.push(currentPath[currentPath.length - 1]); // Keep the last point
+                    currentPath = smoothed; // Use the smoothed path for the next iteration
+                }
+                return currentPath;
+            }
+
+            // Helper function to draw a path defined by an array of points
+            function drawPath(path) {
+                if (!path || path.length < 2) return;
+                ctx.beginPath();
+                ctx.moveTo(path[0].x, path[0].y);
+                for (let i = 1; i < path.length; i++) {
+                    ctx.lineTo(path[i].x, path[i].y);
+                }
+                ctx.stroke();
+            }
+
+
+            // --- Type Tool Specific Functions ---
+            // (Keep these functions as they were in the previous version)
+            function createTemporaryTextArea(e) {
+                removeTemporaryTextArea(); // Remove any existing one first
+                const pos = getMousePos(e);
+                tempTextArea = document.createElement('textarea');
+                tempTextArea.className = 'temp-textarea';
+                tempTextArea.style.left = `${pos.x}px`;
+                tempTextArea.style.top = `${pos.y}px`;
+                tempTextArea.style.color = getComputedStyle(document.body).getPropertyValue('--text-color').trim();
+                tempTextArea.style.borderColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim();
+                tempTextArea.style.font = ctx.font; // Use canvas font setting
+                tempTextArea.style.lineHeight = '1.2'; // Match approx line height
+                tempTextArea.style.minWidth = '50px'; // Give some initial size
+                tempTextArea.style.minHeight = '20px'; // Give some initial size
+                tempTextArea.style.height = 'auto'; // Auto height initially
+
+                canvasContainer.appendChild(tempTextArea);
+                tempTextArea.focus();
+
+                tempTextArea.addEventListener('input', () => {
+                    tempTextArea.style.height = 'auto'; // Reset height
+                    tempTextArea.style.height = `${tempTextArea.scrollHeight}px`;
+                });
+                tempTextArea.addEventListener('blur', () => {
+                    drawTextFromTextArea(tempTextArea, pos.x, pos.y);
+                    removeTemporaryTextArea();
+                });
+                tempTextArea.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        tempTextArea.blur();
+                    }
+                });
+            }
+
+            function removeTemporaryTextArea() {
+                if (tempTextArea && tempTextArea.parentNode) {
+                    tempTextArea.parentNode.removeChild(tempTextArea);
+                    tempTextArea = null;
+                }
+            }
+
+            function drawTextFromTextArea(textArea, x, y) {
+                const text = textArea.value;
+                if (!text.trim()) return;
+                applyCurrentStyles();
+                const lines = text.split('\n');
+                const lineHeight = parseFloat(ctx.font) * 1.2;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                lines.forEach((line, index) => {
+                    ctx.fillText(line, x, y + (index * lineHeight));
+                });
+                ctx.beginPath(); // Reset path after drawing text
+            }
+
+            // --- Initial Setup ---
+            resizeCanvas(); // Initial resize to fit container
+            setActiveTool(currentTool); // Set default tool and styles
+
+        });
+    </script>
+
+</body>
+</html>
