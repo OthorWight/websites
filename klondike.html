@@ -304,7 +304,7 @@
                 const suitMiddle = document.createElement('span'); suitMiddle.classList.add('suit'); suitMiddle.textContent = card.symbol;
                 const rankBottom = document.createElement('span'); rankBottom.classList.add('rank', 'rank-bottom'); rankBottom.textContent = card.rank === 'T' ? '10' : card.rank;
                 el.appendChild(rankTop); el.appendChild(suitMiddle); el.appendChild(rankBottom);
-                el.addEventListener('mousedown', onCardMouseDown); el.addEventListener('touchstart', onCardMouseDown, { passive: false }); el.addEventListener('dblclick', onCardDoubleClick);
+                el.addEventListener('mousedown', onCardMouseDown); el.addEventListener('touchstart', onCardMouseDown, { passive: false }); //el.addEventListener('dblclick', onCardDoubleClick);
                 return el;
             }
             function easeInOutQuad(t, b, c, d) { t /= d / 2; if (t < 1) return c / 2 * t * t + b; t--; return -c / 2 * (t * (t - 2) - 1) + b; }
@@ -320,7 +320,7 @@
             function isValidMove(cardToMove, sourcePileInfo, targetPileInfo) { if (!cardToMove || !sourcePileInfo || !targetPileInfo || sourcePileInfo.element.id === targetPileInfo.element.id) return false; const targetPile = targetPileInfo.pile; const targetType = targetPileInfo.type; if (targetType === 'foundation') { if (sourcePileInfo.type === 'stock' || sourcePileInfo.type === 'foundation') return false; if (targetPile.length === 0) return cardToMove.rank === 'A'; const topFoundationCard = targetPile[targetPile.length - 1]; return topFoundationCard && cardToMove.suit === topFoundationCard.suit && cardToMove.value === topFoundationCard.value + 1; } if (targetType === 'tableau') { if (sourcePileInfo.type === 'stock') return false; if (targetPile.length === 0) return cardToMove.rank === 'K'; const topTableauCard = targetPile[targetPile.length - 1]; if (!topTableauCard?.faceUp) return false; return cardToMove.color !== topTableauCard.color && cardToMove.value === topTableauCard.value - 1; } return false; }
             function checkWinCondition() { const won = foundations.every(pile => pile.length === 13); winMessageEl.style.display = won ? 'block' : 'none'; if(won) { autoMoveButton.disabled = true; } return won; }
             function handleStockClick() { if (draggedCards) return; if (stock.length > 0) { const card = stock.pop(); if(card){ card.faceUp = true; waste.push(card); } } else if (waste.length > 0) { stock = waste.reverse(); stock.forEach(card => card.faceUp = false); waste = []; } renderStock(); renderWaste(); }
-            function onCardDoubleClick(event) { if (draggedCards) return; const cardElement = event.target.closest('.card'); if (!cardElement || cardElement.classList.contains('face-down')) return; const cardId = cardElement.dataset.cardId; const cardSearchResult = findCardInPiles(cardId); if (!cardSearchResult) return; const { card, pileInfo } = cardSearchResult; if (!card?.faceUp) return; let canDoubleClickMove = false; if (pileInfo.type === 'waste') canDoubleClickMove = (pileInfo.pile.length > 0 && card === pileInfo.pile[pileInfo.pile.length - 1]); else if (pileInfo.type === 'tableau') canDoubleClickMove = (pileInfo.pile.length > 0 && card === pileInfo.pile[pileInfo.pile.length - 1]); if (!canDoubleClickMove) return; for (let i = 0; i < foundations.length; i++) { const targetPileInfo = { type: 'foundation', pile: foundations[i], index: i, element: foundationPileEls[i] }; if (isValidMove(card, pileInfo, targetPileInfo)) { const removedCard = pileInfo.pile.pop(); if (removedCard?.id !== card.id) { console.error("Popped wrong card on dblclick."); if(removedCard) pileInfo.pile.push(removedCard); renderGame(); return; } targetPileInfo.pile.push(card); if (pileInfo.type === 'tableau' && pileInfo.pile.length > 0) { const under = pileInfo.pile[pileInfo.pile.length - 1]; if (under && !under.faceUp) under.faceUp = true; } renderGame(); return; } } }
+            // function onCardDoubleClick(event) { if (draggedCards) return; const cardElement = event.target.closest('.card'); if (!cardElement || cardElement.classList.contains('face-down')) return; const cardId = cardElement.dataset.cardId; const cardSearchResult = findCardInPiles(cardId); if (!cardSearchResult) return; const { card, pileInfo } = cardSearchResult; if (!card?.faceUp) return; let canDoubleClickMove = false; if (pileInfo.type === 'waste') canDoubleClickMove = (pileInfo.pile.length > 0 && card === pileInfo.pile[pileInfo.pile.length - 1]); else if (pileInfo.type === 'tableau') canDoubleClickMove = (pileInfo.pile.length > 0 && card === pileInfo.pile[pileInfo.pile.length - 1]); if (!canDoubleClickMove) return; for (let i = 0; i < foundations.length; i++) { const targetPileInfo = { type: 'foundation', pile: foundations[i], index: i, element: foundationPileEls[i] }; if (isValidMove(card, pileInfo, targetPileInfo)) { const removedCard = pileInfo.pile.pop(); if (removedCard?.id !== card.id) { console.error("Popped wrong card on dblclick."); if(removedCard) pileInfo.pile.push(removedCard); renderGame(); return; } targetPileInfo.pile.push(card); if (pileInfo.type === 'tableau' && pileInfo.pile.length > 0) { const under = pileInfo.pile[pileInfo.pile.length - 1]; if (under && !under.faceUp) under.faceUp = true; } renderGame(); return; } } }
             // --- End Core Functions ---
 
             // --- Rendering Functions ---
@@ -349,32 +349,98 @@
                 stockPileEl.classList.toggle('empty', stock.length === 0);
             }
 
-            // --- MODIFIED renderWaste ---
             function renderWaste() {
-                const wasteRenderCount = 3;
+                const wasteRenderCount = 3; // Max number of cards to show fanned out
+                const cardHorizontalSpacing = 20; // Horizontal spacing in pixels for each step
+
+                // Slice the waste pile to get only the cards that should be visibly fanned out.
+                // `visibleWaste` will be ordered from the one "at the bottom" of the fan
+                // to the one "at the top" of the fan.
                 const startIdx = Math.max(0, waste.length - wasteRenderCount);
                 const visibleWaste = waste.slice(startIdx);
 
-                renderPile(wastePileEl, visibleWaste, (card, index) => { // Use `renderPile`
+                renderPile(wastePileEl, visibleWaste, (card, indexInVisibleArray) => {
+                    // `card` is the current card object being rendered from visibleWaste.
+                    // `indexInVisibleArray` is its index within the visibleWaste array:
+                    // 0 for the bottom-most card of the fanned display,
+                    // 1 for the card above it,
+                    // 2 for the card on top (if wasteRenderCount is 3 and 3+ cards are in waste).
+
                     card.faceUp = true;
                     updateCardElement(card);
-                    // *** Ensure top is 0, let CSS handle left offset ***
-                    card.element.style.top = '0px';
-                    card.element.style.left = ''; // Remove inline left style
-                    card.element.style.zIndex = index; // Set stacking order
+                    card.element.style.top = '0px'; // All waste cards are aligned to the top of the pile
+
+                    // The left offset depends on the card's position in the fanned-out display.
+                    // Each card is offset by `cardHorizontalSpacing` for every card "under" it in the fan.
+                    const leftOffset = indexInVisibleArray * cardHorizontalSpacing;
+                    card.element.style.left = `${leftOffset}px`;
+
+                    // zIndex ensures cards stack correctly visually.
+                    // Higher indexInVisibleArray means it's more "on top" and should have a higher z-index.
+                    card.element.style.zIndex = indexInVisibleArray;
                 });
 
-                // Ensure all cards in waste data are face up (even if not visible)
+                // Ensure all cards in the actual waste data model are face up,
+                // even if they are not among the 'visibleWaste' slice rendered above.
                 waste.forEach(c => c.faceUp = true);
                 wastePileEl.classList.toggle('empty', waste.length === 0);
             }
-            // --- END MODIFIED renderWaste ---
 
-            function renderFoundations() { // Unchanged
+            function renderFoundations() {
+                const foundationCardUnderOffset = 0; // pixels for the card beneath the top one
+
                 foundationPileEls.forEach((pileEl, i) => {
-                    const pile = foundations[i]; const topCard = pile.length > 0 ? [pile[pile.length - 1]] : [];
-                    renderPile(pileEl, topCard, (card, index) => { card.faceUp = true; updateCardElement(card); card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = pile.length - 1; });
-                    pile.forEach(c => c.faceUp = true);
+                    const pile = foundations[i]; // The actual data array for this foundation
+                    let cardsToDisplayInDOM = [];
+
+                    if (pile.length === 1) {
+                        // If only one card, display it
+                        cardsToDisplayInDOM = [pile[0]];
+                    } else if (pile.length >= 2) {
+                        // If two or more cards, display the top two
+                        // The order matters for renderPile: underneath card first, then top card
+                        cardsToDisplayInDOM = [pile[pile.length - 2], pile[pile.length - 1]];
+                    }
+                    // If pile.length is 0, cardsToDisplayInDOM remains empty.
+
+                    // Ensure all cards *in the data model* for this foundation are face up,
+                    // as foundation cards are always face up.
+                    pile.forEach(c => {
+                        if (c) c.faceUp = true;
+                    });
+
+                    renderPile(pileEl, cardsToDisplayInDOM, (card, displayIndex, displayedArray) => {
+                        // card: current card object being rendered from cardsToDisplayInDOM
+                        // displayIndex: 0 for the first card in cardsToDisplayInDOM, 1 for the second (if applicable)
+                        // displayedArray: the cardsToDisplayInDOM array
+
+                        updateCardElement(card); // Ensures faceUp class is correct and visual properties are set
+
+                        if (displayedArray.length === 1) {
+                            // This means there's only one card in the actual pile (pile.length === 1)
+                            // or we are rendering the single card that should be visible.
+                            card.element.style.top = '0px';
+                            card.element.style.left = '0px';
+                            // zIndex based on its actual position in the full pile data
+                            card.element.style.zIndex = pile.indexOf(card); // Should be 0 if pile.length is 1
+                        } else if (displayedArray.length === 2) {
+                            // Two cards are being shown from the pile
+                            if (card === pile[pile.length - 2]) { // This is the card underneath
+                                card.element.style.top = `${foundationCardUnderOffset}px`;
+                                card.element.style.left = '0px';
+                                card.element.style.zIndex = pile.length - 2; // zIndex for the one below
+                            } else if (card === pile[pile.length - 1]) { // This is the top card
+                                card.element.style.top = '0px';
+                                card.element.style.left = '0px';
+                                card.element.style.zIndex = pile.length - 1; // zIndex for the top one
+                            }
+                        }
+                        // If cardsToDisplayInDOM is empty, this callback in renderPile won't be called.
+                    });
+
+                    // Set the 'empty' class based on the actual foundation pile's data length,
+                    // as renderPile only knows about cardsToDisplayInDOM.
+                    pileEl.classList.toggle('empty', pile.length === 0);
                 });
             }
             function renderTableau() { // Unchanged
