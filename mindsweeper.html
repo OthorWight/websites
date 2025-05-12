@@ -633,15 +633,16 @@
 
             let hintedCellCoords = null; // Store coords [r, c]
 
-            // Strategy 1: Find a guaranteed safe cell next to a numbered cell
+            // Strategy 1: Find a guaranteed safe cell next to a satisfied numbered cell
             // A cell is guaranteed safe if a revealed neighbor number N has exactly N flags adjacent to it.
-            searchLoop: // Label for breaking outer loop
+            searchLoop:
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     const cellData = grid[r][c];
+                    // Check revealed numbered cells
                     if (cellData.revealed && cellData.count > 0) {
                         let flaggedNeighbors = 0;
-                        let hiddenNeighborsCoords = [];
+                        let hiddenNeighborsCoords = []; // Store coords [nr, nc] of hidden neighbors
                         getNeighbors(r, c).forEach(([nr, nc]) => {
                             const neighbor = grid[nr][nc];
                             if (neighbor.flagged) {
@@ -651,32 +652,51 @@
                             }
                         });
 
+                        // If the number of flags matches the cell's count, any remaining hidden neighbors are safe
+                        // These hidden neighbors are inherently adjacent to the numbered cell (r, c)
                         if (flaggedNeighbors === cellData.count && hiddenNeighborsCoords.length > 0) {
-                            // All mines around this number are flagged, remaining hidden are safe
-                            hintedCellCoords = hiddenNeighborsCoords[0]; // Hint the first safe one found
-                            break searchLoop; // Found a guaranteed hint, stop searching
+                            // Hint the first guaranteed safe one found adjacent to this number
+                            hintedCellCoords = hiddenNeighborsCoords[0];
+                            break searchLoop; // Found the best hint type, stop searching
                         }
                     }
                 }
             }
 
-             // Strategy 2 (Fallback): Find any unrevealed, unflagged, non-mine cell randomly
-             if (!hintedCellCoords) {
-                let potentialHintsCoords = [];
+             // Strategy 2 (Fallback): Find any unrevealed, unflagged, non-mine cell adjacent to ANY revealed number cell
+             if (!hintedCellCoords) { // Only run if Strategy 1 didn't find a hint
+                let potentialAdjacentHintsCoords = []; // Store coords [r, c]
+
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c < cols; c++) {
-                        if (!grid[r][c].revealed && !grid[r][c].flagged && !grid[r][c].mine) {
-                            potentialHintsCoords.push([r, c]);
+                        const cellData = grid[r][c];
+                        // Is this cell a potential hint candidate itself? (Hidden, unflagged, not mine)
+                        if (!cellData.revealed && !cellData.flagged && !cellData.mine) {
+                            // Check if ANY neighbor is a revealed number
+                            let isAdjacentToNumber = false;
+                            getNeighbors(r, c).forEach(([nr, nc]) => {
+                                const neighbor = grid[nr][nc];
+                                if (neighbor.revealed && neighbor.count > 0) {
+                                    isAdjacentToNumber = true;
+                                    // No need to check other neighbors for this cell once one is found
+                                    return; // Early exit from forEach for this cell's neighbors
+                                }
+                            });
+
+                            if (isAdjacentToNumber) {
+                                potentialAdjacentHintsCoords.push([r, c]);
+                            }
                         }
                     }
                 }
-                if (potentialHintsCoords.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * potentialHintsCoords.length);
-                    hintedCellCoords = potentialHintsCoords[randomIndex];
+                // If we found any potential hints adjacent to numbers
+                if (potentialAdjacentHintsCoords.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * potentialAdjacentHintsCoords.length);
+                    hintedCellCoords = potentialAdjacentHintsCoords[randomIndex];
                 }
              }
 
-            // Apply hint if found
+            // Apply hint if found (adjacent to a number)
             if (hintedCellCoords) {
                 const [hr, hc] = hintedCellCoords;
                 const hintElement = grid[hr][hc].element;
@@ -686,9 +706,7 @@
 
                     // Set timeout to clear this specific hint
                     hintTimeout = setTimeout(() => {
-                         // Check if the element *still* has the icon before clearing
-                         // (Could have been clicked/flagged in the meantime)
-                         if (hintElement.classList.contains('hint-icon')) {
+                         if (hintElement && hintElement.classList.contains('hint-icon')) { // Check if element still exists and has class
                              hintElement.textContent = '';
                              hintElement.classList.remove('hint-icon');
                          }
@@ -696,8 +714,8 @@
                      }, 1500); // Show icon for 1.5 seconds
                 }
             } else {
-                 // No safe hint available (might only be mines left or require guessing)
-                 gameMessage.textContent = "🤔 No obvious safe move found...";
+                 // No safe hint found adjacent to a revealed number
+                 gameMessage.textContent = "🤔 No obvious moves next to numbers found...";
                  setTimeout(() => { if (!gameOver) gameMessage.textContent = ''; }, 2000);
             }
         }
