@@ -78,13 +78,91 @@
         const BARRIER_HEALTH = 4; // How many hits a block can take
         const NUM_BARRIERS = 4;   // How many barriers to create
         const BARRIER_Y_POSITION = GAME_HEIGHT - PLAYER_HEIGHT - 90; // Y position
+        const PLAYER_SHIP_SHAPE = [
+            [0,1,0,0,1,1,0,0,1,0], // .#..##..#. (Top of cannon barrel)
+            [0,1,0,1,1,1,1,0,1,0], // .#.####.#. (Main cannon barrel / body)
+            [0,1,1,1,0,0,1,1,1,0], // .###..###. (Widest part of the ship base)
+            [1,1,1,1,1,1,1,1,1,1]  // ########## (Full base)
+        ];
         const BARRIER_SHAPE = [
-            [0, 0, 1, 1, 1, 0, 0],
-            [0, 1, 1, 1, 1, 1, 0],
-            [1, 1, 1, 1, 1, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1],
-            [1, 1, 0, 0, 0, 1, 1],
-            [1, 1, 0, 0, 0, 1, 1]
+            [0,0,1,1,1,0,0],
+            [0,1,1,1,1,1,0],
+            [1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1],
+            [1,1,0,0,0,1,1],
+            [1,1,0,0,0,1,1]
+        ];
+        // SHAPE_A: classic "Crab" type (inspired by image row 1, col 1)
+        const INVADER_SHAPE_A = [
+            [0,0,1,1,0,0,1,1,0,0],
+            [1,0,0,1,1,1,1,0,0,1],
+            [1,0,1,1,1,1,1,1,0,1],
+            [1,1,1,0,1,1,0,1,1,1],
+            [0,1,1,1,1,1,1,1,1,0],
+            [0,0,1,1,1,1,1,1,0,0],
+            [0,0,1,0,0,0,0,1,0,0],
+            [0,1,1,0,0,0,0,1,1,0]
+        ];
+
+        // SHAPE_B: Classic "Squid" type (inspired by image row 2, col 1)
+        // Original pixel art is typically 8 pixels wide. Centered in 10.
+        const INVADER_SHAPE_B = [
+            [0,0,0,0,1,1,0,0,0,0], // ____##____
+            [0,0,0,1,1,1,1,0,0,0], // ___####___
+            [0,0,1,1,1,1,1,1,0,0], // __######__
+            [0,1,1,0,1,1,0,1,1,0], // _##_##_##_
+            [0,1,1,1,1,1,1,1,1,0], // _#########_
+            [0,0,0,1,1,1,1,0,0,0], // ___####___ (narrower base)
+            [0,0,1,1,0,0,1,1,0,0], // __##__##__ (tentacles spread)
+            [0,1,1,0,0,0,0,1,1,0]  // _##____##_
+        ];
+
+        // SHAPE_C: Classic "Octopus" type (inspired by image row 3, col 3)
+        // Original pixel art is often wider, this version is based on an 8-pixel wide source. Centered in 10.
+        const INVADER_SHAPE_C = [
+            [0,0,0,1,1,1,1,0,0,0], // ___####___ (top)
+            [0,0,1,1,1,1,1,1,0,0], // __######__
+            [0,1,1,1,1,1,1,1,1,0], // _#########_ (widest part)
+            [0,1,1,0,1,1,0,1,1,0], // _##_##_##_ (body detail)
+            [0,1,1,1,1,1,1,1,1,0], // _#########_ (base of body)
+            [0,0,1,1,0,0,1,1,0,0], // __##__##__ (top of legs)
+            [0,1,1,0,1,1,0,1,1,0], // _##_##_##_ (middle of legs)
+            [0,0,0,1,1,1,1,0,0,0]  // ___####___ (bottom of legs/feet)
+        ];
+
+        // SHAPE_D: Small, compact invader (inspired by image row 1, col 5)
+        // Original pixel art is ~6px wide and 5px tall. Padded and centered.
+        const INVADER_SHAPE_D = [
+            [0,0,0,0,0,0,0,0,0,0], // Padding
+            [0,0,0,1,1,1,1,0,0,0], //   ####
+            [0,0,1,1,1,1,1,1,0,0], //  ######
+            [0,0,1,1,0,0,1,1,0,0], //  ##  ##
+            [0,0,1,1,1,1,1,1,0,0], //  ######
+            [0,0,0,1,1,1,1,0,0,0], //   ####
+            [0,0,0,0,0,0,0,0,0,0], // Padding
+            [0,0,0,0,0,0,0,0,0,0]  // Padding
+        ];
+
+        // SHAPE_E: Leggy invader with distinct head (inspired by image row 4, col 2)
+        // Original pixel art is ~8px wide and 8px tall. Centered.
+        const INVADER_SHAPE_E = [
+            [0,0,0,1,1,1,1,0,0,0], //   #### (Head)
+            [0,0,1,1,0,0,1,1,0,0], //  ##  ## (Neck/Eyes)
+            [0,1,1,1,1,1,1,1,1,0], // ######### (Body top)
+            [0,0,1,1,0,0,1,1,0,0], //  ##  ## (Body middle)
+            [0,0,1,1,0,0,1,1,0,0], //  ##  ## (Body bottom)
+            [0,1,1,0,1,1,0,1,1,0], // ## ## ## (Leg connection)
+            [0,1,1,0,0,0,0,1,1,0], // ##    ## (Legs)
+            [0,1,1,0,0,0,0,1,1,0]  // ##    ## (Feet)
+        ];
+
+        // You can then create an array of all shapes for easier use:
+        const ALL_INVADER_SHAPES = [
+            INVADER_SHAPE_A,
+            INVADER_SHAPE_B,
+            INVADER_SHAPE_C,
+            INVADER_SHAPE_D,
+            INVADER_SHAPE_E
         ];
 
         // --- Game State ---
@@ -156,26 +234,36 @@
             shoot() {
                 const now = Date.now();
                 if (now - lastPlayerShotTime > PLAYER_SHOOT_COOLDOWN) {
+                    const barrelTipOffsetFactor = 0.4; // Adjust this to change where the bullet spawns
                     const bulletX = this.x + this.width / 2 - BULLET_WIDTH / 2;
-                    const bulletY = this.y;
+                    const bulletY = this.y - BULLET_HEIGHT + (this.height * barrelTipOffsetFactor); // Spawn above the player
                     playerBullets.push(new Bullet(bulletX, bulletY, BULLET_WIDTH, BULLET_HEIGHT, PLAYER_BULLET_COLOR, -BULLET_SPEED)); // Negative speed = up
                     lastPlayerShotTime = now;
                 }
             }
 
             draw(context) {
-                // Draw main body
-                context.fillStyle = this.color;
-                context.fillRect(this.x, this.y, this.width, this.height);
+            const shapeGridCols = PLAYER_SHIP_SHAPE[0].length; // Should be 10
+            const shapeGridRows = PLAYER_SHIP_SHAPE.length;    // Should be 4
 
-                // Draw "cockpit" detail
-                context.fillStyle = '#333';
-                context.fillRect(this.x + this.width * 0.4, this.y + this.height * 0.2, this.width * 0.2, this.height * 0.6);
+            // Calculate the size of each rendered "pixel block" of the ship
+            const blockRenderWidth = this.width / shapeGridCols;
+            const blockRenderHeight = this.height / shapeGridRows;
 
-                // Draw "wings" detail
-                context.fillStyle = '#aaa';
-                context.fillRect(this.x, this.y + this.height * 0.7, this.width * 0.2, this.height * 0.3);
-                context.fillRect(this.x + this.width * 0.8, this.y + this.height * 0.7, this.width * 0.2, this.height * 0.3);
+            context.fillStyle = this.color; // Use the player's main color
+
+                for (let r_idx = 0; r_idx < shapeGridRows; r_idx++) {
+                    for (let c_idx = 0; c_idx < shapeGridCols; c_idx++) {
+                        if (PLAYER_SHIP_SHAPE[r_idx][c_idx] === 1) {
+                            context.fillRect(
+                                this.x + c_idx * blockRenderWidth,
+                                this.y + r_idx * blockRenderHeight,
+                                blockRenderWidth,
+                                blockRenderHeight
+                            );
+                        }
+                    }
+                }
             }
         }
 
@@ -218,27 +306,30 @@
         }
 
         class Invader extends GameObject {
-            constructor(x, y, width, height, color, points) {
+            constructor(x, y, width, height, color, points, shape) {
                 super(x, y, width, height, color);
                 this.points = points; // Score value
+                this.shape = shape; // Shape array
             }
             // Invaders don't have individual update logic, grid handles movement
             draw(context) {
+                const blockRenderWidth = this.width / 10; // Each block is 10% of the invader width
+                const blockRenderHeight = this.height / 8; // Each block is 8% of the invader height
                 context.fillStyle = this.color;
-                context.fillRect(this.x, this.y, this.width, this.height);
 
-                // Add simple "eyes"
-                context.fillStyle = '#000'; // Black eyes
-                const eyeWidth = this.width * 0.15;
-                const eyeHeight = this.height * 0.2;
-                const eyeY = this.y + this.height * 0.3;
-                context.fillRect(this.x + this.width * 0.2, eyeY, eyeWidth, eyeHeight);
-                context.fillRect(this.x + this.width * 0.65, eyeY, eyeWidth, eyeHeight);
-
-                // Add simple "antenna" or detail based on row color maybe
-                if (this.color === INVADER_COLORS[0] || this.color === INVADER_COLORS[1]) { // Top rows
-                    context.fillStyle = '#ccc';
-                    context.fillRect(this.x + this.width * 0.45, this.y - 5, this.width * 0.1, 5);
+                for (let r_idx = 0; r_idx < 8; r_idx++) { // Iterate through shape rows (e.g., 8 rows)
+                    for (let c_idx = 0; c_idx < 10; c_idx++) { // Iterate through shape columns (e.g., 10 columns)
+                        if (this.shape[r_idx][c_idx] === 1) {
+                            context.fillRect(
+                                this.x + c_idx * blockRenderWidth,
+                                this.y + r_idx * blockRenderHeight,
+                                blockRenderWidth,
+                                blockRenderHeight
+                            );
+                            // For a more "blocky" feel with distinct pixels, you might draw slightly smaller blocks
+                            // e.g., blockRenderWidth - 0.5, blockRenderHeight - 0.5, if your block sizes are large enough
+                        }
+                    }
                 }
             }
         }
@@ -326,9 +417,10 @@
                 for (let c = 0; c < INVADER_COLS; c++) {
                     const invaderX = INVADER_OFFSET_LEFT + c * (INVADER_WIDTH + INVADER_PADDING);
                     const invaderY = INVADER_OFFSET_TOP + r * (INVADER_HEIGHT + INVADER_PADDING);
+                    const shape = ALL_INVADER_SHAPES[r % ALL_INVADER_SHAPES.length];
                     const color = INVADER_COLORS[r % INVADER_COLORS.length];
                     const points = (INVADER_ROWS - r) * 10; // More points for lower rows (harder)
-                    invaders.push(new Invader(invaderX, invaderY, INVADER_WIDTH, INVADER_HEIGHT, color, points));
+                    invaders.push(new Invader(invaderX, invaderY, INVADER_WIDTH, INVADER_HEIGHT, color, points, shape));
                 }
             }
         }
@@ -443,7 +535,6 @@
             const invaderCountFactor = Math.max(0.1, invaders.length / (INVADER_ROWS * INVADER_COLS)); // Scale down interval, minimum 10%
             return baseInterval * invaderCountFactor;
         }
-
 
         function checkCollisions() {
             // --- Player Bullets ---
