@@ -18,6 +18,19 @@
             flex-direction: column;
             align-items: center;
             overflow: hidden; /* Prevent potential scrollbars caused by dragged element */
+            background-image:
+                repeating-linear-gradient(45deg,
+                    rgba(0, 0, 0, 0.12) 0,       /* Line color start */
+                    rgba(0, 0, 0, 0.12) 20px,      /* Line color end (1px thick line) */
+                    transparent 1px,           /* Transparent part start (same as line end) */
+                    transparent 25px          /* Transparent part end (pattern unit size is 25px) */
+                ),
+                repeating-linear-gradient(-45deg, /* Second set of lines for criss-cross */
+                    rgba(0, 0, 0, 0.12) 0,
+                    rgba(0, 0, 0, 0.12) 20px,
+                    transparent 1px,
+                    transparent 25px
+                );
         }
 
         #game-board {
@@ -25,8 +38,8 @@
             width: 95%;
             max-width: 800px; /* Limit max width */
             margin: 20px auto;
-            /* border: 1px solid rgba(0,0,0,0.2); */ /* Optional: visualize board boundary */
-            background-color: #005000; /* Slightly different green for contrast */
+            border: 5px solid rgba(0,0,0,0.2); /* Optional: visualize board boundary */
+            background-color: #00500086; /* Slightly different green for contrast */
             padding: 10px;
             box-sizing: border-box;
             height: 600px; /* Fixed Height */
@@ -119,7 +132,7 @@
             height: 112px;
             border: 1px solid #888;
             border-radius: 5px;
-            background-color: #fff;
+            background-color: #f7f7f7;
             color: #000;
             box-sizing: border-box;
             cursor: pointer;
@@ -135,14 +148,46 @@
         }
 
         .card.face-down {
-            background-color: #4682b4; /* Steel Blue */
-            background-image: linear-gradient(135deg, #5a9bd8 25%, transparent 25%),
-                            linear-gradient(225deg, #5a9bd8 25%, transparent 25%),
-                            linear-gradient(45deg, #5a9bd8 25%, transparent 25%),
-                            linear-gradient(315deg, #5a9bd8 25%, #4682b4 25%);
-            background-position: 10px 0, 10px 0, 0 0, 0 0;
-            background-size: 20px 20px;
-            background-repeat: repeat;
+            background-color: #2a537a; /* Dark Slate Blue - A more classic card color */
+            background-image:
+                /* Thinner diagonal lines (top layer) */
+                repeating-linear-gradient(
+                    45deg,
+                    rgba(255, 255, 255, 0.08) 0,
+                    rgba(255, 255, 255, 0.08) 1px, /* Line thickness */
+                    transparent 1px,
+                    transparent 10px /* Spacing */
+                ),
+                repeating-linear-gradient(
+                    -45deg,
+                    rgba(255, 255, 255, 0.08) 0,
+                    rgba(255, 255, 255, 0.08) 1px,
+                    transparent 1px,
+                    transparent 10px
+                ),
+                /* Wider, slightly darker diagonal bands (middle layer) */
+                repeating-linear-gradient(
+                    45deg,
+                    transparent 0,
+                    transparent 4px,
+                    rgba(0, 0, 0, 0.05) 4px,
+                    rgba(0, 0, 0, 0.05) 8px, /* Band thickness */
+                    transparent 8px,
+                    transparent 20px /* Spacing */
+                ),
+                repeating-linear-gradient(
+                    -45deg,
+                    transparent 0,
+                    transparent 4px,
+                    rgba(0, 0, 0, 0.05) 4px,
+                    rgba(0, 0, 0, 0.05) 8px,
+                    transparent 8px,
+                    transparent 20px
+                );
+            background-size: 20px 20px, 20px 20px, 40px 40px, 40px 40px; /* Adjust sizes for density */
+            box-shadow: inset 0 0 0 3px rgba(0,0,0,0.2), /* Inner border */
+                        inset 0 0 10px rgba(0,0,0,0.1); /* Subtle inner shadow for depth */
+            border: 1px solid #1a252f; /* Slightly darker outer border to complement shadow */
         }
 
         .card.face-down .rank,
@@ -174,8 +219,8 @@
         #controls button + button { margin-left: 10px; }
 
         #controls { margin-top: 20px; text-align: center; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #ffdf00; border: none; border-radius: 5px; color: #333; }
-        button:hover { background-color: #ffd000; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #caaf00; border: none; border-radius: 5px; color: #333; }
+        button:hover { background-color: #9c8700; }
         button:disabled { background-color: #aaa; cursor: not-allowed; } /* Style for disabled button */
 
 
@@ -523,6 +568,9 @@
                 document.addEventListener('touchmove', onDocumentMouseMove, { passive: false }); // Prevent scrolling on touch devices
                 document.addEventListener('touchend', onDocumentMouseUp);
                 document.addEventListener('touchcancel', onDocumentMouseUp); // Handle cancelled touches
+                document.addEventListener('contextmenu', function(event) {
+                    event.preventDefault(); // Prevents the default context menu from appearing
+                });
             }
 
             function moveDraggedElements(clientX, clientY) {
