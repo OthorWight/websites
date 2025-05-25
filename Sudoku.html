@@ -27,6 +27,7 @@
 
         h1 {
             margin-top: 0;
+            margin-bottom: 0;
             color: #333;
         }
 
@@ -34,13 +35,21 @@
         .controls {
             margin-bottom: 15px;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            gap: 10px; /* Spacing between control elements */
-            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 8px; /* Spacing between control rows */
         }
 
-        .controls label,
+        .controls-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px; /* Space between controls in a row */
+            flex-wrap: wrap; /* Allow wrapping for smaller screens */
+            width: 100%; /* Full width for controls */
+        }
+
+        .controls label, /* General label for difficulty */
         .controls select,
         .controls button {
             padding: 8px 12px;
@@ -66,6 +75,24 @@
         }
         .controls button#new-game-btn:hover {
             background-color: #45a049;
+        }
+
+        /* Styling for new toggles */
+        .toggle-option {
+            display: flex;
+            align-items: center;
+            gap: 4px; /* Space between checkbox and its label text */
+        }
+        .toggle-option label { /* Specific styling for toggle labels */
+            font-size: 0.9em;
+            cursor: pointer;
+            padding: 0; /* Override general .controls label padding */
+            border: none; /* Override general .controls label border */
+            margin-right: 5px; /* Space after the toggle group if needed */
+        }
+        .toggle-option input[type="checkbox"] {
+            cursor: pointer;
+            vertical-align: middle; /* Align checkbox better with text */
         }
 
 
@@ -94,52 +121,44 @@
         }
 
         /* Add thicker lines for 3x3 boxes */
-        /* Using :nth-child is often more robust than data attributes for this */
-        .cell:nth-child(9n) { border-right: 3px solid #333; } /* Right edge of grid */
-        .cell:nth-child(n):nth-child(-n+9) { border-top: 3px solid #333; } /* Top edge of grid */
-        .cell:nth-child(n+73) { border-bottom: 3px solid #333; } /* Bottom edge of grid */
-        .cell:nth-child(9n+1) { border-left: 3px solid #333; } /* Left edge of grid */
+        .cell:nth-child(9n) { border-right: 3px solid #333; }
+        .cell:nth-child(n):nth-child(-n+9) { border-top: 3px solid #333; }
+        .cell:nth-child(n+73) { border-bottom: 3px solid #333; }
+        .cell:nth-child(9n+1) { border-left: 3px solid #333; }
 
         .cell:nth-child(3n) { border-right: 2px solid #555; }
-        .cell:nth-child(9n+1), .cell:nth-child(9n+4), .cell:nth-child(9n+7) { border-left: 2px solid #555; } /* Thick left lines for boxes */
-        .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #555; } /* Thick bottom lines for boxes */
+        .cell:nth-child(9n+1), .cell:nth-child(9n+4), .cell:nth-child(9n+7) { border-left: 2px solid #555; }
+        .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #555; }
 
 
         .cell.selected {
-            background-color: #e0f7fa; /* Light blue highlight for selected cell */
-        }
-
-        .cell.highlight {
-            background-color: #f0f0f0; /* Subtle highlight for related cells */
-        }
-        .cell.highlight.selected { /* Ensure selected wins over highlight */
             background-color: #e0f7fa;
         }
 
-        .cell.initial { /* Style for pre-filled numbers */
+        .cell.highlight {
+            background-color: #f0f0f0;
+        }
+        .cell.highlight.selected {
+            background-color: #e0f7fa;
+        }
+
+        .cell.initial {
             background-color: #eee;
             font-weight: bold;
-            /* Make initial cells clickable in custom mode if needed, but style differently */
-            /* cursor: default; REMOVED - all cells clickable now */
         }
 
-        /* Style for cells with numbers violating Sudoku rules (duplicates) */
         .cell.conflicting {
-            background-color: #ffebee; /* Light red background for conflict */
+            background-color: #ffebee;
         }
-        /* Style the *number* within conflicting cells red (unless initial) */
-        .cell.conflicting:not(.initial) .value { /* Keep initial styling separate */
-            color: #b71c1c; /* Darker red for rule conflict */
+        .cell.conflicting:not(.initial) .value {
+            color: #b71c1c;
         }
 
-        /* Style for user-entered numbers that are simply wrong vs the solution */
-        /* This style might not be used in 'custom' mode */
         .cell:not(.initial).user-wrong .value {
-            color: #d32f2f; /* Regular red for wrong number */
+            color: #d32f2f;
         }
-        /* If a cell is BOTH conflicting AND wrong, ensure the number stays red */
         .cell.conflicting:not(.initial).user-wrong .value {
-            color: #b71c1c; /* Prioritize darker red if also a rule conflict */
+            color: #b71c1c;
         }
 
 
@@ -149,59 +168,58 @@
             top: 0; left: 0; right: 0; bottom: 0;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(3, 1fr); /* Ensure 3 rows */
+            grid-template-rows: repeat(3, 1fr);
             width: 100%;
             height: 100%;
-            padding: 1px; /* Small padding */
+            padding: 1px;
             box-sizing: border-box;
-            pointer-events: none; /* Prevent notes from interfering with cell clicks */
+            pointer-events: none;
         }
 
         .note-cell {
-            font-size: clamp(0.5em, 2vmin, 0.7em); /* Responsive font size */
+            font-size: clamp(0.5em, 2vmin, 0.7em);
             color: #aaa;
             display: flex;
             justify-content: center;
             align-items: center;
-            visibility: hidden; /* Notes are hidden by default */
+            visibility: hidden;
             line-height: 1;
-            font-weight: normal; /* Ensure notes aren't bold */
+            font-weight: normal;
         }
 
         .note-cell.visible {
-            visibility: visible; /* Make specific notes visible */
+            visibility: visible;
         }
 
-        .note-cell.hidden-single {
+        .note-cell.hidden-single { /* Will be applied if toggled on */
             font-weight: bold;
-            color: #666;
+            color: #666; /* Darker color for hidden single notes */
         }
 
         /* --- Cell Value --- */
         .value {
-            position: absolute; /* Take it out of flow relative to notes */
+            position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: clamp(1.5em, 5vmin, 2em); /* Responsive font size */
-            color: #007bff; /* Default blue for user-entered values */
-            z-index: 1; /* Ensure value is above notes */
-            pointer-events: none; /* Prevent value div from interfering */
+            font-size: clamp(1.5em, 5vmin, 2em);
+            color: #007bff;
+            z-index: 1;
+            pointer-events: none;
         }
 
-        /* Different color for initial numbers - used in non-custom modes */
         .cell.initial .value {
-            color: #333; /* Black */
+            color: #333;
         }
 
         /* --- Number Pad --- */
         .number-pad {
             margin-top: 20px;
-            display: flex; /* Arrange buttons in a row */
-            justify-content: center; /* Center buttons */
-            flex-wrap: wrap; /* Allow wrapping */
-            gap: 5px; /* Spacing between buttons */
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 5px;
         }
 
         .num-btn {
@@ -232,12 +250,12 @@
             background-color: #0056b3;
         }
 
-        .num-btn.erase { /* Style for erase button */
+        .num-btn.erase {
             background-color: #fdd;
             color: #d32f2f;
             border-color: #fbc;
         }
-        .num-btn.erase.selected { /* Erase can also be 'selected' */
+        .num-btn.erase.selected {
             background-color: #d32f2f;
             color: white;
             border-color: #b71c1c;
@@ -253,19 +271,18 @@
         #status-message {
             margin-top: 15px;
             font-weight: bold;
-            min-height: 1.2em; /* Prevent layout shifts */
-            color: #4CAF50; /* Green for success */
+            min-height: 1.2em;
+            color: #4CAF50;
         }
 
         /* --- Disabled Number Button Styling --- */
         .num-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            background-color: #f0f0f0; /* More muted background */
-            color: #aaa; /* Lighter text */
+            background-color: #f0f0f0;
+            color: #aaa;
             border-color: #ddd;
         }
-        /* Ensure hover effect doesn't apply when disabled */
         .num-btn:disabled:hover {
             background-color: #f0f0f0;
         }
@@ -274,17 +291,30 @@
 <body>
     <div class="container">
         <h1>Sudoku</h1>
-
         <div class="controls">
-            <label for="difficulty">Difficulty:</label>
-            <select id="difficulty">
-                <option value="easy">Easy</option>
-                <option value="normal" selected>Normal</option>
-                <option value="hard">Hard</option>
-                <option value="expert">Expert</option>
-                <option value="custom">Custom</option> <!-- Added Custom Option -->
-            </select>
-            <button id="new-game-btn">New Game</button>
+            <div class="controls-row">
+                <label for="difficulty">Difficulty:</label>
+                <select id="difficulty">
+                    <option value="easy">Easy</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="hard">Hard</option>
+                    <option value="expert">Expert</option>
+                    <option value="custom">Custom</option>
+                </select>
+                <button id="new-game-btn">New Game</button>
+            </div>
+
+            <div class="controls-row">
+                <!-- New Toggles -->
+                <div class="toggle-option">
+                    <input type="checkbox" id="auto-notes-toggle">
+                    <label for="auto-notes-toggle">Auto Notes</label>
+                </div>
+                <div class="toggle-option">
+                    <input type="checkbox" id="bold-hidden-singles-toggle">
+                    <label for="bold-hidden-singles-toggle">Bold Hidden Singles</label>
+                </div>
+            </div>
         </div>
 
         <div id="sudoku-grid" class="sudoku-grid">
@@ -301,10 +331,10 @@
             <button class="num-btn" data-number="7">7</button>
             <button class="num-btn" data-number="8">8</button>
             <button class="num-btn" data-number="9">9</button>
-            <button class="num-btn erase" data-number="0">Erase</button>
+            <button class="num-btn erase" data-number="0">Del</button>
         </div>
 
-        <p id="status-message"></p> <!-- For messages like "Solved!" -->
+        <p id="status-message"></p>
 
     </div>
 
@@ -316,81 +346,67 @@
             const newGameBtn = document.getElementById('new-game-btn');
             const statusMessage = document.getElementById('status-message');
 
+            // Toggles
+            const autoNotesToggle = document.getElementById('auto-notes-toggle');
+            const boldHiddenSinglesToggle = document.getElementById('bold-hidden-singles-toggle');
+
             const SIZE = 9;
             const BOX_SIZE = 3;
 
-            let currentGrid = []; // Current state including user input
-            let solvedGrid = [];  // The complete hidden solution (empty in custom mode)
-            let initialGrid = []; // The initial puzzle state (all 0s in custom mode)
-            let selectedCell = null; // { row, col, element }
-            let selectedNumber = null; // Number (1-9) or 0 for erase
-            let isGenerating = false; // Flag to prevent clicks during generation
-            let isCustomMode = false; // Flag for custom mode
+            let currentGrid = [];
+            let solvedGrid = [];
+            let initialGrid = [];
+            let selectedCell = null;
+            let selectedNumber = null;
+            let isGenerating = false;
+            let isCustomMode = false;
+
+            // Toggle states
+            let autoNotesEnabled = false;
+            let boldHiddenSinglesEnabled = false;
+
 
             const difficultySettings = {
                 easy: 45,
                 normal: 36,
                 hard: 28,
                 expert: 22,
-                // Custom doesn't need a number here, handled separately
             };
 
-            // <<< --- START OF MISSING/INSERTED FUNCTIONS --- >>>
-
-            /**
-             * Shuffles array elements in place using the Fisher-Yates algorithm.
-             * @param {Array} array The array to shuffle.
-             * @returns {Array} The shuffled array (same instance).
-             */
             function shuffle(array) {
                 for (let i = array.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
-                    [array[i], array[j]] = [array[j], array[i]]; // ES6 swap
+                    [array[i], array[j]] = [array[j], array[i]];
                 }
                 return array;
             }
 
-            /**
-             * Counts the number of solutions for a given Sudoku grid using backtracking.
-             * Stops early if more than one solution is found.
-             * IMPORTANT: Modifies the grid passed! Pass a copy if original needs preservation.
-             * @param {number[][]} grid - The Sudoku grid (potentially partial).
-             * @returns {number} 0, 1, or 2 (representing "2 or more").
-             */
             function countSolutions(grid) {
                 let count = 0;
-
                 function solve() {
                     const find = findEmpty(grid);
                     if (!find) {
-                        count++; // Found a solution
-                        return; // Continue searching if count < 2
+                        count++;
+                        return;
                     }
-
                     const [row, col] = find;
-                    for (let num = 1; num <= SIZE && count < 2; num++) { // Stop early
+                    for (let num = 1; num <= SIZE && count < 2; num++) {
                         if (isValid(grid, row, col, num)) {
                             grid[row][col] = num;
-                            solve(); // Recurse
+                            solve();
                             if (count >= 2) {
-                                grid[row][col] = 0; // Backtrack mandatory before returning
+                                grid[row][col] = 0;
                                 return;
                             }
-                            grid[row][col] = 0; // Backtrack for next num/state
+                            grid[row][col] = 0;
                         }
                     }
                 }
-                // Create a deep copy to avoid modifying the original grid passed
                 let gridCopy = grid.map(row => [...row]);
-                solve(); // Call solve on the copy
-                return count; // 0, 1, or 2
+                solve();
+                return count;
             }
 
-
-            // <<< --- END OF MISSING/INSERTED FUNCTIONS --- >>>
-
-
-            // --- Core Sudoku Setup Logic ---
 
             function setupNewGame() {
                 if (isGenerating) return;
@@ -399,85 +415,72 @@
                 gridElement.style.opacity = '0.5';
 
                 const selectedDifficulty = difficultySelect.value;
-                isCustomMode = (selectedDifficulty === 'custom'); // Set the custom mode flag
+                isCustomMode = (selectedDifficulty === 'custom');
 
                 if (isCustomMode) {
                     statusMessage.textContent = "Custom Mode: Fill the grid.";
                     setupCustomGrid();
                 } else {
                     statusMessage.textContent = `Generating ${selectedDifficulty} puzzle...`;
-                    generatePuzzle(); // Call the puzzle generation function
+                    generatePuzzle();
                 }
             }
 
             function setupCustomGrid() {
-                 // No generation needed, just setup empty grids
                  setTimeout(() => {
-                    console.log("Setting up Custom Grid");
                     currentGrid = Array(SIZE).fill(null).map(() => Array(SIZE).fill(0));
-                    initialGrid = Array(SIZE).fill(null).map(() => Array(SIZE).fill(0)); // All cells are user-editable
-                    solvedGrid = []; // No solution to check against
+                    initialGrid = Array(SIZE).fill(null).map(() => Array(SIZE).fill(0));
+                    solvedGrid = [];
 
-                    renderGrid(); // Render the empty grid
-                    updateAllNotes();
-                    updateHiddenSingleNotes();
-                    updateNumberPadState(); // Ensure buttons aren't disabled based on count
-                    statusMessage.textContent = "Custom Mode: Fill the grid."; // Set specific message
+                    renderGrid();
+                    updateAllNotes(); // This will respect autoNotesEnabled and updateHiddenSingleNotesStyling
+                    updateNumberPadState();
+                    statusMessage.textContent = "Custom Mode: Fill the grid.";
                     gridElement.style.opacity = '1';
                     isGenerating = false;
-                    console.log("Custom Grid Ready.");
-                 }, 10); // Small delay for UI update
+                 }, 10);
             }
 
 
             function generatePuzzle() {
-                // This function now only handles standard puzzle generation
                 setTimeout(() => {
-                    console.time("Sudoku Generation");
                     let grid = Array(SIZE).fill(null).map(() => Array(SIZE).fill(0));
-                    if (!fillGrid(grid)) { // Check if filling was successful
+                    if (!fillGrid(grid)) {
                         console.error("Failed to generate a fully solved grid.");
                         statusMessage.textContent = "Error generating puzzle. Try again.";
                         gridElement.style.opacity = '1';
                         isGenerating = false;
                         return;
                     }
-                    solvedGrid = grid.map(row => [...row]); // Store the full solution
+                    solvedGrid = grid.map(row => [...row]);
 
                     const difficulty = difficultySelect.value;
                     const cellsToKeep = difficultySettings[difficulty] || difficultySettings.normal;
-                    currentGrid = pokeHoles(solvedGrid, cellsToKeep); // Create puzzle
-                    initialGrid = currentGrid.map(row => [...row]); // Store initial state
+                    currentGrid = pokeHoles(solvedGrid, cellsToKeep);
+                    initialGrid = currentGrid.map(row => [...row]);
 
-                    console.timeEnd("Sudoku Generation");
-
-                    renderGrid(); // Initial render
-                    updateAllNotes();
-                    updateHiddenSingleNotes();
+                    renderGrid();
+                    updateAllNotes(); // This will respect autoNotesEnabled and updateHiddenSingleNotesStyling
                     updateNumberPadState();
-                    statusMessage.textContent = ""; // Clear generating message
+                    statusMessage.textContent = "";
                     gridElement.style.opacity = '1';
                     isGenerating = false;
-                }, 50); // Delay allows UI update for "Generating..." message
+                }, 50);
             }
-
-            // --- Sudoku Generation Helpers (fillGrid, findEmpty, isValid, pokeHoles) ---
-            // These remain largely the same, but pokeHoles needs the updated countSolutions
 
             function fillGrid(grid) {
                 const find = findEmpty(grid);
-                if (!find) return true; // Grid full
+                if (!find) return true;
                 const [row, col] = find;
-                const numbers = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]); // Use shuffle
+                const numbers = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
                 for (let num of numbers) {
-                    // Check validity against the *current* state of the grid being built
                     if (isValidForGeneration(grid, row, col, num)) {
                         grid[row][col] = num;
-                        if (fillGrid(grid)) return true; // Solution found
-                        grid[row][col] = 0; // Backtrack
+                        if (fillGrid(grid)) return true;
+                        grid[row][col] = 0;
                     }
                 }
-                return false; // No valid number found
+                return false;
             }
 
             function findEmpty(grid) {
@@ -486,20 +489,16 @@
                         if (grid[r][c] === 0) return [r, c];
                     }
                 }
-                return null; // No empty cell
+                return null;
             }
 
-             // Helper for fillGrid - checks placement rules strictly
             function isValidForGeneration(grid, row, col, num) {
-                // Check row
                 for (let c = 0; c < SIZE; c++) {
                     if (grid[row][c] === num) return false;
                 }
-                // Check column
                 for (let r = 0; r < SIZE; r++) {
                     if (grid[r][col] === num) return false;
                 }
-                // Check box
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
                 for (let r = startRow; r < startRow + BOX_SIZE; r++) {
@@ -507,21 +506,15 @@
                         if (grid[r][c] === num) return false;
                     }
                 }
-                return true; // Number is valid for this placement during generation
+                return true;
             }
 
-
-            // isValid checks if a number *currently* conflicts with others (for UI feedback)
-            // It allows checking a cell against itself to see if IT is the source of conflict elsewhere
             function isValid(grid, row, col, num) {
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
                 for (let i = 0; i < SIZE; i++) {
-                    // Check row (excluding self)
                     if (grid[row][i] === num && i !== col) return false;
-                    // Check column (excluding self)
                     if (grid[i][col] === num && i !== row) return false;
-                    // Check box (excluding self)
                     const boxR = startRow + Math.floor(i / BOX_SIZE);
                     const boxC = startCol + (i % BOX_SIZE);
                     if (grid[boxR][boxC] === num && (boxR !== row || boxC !== col)) return false;
@@ -533,7 +526,6 @@
                 let puzzleGrid = solvedGridInput.map(row => [...row]);
                 let cellsRemoved = 0;
                 const targetCellsToRemove = SIZE * SIZE - cellsToKeep;
-
                 let candidates = [];
                 for (let r = 0; r < SIZE; r++) {
                     for (let c = 0; c < SIZE; c++) {
@@ -541,34 +533,22 @@
                     }
                 }
                 shuffle(candidates);
-
-                console.log(`Target clues: ${cellsToKeep}. Attempting to remove ${targetCellsToRemove} cells...`);
-
                 for (let i = 0; i < candidates.length && cellsRemoved < targetCellsToRemove; i++) {
                     const [r, c] = candidates[i];
-                    if (puzzleGrid[r][c] === 0) continue; // Already removed
-
+                    if (puzzleGrid[r][c] === 0) continue;
                     let backup = puzzleGrid[r][c];
-                    puzzleGrid[r][c] = 0; // Tentatively remove
-
-                    // MUST pass a copy to countSolutions as it modifies the grid
+                    puzzleGrid[r][c] = 0;
                     let gridCopyForCheck = puzzleGrid.map(row => [...row]);
-                    let numberOfSolutions = countSolutions(gridCopyForCheck); // Use updated countSolutions
-
+                    let numberOfSolutions = countSolutions(gridCopyForCheck);
                     if (numberOfSolutions !== 1) {
-                        puzzleGrid[r][c] = backup; // Put back if not unique
+                        puzzleGrid[r][c] = backup;
                     } else {
-                        cellsRemoved++; // Keep removed
+                        cellsRemoved++;
                     }
-                }
-                console.log(`Successfully removed ${cellsRemoved} cells. Final clues: ${SIZE*SIZE - cellsRemoved}`);
-                if (cellsRemoved < targetCellsToRemove) {
-                    console.warn(`Could not remove target number of cells. Target: ${targetCellsToRemove}, Removed: ${cellsRemoved}`);
                 }
                 return puzzleGrid;
             }
 
-            // --- DOM Manipulation & Rendering ---
 
             function createGridDOM() {
                 gridElement.innerHTML = '';
@@ -578,7 +558,6 @@
                         cell.classList.add('cell');
                         cell.dataset.row = r;
                         cell.dataset.col = c;
-
                         const notesGrid = document.createElement('div');
                         notesGrid.classList.add('notes-grid');
                         for (let n = 1; n <= SIZE; n++) {
@@ -589,11 +568,9 @@
                             notesGrid.appendChild(noteCell);
                         }
                         cell.appendChild(notesGrid);
-
                         const valueDiv = document.createElement('div');
                         valueDiv.classList.add('value');
                         cell.appendChild(valueDiv);
-
                         cell.addEventListener('click', handleCellClick);
                         gridElement.appendChild(cell);
                     }
@@ -609,41 +586,31 @@
                         const notesGrid = cellElement.querySelector('.notes-grid');
                         const value = currentGrid[r][c];
 
-                        // Reset dynamic classes
                         cellElement.classList.remove('initial', 'conflicting', 'selected', 'highlight', 'user-wrong');
                         valueDiv.textContent = '';
-                        notesGrid.style.display = 'grid'; // Default show notes grid
+                        notesGrid.style.display = 'grid';
 
                         if (value !== 0) {
                             valueDiv.textContent = value;
-                            notesGrid.style.display = 'none'; // Hide notes if value exists
-
-                            // Apply 'initial' style only if NOT in custom mode and cell was pre-filled
+                            notesGrid.style.display = 'none';
                             if (!isCustomMode && initialGrid[r][c] !== 0) {
                                 cellElement.classList.add('initial');
                             } else {
-                                // User-entered number (or any number in custom mode)
-                                // Check correctness vs solution ONLY if NOT in custom mode
                                 if (!isCustomMode && solvedGrid.length > 0 && value !== solvedGrid[r][c]) {
                                     cellElement.classList.add('user-wrong');
                                 }
                             }
                         } else {
-                            notesGrid.style.display = 'grid'; // Ensure notes grid shown for empty
+                            notesGrid.style.display = 'grid';
                         }
                     }
                 }
-                // Re-apply selection/highlighting after main loop
                 if (selectedCell) {
                     highlightAffectedCells(selectedCell.row, selectedCell.col);
                     getCellElement(selectedCell.row, selectedCell.col)?.classList.add('selected');
                 }
-                // Check rule conflicts (duplicates) after rendering values
                 checkAllConflicts();
             }
-
-            // --- Notes Logic (updateCellNotes, updateAllNotes, getPossibleNumbers) ---
-            // These functions work based on currentGrid, so they should be fine for custom mode.
 
             function updateCellNotes(row, col) {
                 const cellElement = getCellElement(row, col);
@@ -651,44 +618,49 @@
                 const notesGrid = cellElement.querySelector('.notes-grid');
                 if (!notesGrid) return;
 
-                if (currentGrid[row][col] !== 0) {
-                    notesGrid.style.display = 'none'; // Hide notes if cell has value
-                    notesGrid.querySelectorAll('.note-cell').forEach(nc => nc.classList.remove('visible', 'hidden-single')); // Clear visibility and style
+                const allNoteCells = notesGrid.querySelectorAll('.note-cell');
+
+                if (currentGrid[row][col] !== 0) { // Cell has a value
+                    notesGrid.style.display = 'none';
+                    allNoteCells.forEach(nc => nc.classList.remove('visible', 'hidden-single'));
                     return;
-                } else {
-                    notesGrid.style.display = 'grid'; // Show notes grid if cell is empty
+                } else { // Cell is empty
+                    notesGrid.style.display = 'grid'; // Show notes grid container
+                    if (!autoNotesEnabled) { // Auto notes are OFF
+                        allNoteCells.forEach(nc => nc.classList.remove('visible', 'hidden-single'));
+                        return; // Don't calculate or show any notes
+                    }
                 }
 
+                // Auto notes are ON and cell is empty
                 const possible = getPossibleNumbers(currentGrid, row, col);
                 for (let n = 1; n <= SIZE; n++) {
                     const noteCell = notesGrid.querySelector(`.note-cell[data-note='${n}']`);
                     if (!noteCell) continue;
-                    noteCell.classList.toggle('visible', possible.includes(n)); // Add/remove 'visible'
-                    noteCell.classList.remove('hidden-single'); // Reset hidden single state here
+                    noteCell.classList.toggle('visible', possible.includes(n));
+                    // Reset hidden single, will be re-applied by updateHiddenSingleNotesStyling
+                    noteCell.classList.remove('hidden-single');
                 }
             }
 
             function updateAllNotes() {
                 for (let r = 0; r < SIZE; r++) {
                     for (let c = 0; c < SIZE; c++) {
-                        updateCellNotes(r, c); // Update notes based on current grid state
+                        updateCellNotes(r, c);
                     }
                 }
-                 // After updating basic visibility, check for hidden singles
-                 updateHiddenSingleNotes();
+                updateHiddenSingleNotesStyling();
             }
 
 
             function getPossibleNumbers(grid, row, col) {
-                if (grid[row][col] !== 0) return []; // No possibilities if filled
+                if (grid[row][col] !== 0) return [];
                 let possible = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
-
                 for (let i = 0; i < SIZE; i++) {
-                    if (grid[row][i] !== 0) possible.delete(grid[row][i]); // Row check
-                    if (grid[i][col] !== 0) possible.delete(grid[i][col]); // Col check
-                    // Box check
+                    if (grid[row][i] !== 0) possible.delete(grid[row][i]);
+                    if (grid[i][col] !== 0) possible.delete(grid[i][col]);
                     const boxR = startRow + Math.floor(i / BOX_SIZE);
                     const boxC = startCol + (i % BOX_SIZE);
                     if (grid[boxR][boxC] !== 0) possible.delete(grid[boxR][boxC]);
@@ -696,7 +668,6 @@
                 return Array.from(possible);
             }
 
-            // --- Event Handlers ---
 
             function handleCellClick(event) {
                 if (isGenerating) return;
@@ -704,18 +675,14 @@
                 const row = parseInt(cell.dataset.row);
                 const col = parseInt(cell.dataset.col);
 
-                // In standard modes, prevent input on initial cells. Allow selection.
-                // In custom mode, ALL cells are editable.
                 if (!isCustomMode && initialGrid[row][col] !== 0) {
-                    selectCell(row, col, cell); // Select initial cell for highlighting only
-                    return; // Don't allow input
+                    selectCell(row, col, cell);
+                    return;
                 }
 
-                // If a number is pre-selected on the numpad, place it immediately
                 if (selectedNumber !== null) {
                     placeNumberInCell(row, col, selectedNumber);
                 } else {
-                    // Otherwise, just select the cell
                     selectCell(row, col, cell);
                 }
             }
@@ -723,20 +690,15 @@
             function handleNumberClick(event) {
                 if (isGenerating) return;
                 const button = event.currentTarget;
-                if (button.disabled) return; // Ignore disabled button clicks
+                if (button.disabled) return;
 
                 const number = parseInt(button.dataset.number);
-
                 if (selectedNumber === number) {
-                    clearSelection(); // Toggle off if same number clicked
+                    clearSelection();
                     return;
                 }
-
-                selectNumber(number, button); // Select the number
-
-                // If a cell is selected, place the number immediately (ensure cell is editable)
+                selectNumber(number, button);
                 if (selectedCell) {
-                    // Check if the selected cell is editable (always true in custom mode)
                     if (isCustomMode || initialGrid[selectedCell.row][selectedCell.col] === 0) {
                          placeNumberInCell(selectedCell.row, selectedCell.col, number);
                     }
@@ -744,115 +706,90 @@
             }
 
             function handleKeyDown(event) {
-                if (isGenerating || !selectedCell) return; // Ignore if no cell selected or generating
-
+                if (isGenerating || !selectedCell) return;
                 const { row, col } = selectedCell;
-
-                 // Check if cell is editable (always true in custom mode)
                  if (!isCustomMode && initialGrid[row][col] !== 0) {
-                    // Allow navigation even on initial cells
                     if (event.key.startsWith('Arrow')) {
                          moveSelection(event.key);
                          event.preventDefault();
                     }
-                    return; // Ignore number input on initial cells in non-custom mode
+                    return;
                  }
-
-
                 let number = null;
                 if (event.key >= '1' && event.key <= '9') {
                     number = parseInt(event.key);
                 } else if (event.key === 'Backspace' || event.key === 'Delete' || event.key === '0') {
-                    number = 0; // Erase
+                    number = 0;
                 } else if (event.key.startsWith('Arrow')) {
-                    moveSelection(event.key); // Handle arrow key navigation
-                    event.preventDefault(); // Prevent page scroll
-                    return; // Don't place number
+                    moveSelection(event.key);
+                    event.preventDefault();
+                    return;
                 }
-
                 if (number !== null) {
-                    event.preventDefault(); // Prevent default key action
-
-                    // Check if corresponding number button is disabled (only in non-custom mode)
+                    event.preventDefault();
                     const numBtn = numberPad.querySelector(`.num-btn[data-number='${number}']`);
                     if (!isCustomMode && number !== 0 && numBtn && numBtn.disabled) {
-                        console.log(`Number ${number} is complete.`);
-                        return; // Don't place completed numbers in non-custom mode
+                        return;
                     }
-                    placeNumberInCell(row, col, number); // Place the number
+                    placeNumberInCell(row, col, number);
                 }
             }
 
-            // handleNewGame is now replaced by setupNewGame
-            // newGameBtn.addEventListener('click', setupNewGame);
-            // difficultySelect.addEventListener('change', setupNewGame);
-
-
-            // --- Core Interaction Logic ---
 
             function placeNumberInCell(row, col, number) {
-                 // Double check editability (redundant check, but safe)
                  if (!isCustomMode && initialGrid[row][col] !== 0) return;
 
                 const currentValue = currentGrid[row][col];
-                // Determine new value (0 if erasing or toggling off same number)
                 const newValue = (number === 0 || (number !== 0 && number === currentValue)) ? 0 : number;
 
-                if (currentGrid[row][col] !== newValue) { // Only proceed if value changes
-                    currentGrid[row][col] = newValue; // Update internal grid state
+                if (currentGrid[row][col] !== newValue) {
+                    currentGrid[row][col] = newValue;
 
                     const cellElement = getCellElement(row, col);
                     const valueDiv = cellElement.querySelector('.value');
                     const notesGrid = cellElement.querySelector('.notes-grid');
 
-                    // Update visual state of the cell
-                    cellElement.classList.remove('user-wrong'); // Remove wrong state before re-evaluating
+                    cellElement.classList.remove('user-wrong');
                     if (newValue !== 0) {
                         valueDiv.textContent = newValue;
-                        notesGrid.style.display = 'none';
-                        cellElement.classList.remove('initial'); // Ensure initial class is removed if user writes
+                        notesGrid.style.display = 'none'; // Hide notes display
+                        // Clear note visibility classes if value is placed
+                        notesGrid.querySelectorAll('.note-cell').forEach(nc => nc.classList.remove('visible', 'hidden-single'));
+                        cellElement.classList.remove('initial');
 
-                        // Check correctness against the solved grid ONLY if NOT in custom mode
                         if (!isCustomMode && solvedGrid.length > 0 && newValue !== solvedGrid[row][col]) {
                             cellElement.classList.add('user-wrong');
                         }
                     } else {
-                        // Erasing the cell
                         valueDiv.textContent = '';
-                        notesGrid.style.display = 'grid'; // Show notes grid again
-                        updateCellNotes(row, col); // Update notes for the now empty cell
+                        notesGrid.style.display = 'grid'; // Show notes grid container
+                        // updateCellNotes will handle actual note visibility based on autoNotesEnabled
                     }
 
-                    // Update surrounding elements and game state
-                    updateNotesInAffectedCells(row, col); // Update notes in row/col/box
-                    updateHiddenSingleNotes(); // Re-check hidden singles after change
-                    checkAllConflicts(); // Check for Sudoku rule violations (duplicates)
-                    updateNumberPadState(); // Enable/disable number buttons
+                    updateNotesInAffectedCells(row, col); // This calls updateCellNotes and updateHiddenSingleNotesStyling
+                    checkAllConflicts();
+                    updateNumberPadState();
 
-                    // Check win condition only if not in custom mode
                     if (!isCustomMode) {
                         checkWinCondition();
                     } else {
-                        statusMessage.textContent = "Custom Mode: Fill the grid."; // Keep custom message
+                        statusMessage.textContent = "Custom Mode: Fill the grid.";
                     }
                 }
-                // Keep the cell selected after placement
                 selectCell(row, col, getCellElement(row, col));
             }
 
-            // --- Helper Functions (getCellElement, Selection, Highlighting, Conflicts, Win Condition) ---
 
             function getCellElement(row, col) {
                 return gridElement.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
             }
 
             function selectCell(row, col, element) {
-                if (!element) return; // Safety check
-                clearSelectionVisually(); // Clear previous selection visuals
+                if (!element) return;
+                clearSelectionVisually();
                 selectedCell = { row, col, element };
-                element.classList.add('selected'); // Highlight the cell
-                highlightAffectedCells(row, col); // Highlight related cells/numbers
-                // Keep number pad selection if active
+                element.classList.add('selected');
+                highlightAffectedCells(row, col);
                 if (selectedNumber !== null) {
                     const numBtn = numberPad.querySelector(`.num-btn[data-number='${selectedNumber}']`);
                     if (numBtn) numBtn.classList.add('selected');
@@ -860,45 +797,37 @@
             }
 
             function selectNumber(number, element) {
-                numberPad.querySelectorAll('.num-btn').forEach(btn => btn.classList.remove('selected')); // Clear others
-                if (element) element.classList.add('selected'); // Highlight selected button
-                selectedNumber = number; // Store selected number state
+                numberPad.querySelectorAll('.num-btn').forEach(btn => btn.classList.remove('selected'));
+                if (element) element.classList.add('selected');
+                selectedNumber = number;
             }
 
             function clearSelectionVisually() {
-                // Clear cell selection visuals
                 if (selectedCell) {
                     selectedCell.element.classList.remove('selected');
                 }
                 gridElement.querySelectorAll('.cell.highlight').forEach(cell => cell.classList.remove('highlight'));
-                // Clear number pad selection visual
                 numberPad.querySelectorAll('.num-btn').forEach(btn => btn.classList.remove('selected'));
             }
 
             function clearSelection() {
-                clearSelectionVisually(); // Clear visuals
-                selectedCell = null; // Reset internal state
-                selectedNumber = null; // Reset internal state
+                clearSelectionVisually();
+                selectedCell = null;
+                selectedNumber = null;
             }
 
             function highlightAffectedCells(row, col) {
-                // Clear previous highlights
                 gridElement.querySelectorAll('.cell.highlight').forEach(cell => cell.classList.remove('highlight'));
-                const currentVal = currentGrid[row][col]; // Value in the selected cell
-
-                // Highlight row, column, and box
+                const currentVal = currentGrid[row][col];
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
                 for (let i = 0; i < SIZE; i++) {
-                    getCellElement(row, i)?.classList.add('highlight'); // Row
-                    getCellElement(i, col)?.classList.add('highlight'); // Col
-                    // Box
+                    getCellElement(row, i)?.classList.add('highlight');
+                    getCellElement(i, col)?.classList.add('highlight');
                     const boxR = startRow + Math.floor(i / BOX_SIZE);
                     const boxC = startCol + (i % BOX_SIZE);
                     getCellElement(boxR, boxC)?.classList.add('highlight');
                 }
-
-                // Highlight cells with the same number (if selected cell has a number)
                 if (currentVal !== 0) {
                     for (let r = 0; r < SIZE; r++) {
                         for (let c = 0; c < SIZE; c++) {
@@ -913,38 +842,31 @@
              function updateNotesInAffectedCells(row, col) {
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
-                const cellsToUpdate = new Set(); // Use Set to avoid duplicates
+                const cellsToUpdate = new Set();
                 for (let i = 0; i < SIZE; i++) {
-                    cellsToUpdate.add(`${row}-${i}`); // Row
-                    cellsToUpdate.add(`${i}-${col}`); // Column
-                    // Box
+                    cellsToUpdate.add(`${row}-${i}`);
+                    cellsToUpdate.add(`${i}-${col}`);
                     const boxR = startRow + Math.floor(i / BOX_SIZE);
                     const boxC = startCol + (i % BOX_SIZE);
                     cellsToUpdate.add(`${boxR}-${boxC}`);
                 }
-                // Update notes only for affected cells
                 cellsToUpdate.forEach(coord => {
                     const [r, c] = coord.split('-').map(Number);
-                    updateCellNotes(r, c); // This updates visibility
+                    updateCellNotes(r, c); // This updates visibility based on autoNotesEnabled
                 });
-                // After updating visibility for all affected cells, re-check for hidden singles globally or locally
-                 updateHiddenSingleNotes(); // It's simpler to just re-run the global check
+                updateHiddenSingleNotesStyling(); // Re-style hidden singles
             }
 
 
-            /** Checks for Sudoku rule violations (duplicates) */
             function checkAllConflicts() {
-                // Clear previous rule conflicts
                 gridElement.querySelectorAll('.cell.conflicting').forEach(cell => cell.classList.remove('conflicting'));
                 let hasRuleConflict = false;
                 for (let r = 0; r < SIZE; r++) {
                     for (let c = 0; c < SIZE; c++) {
                         const value = currentGrid[r][c];
                         if (value !== 0) {
-                            // Check if placing 'value' at [r,c] violates rules against other numbers
                             if (!isValid(currentGrid, r, c, value)) {
-                                // Mark cells involved in the conflict (could be multiple)
-                                markRuleConflict(r, c, value); // Mark all involved cells
+                                markRuleConflict(r, c, value);
                                 hasRuleConflict = true;
                             }
                         }
@@ -953,24 +875,16 @@
                 return hasRuleConflict;
             }
 
-            /** Marks all cells involved in a rule conflict for a given number */
             function markRuleConflict(row, col, num) {
                 const cellElement = getCellElement(row, col);
-                // Mark the cell itself if it's part of a conflict
-                // Check if 'num' exists elsewhere causing the conflict for this cell
                 if (!isValid(currentGrid, row, col, num)) {
                     cellElement?.classList.add('conflicting');
                 }
-
-                // Mark others in row/col/box with same number causing conflict
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
                 for(let i=0; i<SIZE; i++) {
-                    // Row Check: Mark other cell if it has the same number
                     if (i !== col && currentGrid[row][i] === num) getCellElement(row, i)?.classList.add('conflicting');
-                    // Col Check: Mark other cell if it has the same number
                     if (i !== row && currentGrid[i][col] === num) getCellElement(i, col)?.classList.add('conflicting');
-                    // Box Check: Mark other cell if it has the same number
                     const boxR = startRow + Math.floor(i / BOX_SIZE);
                     const boxC = startCol + (i % BOX_SIZE);
                     if ((boxR !== row || boxC !== col) && currentGrid[boxR][boxC] === num) {
@@ -980,27 +894,21 @@
             }
 
 
-            /** Checks if the grid is full and matches the solution - Not applicable in Custom Mode */
             function checkWinCondition() {
-                 if (isCustomMode) return false; // Cannot "win" in custom mode
-
+                 if (isCustomMode) return false;
                 for (let r = 0; r < SIZE; r++) {
                     for (let c = 0; c < SIZE; c++) {
-                        // Check if any cell is empty OR doesn't match the solution
                         if (currentGrid[r][c] === 0 || (solvedGrid.length > 0 && currentGrid[r][c] !== solvedGrid[r][c])) {
-                            statusMessage.textContent = ""; // Not won yet
+                            statusMessage.textContent = "";
                             return false;
                         }
                     }
                 }
-                // Grid is full AND matches the solution
                 statusMessage.textContent = "Congratulations! You solved it!";
                 clearSelection();
-                // Optionally disable grid/buttons further
                 return true;
             }
 
-            /** Counts occurrences of a number on the current grid */
             function countNumberOnGrid(number) {
                 let count = 0;
                 for (let r = 0; r < SIZE; r++) {
@@ -1011,24 +919,20 @@
                 return count;
             }
 
-            /** Updates the enabled/disabled state of number pad buttons */
             function updateNumberPadState() {
                 for (let n = 1; n <= SIZE; n++) {
                     const count = countNumberOnGrid(n);
                     const button = numberPad.querySelector(`.num-btn[data-number='${n}']`);
                     if (button) {
-                        // Disable button only if NOT in custom mode AND count is 9 or more
                         button.disabled = !isCustomMode && (count >= SIZE);
                     }
                 }
-                // Ensure erase button is always enabled
                 const eraseButton = numberPad.querySelector('.num-btn.erase');
                 if(eraseButton) eraseButton.disabled = false;
             }
 
-            /** Moves the selected cell using arrow keys */
             function moveSelection(key) {
-                if (!selectedCell) return; // Need a cell selected first
+                if (!selectedCell) return;
                 let { row, col } = selectedCell;
                 switch (key) {
                     case 'ArrowUp':    row = Math.max(0, row - 1); break;
@@ -1038,50 +942,39 @@
                 }
                 const newCellElement = getCellElement(row, col);
                 if (newCellElement) {
-                    selectCell(row, col, newCellElement); // Select the new cell
+                    selectCell(row, col, newCellElement);
                 }
             }
 
-            // --- Hidden Single Logic ---
-            // These functions should work correctly in custom mode as well.
 
-             /**
-             * Checks if a given number is a "Hidden Single" for a specific empty cell.
-             */
              function checkHiddenSingle(row, col, num) {
-                // --- Check Row ---
                 let foundInRowElsewhere = false;
                 for (let cCheck = 0; cCheck < SIZE; cCheck++) {
-                    if (cCheck !== col && currentGrid[row][cCheck] === 0) { // Check only other *empty* cells
+                    if (cCheck !== col && currentGrid[row][cCheck] === 0) {
                         if (getPossibleNumbers(currentGrid, row, cCheck).includes(num)) {
                             foundInRowElsewhere = true;
                             break;
                         }
                     }
                 }
-                 // If num is a possibility here, but not in any other empty cell in the row -> Hidden Single
                 if (!foundInRowElsewhere && getPossibleNumbers(currentGrid, row, col).includes(num)) return true;
 
-                // --- Check Column ---
                 let foundInColElsewhere = false;
                 for (let rCheck = 0; rCheck < SIZE; rCheck++) {
-                    if (rCheck !== row && currentGrid[rCheck][col] === 0) { // Check only other *empty* cells
+                    if (rCheck !== row && currentGrid[rCheck][col] === 0) {
                         if (getPossibleNumbers(currentGrid, rCheck, col).includes(num)) {
                             foundInColElsewhere = true;
                             break;
                         }
                     }
                 }
-                 // If num is a possibility here, but not in any other empty cell in the col -> Hidden Single
                 if (!foundInColElsewhere && getPossibleNumbers(currentGrid, row, col).includes(num)) return true;
 
-                // --- Check Block ---
                 let foundInBlockElsewhere = false;
                 const startRow = Math.floor(row / BOX_SIZE) * BOX_SIZE;
                 const startCol = Math.floor(col / BOX_SIZE) * BOX_SIZE;
                 for (let rCheck = startRow; rCheck < startRow + BOX_SIZE; rCheck++) {
                     for (let cCheck = startCol; cCheck < startCol + BOX_SIZE; cCheck++) {
-                        // Check only other *empty* cells in the block
                         if ((rCheck !== row || cCheck !== col) && currentGrid[rCheck][cCheck] === 0) {
                             if (getPossibleNumbers(currentGrid, rCheck, cCheck).includes(num)) {
                                 foundInBlockElsewhere = true;
@@ -1091,38 +984,46 @@
                     }
                     if (foundInBlockElsewhere) break;
                 }
-                 // If num is a possibility here, but not in any other empty cell in the block -> Hidden Single
                  if (!foundInBlockElsewhere && getPossibleNumbers(currentGrid, row, col).includes(num)) return true;
-
-                return false; // Not a hidden single in row, col, or block
+                return false;
             }
 
-
-            /**
-             * Iterates through all empty cells and updates the styling of their notes
-             * to bold any "Hidden Singles".
-             */
-            function updateHiddenSingleNotes() {
+            function updateHiddenSingleNotesStyling() {
                 for (let r = 0; r < SIZE; r++) {
                     for (let c = 0; c < SIZE; c++) {
                         const cellElement = getCellElement(r, c);
-                        if (!cellElement || currentGrid[r][c] !== 0) continue; // Only empty cells
+                        if (!cellElement) continue;
 
                         const notesGrid = cellElement.querySelector('.notes-grid');
                         if (!notesGrid) continue;
 
-                        const possibleNotes = getPossibleNumbers(currentGrid, r, c);
+                        const allNoteCellsInGrid = notesGrid.querySelectorAll('.note-cell');
 
+                        if (currentGrid[r][c] !== 0) { // Cell has a value, ensure no bolding
+                            allNoteCellsInGrid.forEach(nc => nc.classList.remove('hidden-single'));
+                            continue;
+                        }
+
+                        // Cell is empty. Apply styling based on toggles.
+                        if (!autoNotesEnabled) { // If auto notes are off, no notes are visible, so no bolding.
+                            allNoteCellsInGrid.forEach(nc => nc.classList.remove('hidden-single'));
+                            continue;
+                        }
+
+                        // Auto notes are ON.
                         for (let n = 1; n <= SIZE; n++) {
                             const noteCell = notesGrid.querySelector(`.note-cell[data-note='${n}']`);
                             if (!noteCell) continue;
 
-                            noteCell.classList.remove('hidden-single'); // Reset first
-
-                            // Check only if 'n' is actually a possible note for this cell
-                            if (possibleNotes.includes(n)) {
+                            // Remove bolding if bolding is disabled OR if the note itself is not 'visible'
+                            if (!boldHiddenSinglesEnabled || !noteCell.classList.contains('visible')) {
+                                noteCell.classList.remove('hidden-single');
+                            } else {
+                                // Bolding is ON and this note is 'visible'. Check if it's a hidden single.
                                 if (checkHiddenSingle(r, c, n)) {
                                     noteCell.classList.add('hidden-single');
+                                } else {
+                                    noteCell.classList.remove('hidden-single');
                                 }
                             }
                         }
@@ -1132,20 +1033,30 @@
 
 
             // --- Initialization ---
-            console.log("Initializing Sudoku...");
-            createGridDOM(); // Build the HTML grid structure
-            // Attach listeners
+            autoNotesToggle.checked = autoNotesEnabled;
+            boldHiddenSinglesToggle.checked = boldHiddenSinglesEnabled;
+
+            autoNotesToggle.addEventListener('change', () => {
+                autoNotesEnabled = autoNotesToggle.checked;
+                updateAllNotes(); // Recalculate/hide all notes and update bolding
+            });
+
+            boldHiddenSinglesToggle.addEventListener('change', () => {
+                boldHiddenSinglesEnabled = boldHiddenSinglesToggle.checked;
+                updateHiddenSingleNotesStyling(); // Just update bold styling
+            });
+
+
+            createGridDOM();
             numberPad.querySelectorAll('.num-btn').forEach(button => {
                 button.addEventListener('click', handleNumberClick);
             });
-            // Use setupNewGame for both button click and difficulty change
             newGameBtn.addEventListener('click', setupNewGame);
             difficultySelect.addEventListener('change', setupNewGame);
-            document.addEventListener('keydown', handleKeyDown); // Global key listener
+            document.addEventListener('keydown', handleKeyDown);
 
-            setupNewGame(); // Start the first game based on default selection
-            console.log("Sudoku Initialized.");
-
+            setupNewGame();
+            console.log("Sudoku Initialized with Toggles.");
         });
     </script>
 </body>
