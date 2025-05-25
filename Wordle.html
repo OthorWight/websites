@@ -219,7 +219,11 @@
         // --- Configuration & Constants ---
         const GRID_SIZE = 5;
         const MAX_GUESSES = 6;
-        const KEYBOARD_LAYOUT = [ "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM←" ]; // Standard layout
+        const KEYBOARD_LAYOUT = [
+    "QWERTYUIOP",
+    "ASDFGHJKL",
+    ["←", ..."ZXCVBNM", "↵"] // Use array for last row, with ↵ as a single key
+]; // Standard layout
         const WORD_FILE_PATH = 'words.txt'; // Path to your word list file
 
         // --- Global Variables ---
@@ -312,26 +316,33 @@
 
             // --- Create Keyboard DOM Elements ---
             keyboardKeys = {}; // Ensure it's empty before creating
-            KEYBOARD_LAYOUT.forEach(rowString => {
+            KEYBOARD_LAYOUT.forEach(row => {
                 const rowDiv = document.createElement('div');
                 rowDiv.classList.add('keyboard-row');
-                rowString.split('').forEach(keyChar => {
+                const keys = Array.isArray(row) ? row : row.split('');
+                keys.forEach(keyChar => {
                     const keyButton = document.createElement('button');
                     keyButton.classList.add('key');
-                    // Display 'DEL' for backspace, otherwise the character itself
-                    keyButton.textContent = keyChar === '←' ? 'DEL' : keyChar;
-                    keyButton.dataset.key = keyChar; // Store the actual key value ('←', 'ENTER', 'A', etc.)
+                    // Display 'DEL' for backspace, symbol for enter, otherwise the character itself
+                    if (keyChar === '↵') {
+                        keyButton.textContent = 'ENTER';
+                    } else if (keyChar === '←') {
+                        keyButton.textContent = 'DEL';
+                    } else {
+                        keyButton.textContent = keyChar;
+                    }
+                    keyButton.dataset.key = keyChar; // Store the actual key value ('←', '↵', 'A', etc.)
 
-                    if (keyChar === 'ENTER' || keyChar === '←') {
+                    if (keyChar === '↵' || keyChar === '←') {
                         keyButton.classList.add('functional');
                     }
 
                     // Add click listener for virtual keyboard
-                    keyButton.addEventListener('click', () => handleKeyPress(keyChar));
+                    keyButton.addEventListener('click', () => handleKeyPress(keyChar === '↵' ? 'ENTER' : keyChar));
                     rowDiv.appendChild(keyButton);
 
                     // Store references to letter keys for easy status updates
-                    if (keyChar !== 'ENTER' && keyChar !== '←') {
+                    if (keyChar.length === 1 && keyChar !== '←' && keyChar !== '↵') {
                         keyboardKeys[keyChar] = keyButton;
                     }
                 });
