@@ -6,6 +6,10 @@ The script will start a local web server and open the main website in your brows
 
 ## How to Use
 
+Visit https://othorwight.github.io/websites/
+
+Or
+
 1. Make sure you have Python installed.
 2. Run: python serve_and_open.py
 3. Your default browser will open the main page automatically.
