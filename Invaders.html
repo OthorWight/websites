@@ -543,7 +543,7 @@
         function getRandomInvaderShootTime() {
             // Make shooting more frequent as fewer invaders remain
             const baseInterval = INVADER_SHOOT_INTERVAL_MIN + Math.random() * (INVADER_SHOOT_INTERVAL_MAX - INVADER_SHOOT_INTERVAL_MIN);
-            const invaderCountFactor = Math.max(0.1, invaders.length / (INVADER_ROWS * INVADER_COLS)); // Scale down interval, minimum 10%
+            const invaderCountFactor = Math.max(0.3, invaders.length / (INVADER_ROWS * INVADER_COLS)); // Scale down interval, minimum 10%
             return baseInterval * invaderCountFactor;
         }
 
@@ -557,26 +557,24 @@
                     if (!bulletRemoved && block.health > 0 && bullet.collidesWith(block)) {
                         bulletRemoved = true; // Mark bullet for removal
                         if (block.takeDamage()) {
-                            // Barrier destroyed, create small effect and remove it
                             createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color); // Optional small explosion
                             return false; // Remove barrier block
                         }
-                        // Barrier damaged but not destroyed, keep it
                         return true;
                     }
-                    return true; // Keep block if not hit by this bullet or bullet already handled
+                    return true;
                 });
 
                 // 2. Check player bullets vs Invaders (only if not removed by barrier)
                 if (!bulletRemoved) {
                     invaders = invaders.filter(invader => {
                         if (bullet.collidesWith(invader)) {
-                            bulletRemoved = true; // Mark bullet for removal
+                            bulletRemoved = true;
                             score += invader.points;
                             createExplosion(invader.x + invader.width / 2, invader.y + invader.height / 2, invader.color);
-                            return false; // Remove invader
+                            return false;
                         }
-                        return true; // Keep invader
+                        return true;
                     });
                 }
 
@@ -586,53 +584,71 @@
 
             // --- Invader Bullets ---
             invaderBullets = invaderBullets.filter(bullet => {
-                 let bulletRemoved = false;
+                let bulletRemoved = false;
 
-                 // 1. Check invader bullets vs Barriers
-                 barriers = barriers.filter(block => {
-                     if (!bulletRemoved && block.health > 0 && bullet.collidesWith(block)) {
-                         bulletRemoved = true; // Mark bullet for removal
-                         if (block.takeDamage()) {
-                            // Barrier destroyed, create small effect and remove it
-                            createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color); // Optional small explosion
-                             return false; // Remove barrier block
-                         }
-                         // Barrier damaged but not destroyed, keep it
-                         return true;
-                     }
-                     return true; // Keep block if not hit by this bullet or bullet already handled
-                 });
+                // 1. Check invader bullets vs Barriers
+                barriers = barriers.filter(block => {
+                    if (!bulletRemoved && block.health > 0 && bullet.collidesWith(block)) {
+                        bulletRemoved = true;
+                        if (block.takeDamage()) {
+                            createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color);
+                            return false;
+                        }
+                        return true;
+                    }
+                    return true;
+                });
 
-                 // 2. Check invader bullets vs Player (only if player exists and bullet not removed by barrier)
+                // 2. Check invader bullets vs Player (only if player exists and bullet not removed by barrier)
                 if (!bulletRemoved && player && bullet.collidesWith(player)) {
-                    bulletRemoved = true; // Mark bullet for removal
+                    bulletRemoved = true;
                     lives--;
                     createExplosion(player.x + player.width / 2, player.y + player.height / 2, player.color);
                     if (lives <= 0) {
                         gameOver = true;
-                        player = null; // Remove player visually on game over
-                    } else {
-                        // Optional: Add brief invincibility here?
-                        // player.invincible = true; setTimeout(() => player.invincible = false, 1000);
+                        player = null;
                     }
                 }
 
-                 // 3. Keep bullet only if it wasn't removed and is still on screen
-                 return !bulletRemoved && bullet.y < GAME_HEIGHT;
+                // 3. Keep bullet only if it wasn't removed and is still on screen
+                return !bulletRemoved && bullet.y < GAME_HEIGHT;
             });
 
-             // --- Invaders vs Player (Landing check) ---
-             // This check remains important for when invaders physically reach the player level
-             if (player) { // Check if player still exists
+            // --- Invaders vs Player (Landing check) ---
+            if (player) {
                 for (const invader of invaders) {
                     if (invader.y + invader.height >= player.y) {
-                         gameOver = true;
-                         player = null; // Player dies if invaders land
-                         // Optionally trigger a bigger game over explosion?
-                         break; // Exit loop once condition met
+                        gameOver = true;
+                        player = null;
+                        break;
                     }
-                 }
-             }
+                }
+            }
+
+            // --- Invaders vs Barriers ---
+            // If any invader collides with a barrier block, destroy the block and the invader
+            let newBarriers = [];
+            let newInvaders = [];
+            for (const invader of invaders) {
+                let hitBarrier = false;
+                barriers = barriers.filter(block => {
+                    if (!hitBarrier && block.health > 0 && invader.collidesWith(block)) {
+                        hitBarrier = true;
+                        if (block.takeDamage()) {
+                            createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color);
+                            return false;
+                        }
+                        return true;
+                    }
+                    return true;
+                });
+                if (!hitBarrier) {
+                    newInvaders.push(invader);
+                } else {
+                    createExplosion(invader.x + invader.width / 2, invader.y + invader.height / 2, invader.color);
+                }
+            }
+            invaders = newInvaders;
         }
 
         function update(deltaTime) {
@@ -661,7 +677,13 @@
 
             // Check Win Condition
             if (invaders.length === 0) {
-                gameWon = true;
+                // --- NEW LEVEL: reset invaders, keep score/lives/barriers ---
+                createInvaderGrid();
+                invaderSpeed = INITIAL_INVADER_SPEED * 1.1; // Optionally increase speed for new level
+                invaderDirection = 1;
+                invaderMoveTimer = 0;
+                timeToNextInvaderShot = getRandomInvaderShootTime();
+                // Optionally: createBarriers(); // Uncomment to reset barriers each level
             }
         }
 
