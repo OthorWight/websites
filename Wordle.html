@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, height=device-height">
-    <title>My Wordle Clone (No Scroll)</title>
+    <title>Wordle Clone</title>
     <style>
         /* Basic Styling */
         :root {
             --key-bg: #d3d6da;
-            --key-fg: #1a1a1b;
+            --key-fg: #3a3a3c;
+            --cell-fg: #33A1FD;
             --absent-bg: #787c7e;
             --present-bg: #c9b458;
-            --correct-bg: #6aaa64;
+            --correct-bg: #596F62;
             --tile-text-color: #ffffff;
-            --border-color-empty: #d3d6da;
-            --border-color-filled: #878a8c;
-            --warning-bg: #f57c00;
-            --info-bg: #1976d2; /* Added for helper button */
+            --border-color-empty: #b0b3b6;
+            --border-color-filled: #6c6f70;
+            --warning-bg: #EC4E20;
+            --info-bg: #731DD8; /* Added for helper button */
 
             /* Dynamic Sizes based on Viewport Height */
             --vh1: max(1px, 1vh); /* Ensure at least 1px for vh units */
@@ -26,7 +27,7 @@
         body {
             font-family: 'Arial', sans-serif; display: flex; justify-content: space-between;
             align-items: center; flex-direction: column; height: 100%; max-height: 100vh;
-            background-color: #f4f4f4; margin: 0;
+            background-color: #222222; margin: 0;
             padding: clamp(2px, calc(var(--vh1) * 1), 8px) 5px; /* Slightly reduced padding */
             box-sizing: border-box; touch-action: manipulation; overflow: hidden;
         }
@@ -40,7 +41,7 @@
         #title {
             font-size: clamp(1.4rem, calc(var(--vh1) * 3.5), 2.2rem); /* Slightly smaller */
             margin-bottom: clamp(4px, calc(var(--vh1) * 1), 10px); /* Reduced margin */
-            color: #333; text-align: center; flex-shrink: 0;
+            color: #c6c945; text-align: center; flex-shrink: 0;
             margin-top: 0;
         }
 
@@ -55,8 +56,8 @@
         #grid-container {
             display: grid; grid-template-rows: repeat(6, 1fr);
             grid-gap: clamp(3px, calc(var(--vh1) * 0.6), 4px); /* Slightly reduced gap */
-            height: clamp(220px, calc(var(--vh1) * 50), 330px); /* Reduced height */
-            width: calc(clamp(220px, calc(var(--vh1) * 50), 330px) * 5 / 6); /* Maintain aspect ratio */
+            height: clamp(220px, calc(var(--vh1) * 50), 530px); /* Reduced height */
+            width: calc(clamp(220px, calc(var(--vh1) * 50), 530px) * 5 / 6); /* Maintain aspect ratio */
             max-width: 88vw; /* Slightly reduced max width */
             margin-bottom: clamp(4px, calc(var(--vh1) * 1.5), 10px); /* Reduced margin */
             flex-shrink: 1; min-height: 0;
@@ -68,7 +69,7 @@
             border: max(1px, clamp(1px, calc(var(--vh1) * 0.25), 2px)) solid var(--border-color-empty);
             display: flex; justify-content: center; align-items: center;
             font-size: clamp(1.1rem, calc(var(--vh1) * 3.2), 1.8rem); /* Slightly smaller font */
-            font-weight: bold; text-transform: uppercase; color: var(--key-fg);
+            font-weight: bold; text-transform: uppercase; color: var(--cell-fg);
             box-sizing: border-box; transition: transform 0.3s ease, background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease;
             position: relative; /* Needed for typing indicator */
         }
@@ -76,7 +77,7 @@
         .grid-cell.typing-indicator::after {
             content: ''; position: absolute;
             bottom: clamp(2px, calc(var(--vh1) * 0.8), 5px); left: 40%; right: 40%;
-            height: clamp(2px, calc(var(--vh1) * 0.4), 3px); background-color: var(--key-fg);
+            height: clamp(2px, calc(var(--vh1) * 0.4), 3px); background-color: var(--cell-fg);
             animation: blink 1s infinite step-end;
         }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
@@ -126,8 +127,8 @@
             max-width: 480px;
             max-height: clamp(50px, calc(var(--vh1) * 10), 80px); /* Limit height */
             overflow-y: auto; /* Allow scrolling */
-            background-color: #e0e0e0;
-            border: 1px solid #ccc;
+            background-color: #222222;
+            border: 1px solid #3b3b3b;
             border-radius: 4px;
             padding: 5px;
             margin-top: 8px; /* Space below buttons */
@@ -140,10 +141,11 @@
             display: inline-block;
             margin: 2px 4px;
             padding: 1px 3px;
-            background-color: #f8f8f8;
-            border: 1px solid #d0d0d0;
+            background-color: #222222;
+            border: 1px solid #3b3b3b;
             border-radius: 3px;
             font-family: monospace; /* Good for fixed-width letters */
+            color: #f8f8f8;
         }
 
         /* --- Key Press Animation --- */
