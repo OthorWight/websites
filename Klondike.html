@@ -20,10 +20,10 @@
             overflow: hidden; /* Prevent potential scrollbars caused by dragged element */
             background-image:
                 repeating-linear-gradient(45deg,
-                    rgba(0, 0, 0, 0.12) 0,       /* Line color start */
-                    rgba(0, 0, 0, 0.12) 20px,      /* Line color end (1px thick line) */
-                    transparent 1px,           /* Transparent part start (same as line end) */
-                    transparent 25px          /* Transparent part end (pattern unit size is 25px) */
+                    rgba(0, 0, 0, 0.12) 0,      /* Line color start */
+                    rgba(0, 0, 0, 0.12) 20px,     /* Line color end (1px thick line) */
+                    transparent 1px,            /* Transparent part start (same as line end) */
+                    transparent 25px            /* Transparent part end (pattern unit size is 25px) */
                 ),
                 repeating-linear-gradient(-45deg, /* Second set of lines for criss-cross */
                     rgba(0, 0, 0, 0.12) 0,
@@ -84,7 +84,7 @@
             flex-shrink: 0; /* Prevent piles from shrinking */
         }
 
-        .tableau .pile {
+        .tableau .pile { /* This targets the tableau column container, not individual cards */
             min-height: 300px; /* Allow space for stacked cards */
             background-color: transparent; /* Tableau background shouldn't obscure cards below */
             border: none; /* Remove border for tableau columns themselves */
@@ -258,6 +258,7 @@
 
     <div id="controls">
         <button id="new-game">New Game</button>
+        <button id="undo-button" disabled>Undo</button>
         <button id="auto-move-button">Auto Move</button>
     </div>
 
@@ -306,6 +307,7 @@
             let foundations = Array.from({ length: 4 }, () => []);
             let tableau = Array.from({ length: 7 }, () => []);
 
+            // DOM Elements
             const stockPileEl = document.getElementById('stock');
             const wastePileEl = document.getElementById('waste');
             const foundationPileEls = document.querySelectorAll('.foundation');
@@ -314,14 +316,25 @@
             const newGameButton = document.getElementById('new-game');
             const winMessageEl = document.getElementById('win-message');
             const autoMoveButton = document.getElementById('auto-move-button');
+            const undoButton = document.getElementById('undo-button');
 
+            // Drag State
             let draggedCards = null;
             let dragOffsetX = 0;
             let dragOffsetY = 0;
 
-            const cardVerticalOffset = 25; // Vertical offset for face-up tableau cards
-            const cardFaceDownOffset = 5; // Vertical offset for face-down tableau cards
-            // --- End Constants & State ---
+            // Visual Offsets
+            const cardVerticalOffset = 25;
+            const cardFaceDownOffset = 5;
+
+            // --- New State for Undo/Replay ---
+            let moveHistory = [];
+            let initialGameState = null;
+            let isReplaying = false;
+            let replayInterval = null;
+            let currentReplayMoveIndex = 0;
+            // --- End New State ---
+
 
             // --- Core Functions ---
             function createCard(suit, rank) {
@@ -340,350 +353,671 @@
                 return el;
             }
             function easeInOutQuad(t, b, c, d) { t /= d / 2; if (t < 1) return c / 2 * t * t + b; t--; return -c / 2 * (t * (t - 2) - 1) + b; }
-            function animateCardMoves(moves, onComplete) { if (moves.length === 0) { if (onComplete) onComplete(); return; } let startTime = performance.now(); const duration = moves[0].duration || 300; moves.forEach((move, i) => { if (move.element.parentElement !== gameBoardEl) gameBoardEl.appendChild(move.element); move.element.style.position = 'absolute'; move.element.style.zIndex = 2000 + i; move.element.style.left = `${move.startX}px`; move.element.style.top = `${move.startY}px`; }); function animationStep(currentTime) { const elapsedTime = currentTime - startTime; const progress = Math.min(1, elapsedTime / duration); moves.forEach(move => { const currentX = easeInOutQuad(elapsedTime, move.startX, move.targetX - move.startX, duration); const currentY = easeInOutQuad(elapsedTime, move.startY, move.targetY - move.startY, duration); move.element.style.left = `${currentX}px`; move.element.style.top = `${currentY}px`; }); if (progress < 1) requestAnimationFrame(animationStep); else { moves.forEach(move => { move.element.style.zIndex = 'auto'; }); if (onComplete) onComplete(); } } requestAnimationFrame(animationStep); }
-            function performAutoMovePass(onPassComplete) { if (draggedCards) { onPassComplete(false); return; } const gameBoardRect = gameBoardEl.getBoundingClientRect(); const animateAndContinue = (card, sourceInfo, targetInfo) => { const cardElement = card.element; const targetElement = targetInfo.element; if (!cardElement || !targetElement) { /* console.error("Missing element for animation:", { card, sourceInfo, targetInfo }); */ onPassComplete(false); return; } const startRect = cardElement.getBoundingClientRect(); const startX = startRect.left - gameBoardRect.left; const startY = startRect.top - gameBoardRect.top; const targetRect = targetElement.getBoundingClientRect(); const targetX = targetRect.left - gameBoardRect.left; const targetY = targetRect.top - gameBoardRect.top; animateCardMoves([{ element: cardElement, startX, startY, targetX, targetY, duration: 200 }], () => { let cardRemoved = false; if (sourceInfo.type === 'waste') { if (waste.length > 0 && waste[waste.length - 1].id === card.id) { waste.pop(); cardRemoved = true; } } else if (sourceInfo.type === 'tableau') { const sourcePile = sourceInfo.pile; if (sourcePile.length > 0 && sourcePile[sourcePile.length - 1].id === card.id) { sourcePile.pop(); cardRemoved = true; if (sourcePile.length > 0) { const underlying = sourcePile[sourcePile.length - 1]; if (underlying && !underlying.faceUp) underlying.faceUp = true; } } } if (cardRemoved) { targetInfo.pile.push(card); renderGame(); setTimeout(() => performAutoMovePass(onPassComplete), 50); } else { /* console.error("Failed data update after animation:", { card, sourceInfo, targetInfo }); */ renderGame(); onPassComplete(false); } }); }; if (waste.length > 0) { const card = waste[waste.length - 1]; const sourceInfo = { type: 'waste', pile: waste, element: wastePileEl }; for (let i = 0; i < foundations.length; i++) { const targetInfo = { type: 'foundation', pile: foundations[i], index: i, element: foundationPileEls[i] }; if (isValidMove(card, sourceInfo, targetInfo)) { animateAndContinue(card, sourceInfo, targetInfo); return; } } } for (let t = 0; t < tableau.length; t++) { const sourcePile = tableau[t]; if (sourcePile.length > 0) { const card = sourcePile[sourcePile.length - 1]; if (card.faceUp) { const sourceInfo = { type: 'tableau', pile: sourcePile, index: t, element: tableauPileEls[t] }; for (let f = 0; f < foundations.length; f++) { const targetInfo = { type: 'foundation', pile: foundations[f], index: f, element: foundationPileEls[f] }; if (isValidMove(card, sourceInfo, targetInfo)) { animateAndContinue(card, sourceInfo, targetInfo); return; } } } } } /* console.log("Auto-Move Pass: No moves."); */ onPassComplete(false); }
-            function startAutoMoveSequence() { if (draggedCards) return; newGameButton.disabled = true; autoMoveButton.disabled = true; performAutoMovePass((movesWereMade) => { if (!movesWereMade) { /* console.log("Auto-Move Sequence Finished."); */ newGameButton.disabled = false; autoMoveButton.disabled = false; } }); }
+            function animateCardMoves(moves, onComplete) { if (moves.length === 0) { if (onComplete) onComplete(); return; } let startTime = performance.now(); const duration = moves[0].duration || 300; moves.forEach((move, i) => { if (move.element.parentElement !== gameBoardEl) gameBoardEl.appendChild(move.element); move.element.style.position = 'absolute'; move.element.style.zIndex = 2000 + i + (isReplaying ? 500 : 0) ; move.element.style.left = `${move.startX}px`; move.element.style.top = `${move.startY}px`; }); function animationStep(currentTime) { const elapsedTime = currentTime - startTime; const progress = Math.min(1, elapsedTime / duration); moves.forEach(move => { const currentX = easeInOutQuad(elapsedTime, move.startX, move.targetX - move.startX, duration); const currentY = easeInOutQuad(elapsedTime, move.startY, move.targetY - move.startY, duration); move.element.style.left = `${currentX}px`; move.element.style.top = `${currentY}px`; }); if (progress < 1) requestAnimationFrame(animationStep); else { moves.forEach(move => { move.element.style.zIndex = 'auto'; }); if (onComplete) onComplete(); } } requestAnimationFrame(animationStep); }
+
+            function performAutoMovePass(onPassComplete) {
+                if (draggedCards || isReplaying) { onPassComplete(false); return; }
+                const gameBoardRect = gameBoardEl.getBoundingClientRect();
+
+                const animateAndContinue = (card, sourceInfo, targetInfo) => {
+                    const cardElement = card.element;
+                    const targetElement = targetInfo.element;
+                    if (!cardElement || !targetElement) { onPassComplete(false); return; }
+
+                    const startRect = cardElement.getBoundingClientRect();
+                    const startX = startRect.left - gameBoardRect.left;
+                    const startY = startRect.top - gameBoardRect.top;
+                    const targetRect = targetElement.getBoundingClientRect();
+                    const targetX = targetRect.left - gameBoardRect.left;
+                    let targetDataForOffset = getPileData(targetInfo.element.id);
+                    let targetYOffset = 0;
+                    if (targetInfo.type === 'tableau') {
+                         targetDataForOffset.forEach(tc => targetYOffset += (tc.faceUp ? cardVerticalOffset : cardFaceDownOffset));
+                    }
+                    const targetY = (targetRect.top - gameBoardRect.top) + targetYOffset;
+
+                    // Store info for undo BEFORE data model changes
+                    let revealedAndFlippedId = null;
+                    let autoMoveSourceStartIndex = -1; // Crucial for undoing auto-moves from tableau
+
+                    if (sourceInfo.type === 'tableau') {
+                         // Card being auto-moved is always the last one. Its index is pile.length - 1.
+                        autoMoveSourceStartIndex = sourceInfo.pile.length - 1;
+                        if (sourceInfo.pile.length > 1) { // Check if there's a card underneath
+                            const underlyingCandidate = sourceInfo.pile[sourceInfo.pile.length - 2];
+                            if (underlyingCandidate && !underlyingCandidate.faceUp) {
+                                revealedAndFlippedId = underlyingCandidate.id;
+                            }
+                        }
+                    }
+                    const cardDataForHistory = {...card, element: null};
+
+
+                    animateCardMoves([{ element: cardElement, startX, startY, targetX, targetY, duration: 200 }], () => {
+                        let cardRemoved = false;
+                        if (sourceInfo.type === 'waste') {
+                            if (waste.length > 0 && waste[waste.length - 1].id === card.id) {
+                                waste.pop(); cardRemoved = true;
+                            }
+                        } else if (sourceInfo.type === 'tableau') {
+                            const sourcePile = sourceInfo.pile;
+                            if (sourcePile.length > 0 && sourcePile[sourcePile.length - 1].id === card.id) {
+                                sourcePile.pop(); cardRemoved = true;
+                                if (sourcePile.length > 0) {
+                                    const underlying = sourcePile[sourcePile.length - 1];
+                                    if (underlying && !underlying.faceUp) underlying.faceUp = true;
+                                }
+                            }
+                        }
+
+                        if (cardRemoved) {
+                            targetInfo.pile.push(card);
+                             recordMove({
+                                type: 'auto_cards_moved',
+                                movedCardData: cardDataForHistory,
+                                originalSource: {
+                                    id: sourceInfo.element.id,
+                                    type: sourceInfo.type,
+                                    pileIndex: sourceInfo.index, // Tableau column index (0-6) or undefined
+                                    startIndexInPile: autoMoveSourceStartIndex // Index within that specific pile
+                                },
+                                originalTarget: { id: targetInfo.element.id, type: targetInfo.type, pileIndex: targetInfo.index },
+                                cardFlippedDownInSource: revealedAndFlippedId
+                            });
+
+                            renderGame();
+                            setTimeout(() => performAutoMovePass(onPassComplete), 50);
+                        } else {
+                            renderGame(); onPassComplete(false);
+                        }
+                    });
+                };
+
+                if (waste.length > 0) {
+                    const card = waste[waste.length - 1];
+                    const sourceInfo = { type: 'waste', pile: waste, element: wastePileEl };
+                    for (let i = 0; i < foundations.length; i++) {
+                        const targetInfo = { type: 'foundation', pile: foundations[i], index: i, element: foundationPileEls[i] };
+                        if (isValidMove(card, sourceInfo, targetInfo)) {
+                            animateAndContinue(card, sourceInfo, targetInfo); return;
+                        }
+                    }
+                }
+                for (let t = 0; t < tableau.length; t++) {
+                    const sourcePile = tableau[t];
+                    if (sourcePile.length > 0) {
+                        const card = sourcePile[sourcePile.length - 1];
+                        if (card.faceUp) {
+                            const sourceInfo = { type: 'tableau', pile: sourcePile, index: t, element: tableauPileEls[t] };
+                            for (let f = 0; f < foundations.length; f++) {
+                                const targetInfo = { type: 'foundation', pile: foundations[f], index: f, element: foundationPileEls[f] };
+                                if (isValidMove(card, sourceInfo, targetInfo)) {
+                                    animateAndContinue(card, sourceInfo, targetInfo); return;
+                                }
+                            }
+                        }
+                    }
+                }
+                onPassComplete(false);
+            }
+            function startAutoMoveSequence() {
+                if (draggedCards || isReplaying) return;
+                newGameButton.disabled = true;
+                autoMoveButton.disabled = true;
+                undoButton.disabled = true;
+                performAutoMovePass((movesWereMade) => {
+                    if (!isReplaying) {
+                       newGameButton.disabled = false;
+                       autoMoveButton.disabled = false;
+                       undoButton.disabled = moveHistory.length === 0;
+                    }
+                });
+            }
             function updateCardElement(card) { if (!card || !card.element) return; if (card.faceUp) { card.element.classList.remove('face-down'); card.element.style.backgroundColor = ''; card.element.style.backgroundImage = ''; card.element.querySelectorAll('.rank, .suit').forEach(span => span.style.visibility = 'visible'); } else { card.element.classList.add('face-down'); card.element.querySelectorAll('.rank, .suit').forEach(span => span.style.visibility = 'hidden'); } if (!card.element.classList.contains('dragging')) card.element.style.zIndex = 'auto'; }
             function createDeck() { deck = []; for (const suit of suits) for (const rank of ranks) deck.push(createCard(suit, rank)); }
             function shuffleDeck() { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } }
-            function dealGame() { winMessageEl.style.display = 'none'; createDeck(); shuffleDeck(); stock = []; waste = []; foundations = Array.from({ length: 4 }, () => []); tableau = Array.from({ length: 7 }, () => []); gameBoardEl.querySelectorAll('.card').forEach(cardEl => cardEl.remove()); for (let i = 0; i < 7; i++) for (let j = 0; j <= i; j++) { const card = deck.pop(); if (card) { card.faceUp = (j === i); tableau[i].push(card); } } stock = deck; stock.forEach(card => card.faceUp = false); deck = []; renderGame(); newGameButton.disabled = false; autoMoveButton.disabled = false; }
+
+            function dealGame(forReplay = false) {
+                winMessageEl.style.display = 'none';
+                if (replayInterval) clearInterval(replayInterval);
+                isReplaying = false;
+
+                if (!forReplay) {
+                    createDeck();
+                    shuffleDeck();
+                }
+
+                stock = []; waste = []; foundations = Array.from({ length: 4 }, () => []); tableau = Array.from({ length: 7 }, () => []);
+                gameBoardEl.querySelectorAll('.card').forEach(cardEl => cardEl.remove());
+
+                // The current initialGameState saves stock and tableau *after* dealing.
+                // So, if forReplay, we should directly use these.
+                if (forReplay && initialGameState) {
+                    stock = initialGameState.stock.map(cd => {
+                        const card = createCard(cd.suit, cd.rank);
+                        card.faceUp = cd.faceUp; // Should be false for stock
+                        return card;
+                    });
+                    tableau = initialGameState.tableau.map(tPileData =>
+                        tPileData.map(cd => {
+                            const card = createCard(cd.suit, cd.rank);
+                            card.faceUp = cd.faceUp;
+                            return card;
+                        })
+                    );
+                } else { // Normal deal or first deal
+                    // Standard dealing logic
+                    // We need a mutable copy of the deck for dealing if we're not replaying from initialGameState
+                    let currentDeck = [...deck]; // Use the global 'deck' which is shuffled if !forReplay
+                    if (deck.length === 0 && !forReplay) { // Safety: if global deck is empty (e.g. after a game)
+                        createDeck();
+                        shuffleDeck();
+                        currentDeck = [...deck];
+                    }
+
+
+                    for (let i = 0; i < 7; i++) {
+                        for (let j = 0; j <= i; j++) {
+                            const card = currentDeck.pop();
+                            if (card) {
+                                card.faceUp = (j === i);
+                                tableau[i].push(card);
+                            }
+                        }
+                    }
+                    stock = currentDeck; // Remaining cards go to stock
+                    stock.forEach(card => card.faceUp = false);
+                    // 'deck' (global) is now conceptually empty as its contents are in 'stock' or 'tableau'
+                    // For strictness, you might set global deck = [] here if it helps clarity,
+                    // but currentDeck handles the dealing source.
+
+                    if (!forReplay) { // Save initial state only on a fresh, non-replay deal
+                        initialGameState = {
+                            stock: stock.map(c => ({ suit: c.suit, rank: c.rank, faceUp: c.faceUp, id: c.id })),
+                            tableau: tableau.map(tPile =>
+                                tPile.map(c => ({ suit: c.suit, rank: c.rank, faceUp: c.faceUp, id: c.id }))
+                            )
+                        };
+                        moveHistory = [];
+                    }
+                }
+                renderGame();
+                undoButton.disabled = moveHistory.length === 0 || isReplaying;
+                newGameButton.disabled = false;
+                autoMoveButton.disabled = false;
+            }
             function getPileFromElement(element) { let current = element; while (current && current !== gameBoardEl && current !== document.body) { if (current.classList.contains('pile')) { const id = current.id; if (id === 'stock') return { type: 'stock', pile: stock, element: current }; if (id === 'waste') return { type: 'waste', pile: waste, element: current }; if (id.startsWith('foundation')) { const index = parseInt(id.split('-')[1]); if (!isNaN(index) && index >= 0 && index < foundations.length) return { type: 'foundation', pile: foundations[index], index: index, element: current }; } if (id.startsWith('tableau')) { const index = parseInt(id.split('-')[1]); if (!isNaN(index) && index >= 0 && index < tableau.length) return { type: 'tableau', pile: tableau[index], index: index, element: current }; } return null; } current = current.parentElement; } return null; }
             function findCardInPiles(cardId) { if (!cardId) return null; if (waste.length > 0 && waste[waste.length-1]?.id === cardId) return { card: waste[waste.length-1], index: waste.length - 1, pileInfo: getPileFromElement(wastePileEl) }; for (let i = 0; i < foundations.length; i++) { const pile = foundations[i]; if (pile.length > 0 && pile[pile.length - 1]?.id === cardId) return { card: pile[pile.length - 1], index: pile.length -1, pileInfo: getPileFromElement(foundationPileEls[i]) }; } for (let i = 0; i < tableau.length; i++) { const pile = tableau[i]; for(let j = 0; j < pile.length; j++) { if(pile[j]?.id === cardId) return { card: pile[j], index: j, pileInfo: getPileFromElement(tableauPileEls[i]) }; } } for (let i = 0; i < stock.length; i++) { if (stock[i]?.id === cardId) return { card: stock[i], index: i, pileInfo: getPileFromElement(stockPileEl)};} return null; }
             function isValidMove(cardToMove, sourcePileInfo, targetPileInfo) { if (!cardToMove || !sourcePileInfo || !targetPileInfo || sourcePileInfo.element.id === targetPileInfo.element.id) return false; const targetPile = targetPileInfo.pile; const targetType = targetPileInfo.type; if (targetType === 'foundation') { if (sourcePileInfo.type === 'stock' || sourcePileInfo.type === 'foundation') return false; if (targetPile.length === 0) return cardToMove.rank === 'A'; const topFoundationCard = targetPile[targetPile.length - 1]; return topFoundationCard && cardToMove.suit === topFoundationCard.suit && cardToMove.value === topFoundationCard.value + 1; } if (targetType === 'tableau') { if (sourcePileInfo.type === 'stock') return false; if (targetPile.length === 0) return cardToMove.rank === 'K'; const topTableauCard = targetPile[targetPile.length - 1]; if (!topTableauCard?.faceUp) return false; return cardToMove.color !== topTableauCard.color && cardToMove.value === topTableauCard.value - 1; } return false; }
-            function checkWinCondition() { const won = foundations.every(pile => pile.length === 13); winMessageEl.style.display = won ? 'block' : 'none'; if(won) { autoMoveButton.disabled = true; } return won; }
-            function handleStockClick() { if (draggedCards) return; if (stock.length > 0) { const card = stock.pop(); if(card){ card.faceUp = true; waste.push(card); } } else if (waste.length > 0) { stock = waste.reverse(); stock.forEach(card => card.faceUp = false); waste = []; } renderStock(); renderWaste(); }
+
+            function checkWinCondition() {
+                const won = foundations.every(pile => pile.length === 13);
+                if (won && !isReplaying) {
+                    startWinReplay();
+                } else if (!won && isReplaying) {
+                    isReplaying = false;
+                    if(replayInterval) clearInterval(replayInterval);
+                    winMessageEl.style.display = 'none';
+                    undoButton.disabled = moveHistory.length === 0;
+                    autoMoveButton.disabled = false;
+                    newGameButton.disabled = false;
+                } else if (won && isReplaying) {
+                    // Message handled by startWinReplay
+                } else {
+                     winMessageEl.style.display = 'none';
+                }
+                return won;
+            }
+
+            function handleStockClick() {
+                if (draggedCards || isReplaying) return;
+                let move = null;
+                let cardDataForHistory = null;
+                let recycledWasteDataForHistory = null;
+
+                if (stock.length > 0) {
+                    const card = stock.pop();
+                    if(card){
+                        cardDataForHistory = {...card, element: null};
+                        card.faceUp = true;
+                        waste.push(card);
+                        move = { type: 'stock_to_waste', cardData: cardDataForHistory };
+                    }
+                } else if (waste.length > 0) {
+                    recycledWasteDataForHistory = waste.map(c => ({...c, element: null}));
+                    stock = waste.reverse();
+                    stock.forEach(card => card.faceUp = false);
+                    waste = [];
+                    move = { type: 'waste_to_stock', recycledWasteData: recycledWasteDataForHistory };
+                }
+
+                if (move) {
+                   recordMove(move);
+                }
+                renderStock(); renderWaste();
+            }
             // --- End Core Functions ---
 
             // --- Rendering Functions ---
-            function renderGame() { renderStock(); renderWaste(); renderFoundations(); renderTableau(); checkWinCondition(); }
-
-            // Generic function to render cards into a pile element
+            function renderGame() { renderStock(); renderWaste(); renderFoundations(); renderTableau(); if (!isReplaying) checkWinCondition(); }
             function renderPile(pileEl, cardArray, applyOffsetFn) {
                 pileEl.classList.toggle('empty', cardArray.length === 0);
                 const currentCardElements = new Set(cardArray.map(c => c.element));
                 const elementsToRemove = [];
-                // Remove DOM elements that are no longer in the cardArray for this pile
                 for (const child of pileEl.children) {
                     if (child.classList.contains('card') && !currentCardElements.has(child) && !child.classList.contains('dragging')) {
                         elementsToRemove.push(child);
                     }
                 }
                 elementsToRemove.forEach(el => el.remove());
-
-                // Add/update cards present in the cardArray
                 cardArray.forEach((card, index) => {
-                    if (!card || !card.element) { /* console.error("Missing card/element:", pileEl.id, index, card); */ return; }
-                    if (draggedCards && draggedCards.draggedElements.includes(card.element)) return; // Don't render if currently being dragged
-                    updateCardElement(card); // Update face-up/down status
-                    applyOffsetFn(card, index, cardArray); // Apply pile-specific position/style
-                    if (card.element.parentElement !== pileEl) pileEl.appendChild(card.element); // Append if not already in the pile
-                    // Ensure position is absolute for non-dragging cards
+                    if (!card || !card.element) { return; }
+                    if (draggedCards && draggedCards.draggedElements.includes(card.element)) return;
+                    updateCardElement(card);
+                    applyOffsetFn(card, index, cardArray);
+                    if (card.element.parentElement !== pileEl) pileEl.appendChild(card.element);
                     if (!card.element.classList.contains('dragging')) card.element.style.position = 'absolute';
                 });
             }
-            function renderStock() {
-                // Only show the very top card element (face-down) or empty state
-                const topCard = stock.length > 0 ? [stock[stock.length - 1]] : [];
-                renderPile(stockPileEl, topCard, (card) => {
-                    card.faceUp = false; // Stock cards are always face-down
-                    updateCardElement(card);
-                    card.element.style.top = '0px';
-                    card.element.style.left = '0px';
-                    card.element.style.zIndex = 0;
-                });
-                stockPileEl.classList.toggle('empty', stock.length === 0);
-            }
-
-            function renderWaste() {
-                const wasteRenderCount = 3; // Max number of cards to show fanned out
-                const cardHorizontalSpacing = 20; // Horizontal spacing in pixels for each step
-
-                // Determine which cards should be visible in the DOM (max 'wasteRenderCount')
-                const startIdx = Math.max(0, waste.length - wasteRenderCount);
-                const visibleWaste = waste.slice(startIdx);
-
-                renderPile(wastePileEl, visibleWaste, (card, indexInVisibleArray) => {
-                    // 'card' is the current card object being rendered from visibleWaste.
-                    // 'indexInVisibleArray' is its index within that visible portion (0=bottom, 1=middle, 2=top).
-                    card.faceUp = true;
-                    updateCardElement(card);
-                    card.element.style.top = '0px'; // All waste cards align to the top
-
-                    // Calculate left offset based on position in the fan
-                    const leftOffset = indexInVisibleArray * cardHorizontalSpacing;
-                    card.element.style.left = `${leftOffset}px`;
-                    // zIndex ensures correct visual stacking
-                    card.element.style.zIndex = indexInVisibleArray;
-                });
-
-                // Ensure all cards *in the data model* are face up
-                waste.forEach(c => c.faceUp = true);
-                wastePileEl.classList.toggle('empty', waste.length === 0);
-            }
-
-            function renderFoundations() {
-                const foundationCardUnderOffset = 0; // Visual offset for card underneath top one (currently none)
-
-                foundationPileEls.forEach((pileEl, i) => {
-                    const pile = foundations[i]; // The data array for this foundation
-                    let cardsToDisplayInDOM = [];
-
-                    // Determine which card elements to show (max top 2 for visual cue)
-                    if (pile.length === 1) {
-                        cardsToDisplayInDOM = [pile[0]];
-                    } else if (pile.length >= 2) {
-                        // Order: bottom-most visible card first, then top card
-                        cardsToDisplayInDOM = [pile[pile.length - 2], pile[pile.length - 1]];
-                    }
-
-                    // Ensure all cards *in the data model* are face up
-                    pile.forEach(c => { if (c) c.faceUp = true; });
-
-                    renderPile(pileEl, cardsToDisplayInDOM, (card, displayIndex, displayedArray) => {
-                        updateCardElement(card); // Update face-up status
-
-                        if (displayedArray.length === 1) { // Only one card shown
-                            card.element.style.top = '0px';
-                            card.element.style.left = '0px';
-                            card.element.style.zIndex = pile.indexOf(card); // Actual index in full pile
-                        } else if (displayedArray.length === 2) { // Two cards shown
-                            if (card === pile[pile.length - 2]) { // Card underneath
-                                card.element.style.top = `${foundationCardUnderOffset}px`;
-                                card.element.style.left = '0px';
-                                card.element.style.zIndex = pile.length - 2;
-                            } else if (card === pile[pile.length - 1]) { // Top card
-                                card.element.style.top = '0px';
-                                card.element.style.left = '0px';
-                                card.element.style.zIndex = pile.length - 1;
-                            }
-                        }
-                    });
-
-                    // Set 'empty' class based on the actual data length
-                    pileEl.classList.toggle('empty', pile.length === 0);
-                });
-            }
-            function renderTableau() {
-                tableauPileEls.forEach((pileEl, i) => {
-                    let currentOffset = 0;
-                    renderPile(pileEl, tableau[i], (card, cardIndex) => {
-                        if (!card.element.classList.contains('dragging')) { // Don't reposition if being dragged
-                            card.element.style.left = '0px';
-                            card.element.style.top = `${currentOffset}px`;
-                            card.element.style.zIndex = cardIndex; // Stack order
-                        }
-                        // Calculate offset for the *next* card
-                        currentOffset += card.faceUp ? cardVerticalOffset : cardFaceDownOffset;
-                    });
-                });
-            }
+            function renderStock() { const topCard = stock.length > 0 ? [stock[stock.length - 1]] : []; renderPile(stockPileEl, topCard, (card) => { card.faceUp = false; updateCardElement(card); card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = 0; }); stockPileEl.classList.toggle('empty', stock.length === 0); }
+            function renderWaste() { const wasteRenderCount = 3; const cardHorizontalSpacing = 20; const startIdx = Math.max(0, waste.length - wasteRenderCount); const visibleWaste = waste.slice(startIdx); renderPile(wastePileEl, visibleWaste, (card, indexInVisibleArray) => { card.faceUp = true; updateCardElement(card); card.element.style.top = '0px'; const leftOffset = indexInVisibleArray * cardHorizontalSpacing; card.element.style.left = `${leftOffset}px`; card.element.style.zIndex = indexInVisibleArray; }); waste.forEach(c => c.faceUp = true); wastePileEl.classList.toggle('empty', waste.length === 0); }
+            function renderFoundations() { const foundationCardUnderOffset = 0; foundationPileEls.forEach((pileEl, i) => { const pile = foundations[i]; let cardsToDisplayInDOM = []; if (pile.length === 1) { cardsToDisplayInDOM = [pile[0]]; } else if (pile.length >= 2) { cardsToDisplayInDOM = [pile[pile.length - 2], pile[pile.length - 1]]; } pile.forEach(c => { if (c) c.faceUp = true; }); renderPile(pileEl, cardsToDisplayInDOM, (card, displayIndex, displayedArray) => { updateCardElement(card); if (displayedArray.length === 1) { card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = pile.indexOf(card); } else if (displayedArray.length === 2) { if (card === pile[pile.length - 2]) { card.element.style.top = `${foundationCardUnderOffset}px`; card.element.style.left = '0px'; card.element.style.zIndex = pile.length - 2; } else if (card === pile[pile.length - 1]) { card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = pile.length - 1; } } }); pileEl.classList.toggle('empty', pile.length === 0); }); }
+            function renderTableau() { tableauPileEls.forEach((pileEl, i) => { let currentOffset = 0; renderPile(pileEl, tableau[i], (card, cardIndex) => { if (!card.element.classList.contains('dragging')) { card.element.style.left = '0px'; card.element.style.top = `${currentOffset}px`; card.element.style.zIndex = cardIndex; } currentOffset += card.faceUp ? cardVerticalOffset : cardFaceDownOffset; }); }); }
             // --- End Rendering Functions ---
 
 
             // --- Event Handlers ---
             stockPileEl.addEventListener('click', handleStockClick);
-            newGameButton.addEventListener('click', dealGame);
+            newGameButton.addEventListener('click', () => dealGame(false));
             autoMoveButton.addEventListener('click', startAutoMoveSequence);
+            undoButton.addEventListener('click', undoLastMove);
             // --- End Event Handlers ---
 
 
             // --- Drag and Drop Functions ---
             function onCardMouseDown(event) {
-                if (draggedCards) return; // Prevent starting a new drag if one is in progress
+                if (draggedCards || isReplaying) return;
                 const cardElement = event.target.closest('.card');
-                if (!cardElement || cardElement.classList.contains('face-down')) return; // Ignore clicks on face-down cards or non-card elements
+                if (!cardElement || cardElement.classList.contains('face-down')) return;
 
                 const cardId = cardElement.dataset.cardId;
                 const cardSearchResult = findCardInPiles(cardId);
-                if (!cardSearchResult) return; // Card not found in data piles
+                if (!cardSearchResult) return;
 
                 const { card, pileInfo, index } = cardSearchResult;
-                if (!card.faceUp || pileInfo.type === 'stock') return; // Cannot drag from stock or face-down cards
+                if (!card.faceUp || pileInfo.type === 'stock') return;
 
                 let cardsToDrag = [];
-                let sourcePileIndex = -1; // Index within the source pile where the drag starts
+                let sourcePileIndex = -1; // This is the index *within* the specific pile array
 
-                // Determine which cards to drag based on the source pile type
                 if (pileInfo.type === 'waste') {
-                    if (index === pileInfo.pile.length - 1) { // Can only drag the top card from waste
-                        cardsToDrag.push(card);
-                        sourcePileIndex = index;
-                    } else return; // Clicked on a non-top waste card
+                    if (index === pileInfo.pile.length - 1) { cardsToDrag.push(card); sourcePileIndex = index; } else return;
                 } else if (pileInfo.type === 'tableau') {
                     const pile = pileInfo.pile;
-                    if (index !== -1 && pile[index]?.faceUp) { // Clicked on a face-up tableau card
-                        cardsToDrag = pile.slice(index); // Grab this card and all below it
-                        if (cardsToDrag.every(c => c.faceUp)) { // Ensure all are face-up (should be true for valid tableau stack)
-                            sourcePileIndex = index;
-                        } else return; // Should not happen in valid game state
-                    } else return; // Clicked on face-down or invalid index
+                    if (index !== -1 && pile[index]?.faceUp) { cardsToDrag = pile.slice(index); if (cardsToDrag.every(c => c.faceUp)) { sourcePileIndex = index; } else return; } else return;
                 } else if (pileInfo.type === 'foundation') {
-                     if (index === pileInfo.pile.length - 1) { // Can only drag the top card from foundation
-                        cardsToDrag.push(card);
-                        sourcePileIndex = index;
-                    } else return; // Clicked on non-top foundation card
-                } else return; // Should not happen (stock already excluded)
+                    if (index === pileInfo.pile.length - 1) { cardsToDrag.push(card); sourcePileIndex = index; } else return;
+                } else return;
 
-                if (cardsToDrag.length === 0 || !cardsToDrag[0]?.element) return; // No valid cards identified to drag
-                event.preventDefault(); // Prevent default browser drag behavior/text selection
+                if (cardsToDrag.length === 0 || !cardsToDrag[0]?.element) return;
+                event.preventDefault();
 
                 const firstCardElement = cardsToDrag[0].element;
                 const rect = firstCardElement.getBoundingClientRect();
-                const touch = event.touches ? event.touches[0] : event; // Handle both mouse and touch
+                const touch = event.touches ? event.touches[0] : event;
+                dragOffsetX = rect.width / 2; dragOffsetY = rect.height * 0.25;
 
-                // Calculate initial offset from cursor/touch point to card's top-left
-                dragOffsetX = rect.width / 2; // Grab near horizontal center
-                dragOffsetY = rect.height * 0.25; // Grab slightly below the top edge
-
-                draggedCards = {
-                    cards: cardsToDrag,
-                    sourcePileId: pileInfo.element.id,
-                    sourceIndex: sourcePileIndex,
-                    draggedElements: []
-                };
-
-                let currentZIndex = 1000; // Start high z-index for dragging
-
-                // Prepare each card element for dragging
+                draggedCards = { cards: cardsToDrag, sourcePileId: pileInfo.element.id, sourceIndex: sourcePileIndex, draggedElements: [] };
+                let currentZIndex = 1000;
                 cardsToDrag.forEach((c, i) => {
-                    if (!c?.element) return;
-                    const el = c.element;
-                    // Store the relative vertical offset for stacked tableau drags
+                    if (!c?.element) return; const el = c.element;
                     const relativeOffsetY = (pileInfo.type === 'tableau' && cardsToDrag.length > 1) ? (i * cardVerticalOffset) : 0;
                     el.dataset.dragRelativeTop = relativeOffsetY;
-
-                    if (el.parentElement !== gameBoardEl) gameBoardEl.appendChild(el); // Move to board for absolute positioning context
-                    el.classList.add('dragging');
-                    el.style.zIndex = currentZIndex + i; // Ensure stacked dragged cards overlap correctly
-                    el.style.position = 'absolute'; // Override CSS position if necessary
+                    if (el.parentElement !== gameBoardEl) gameBoardEl.appendChild(el);
+                    el.classList.add('dragging'); el.style.zIndex = currentZIndex + i; el.style.position = 'absolute';
                     draggedCards.draggedElements.push(el);
                 });
-
-                // Initial position update
                 moveDraggedElements(touch.clientX, touch.clientY);
-
-                // Add document-level listeners for move and up events
-                document.addEventListener('mousemove', onDocumentMouseMove);
-                document.addEventListener('mouseup', onDocumentMouseUp);
-                document.addEventListener('touchmove', onDocumentMouseMove, { passive: false }); // Prevent scrolling on touch devices
-                document.addEventListener('touchend', onDocumentMouseUp);
-                document.addEventListener('touchcancel', onDocumentMouseUp); // Handle cancelled touches
-                document.addEventListener('contextmenu', function(event) {
-                    event.preventDefault(); // Prevents the default context menu from appearing
-                });
+                document.addEventListener('mousemove', onDocumentMouseMove); document.addEventListener('mouseup', onDocumentMouseUp);
+                document.addEventListener('touchmove', onDocumentMouseMove, { passive: false }); document.addEventListener('touchend', onDocumentMouseUp);
+                document.addEventListener('touchcancel', onDocumentMouseUp);
+                document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
             }
-
-            function moveDraggedElements(clientX, clientY) {
-                if (!draggedCards?.draggedElements?.length) return;
-                const gameBoardRect = gameBoardEl.getBoundingClientRect();
-
-                // Calculate desired top-left position relative to the game board
-                const desiredViewportX = clientX - dragOffsetX;
-                const desiredViewportY = clientY - dragOffsetY;
-                const newX = desiredViewportX - gameBoardRect.left;
-                const newYBase = desiredViewportY - gameBoardRect.top; // Base Y for the top card in the dragged stack
-
-                // Position each dragged element, applying relative offset for stacks
-                draggedCards.draggedElements.forEach(element => {
-                    if (!element) return;
-                    const relativeTopOffset = parseFloat(element.dataset.dragRelativeTop || 0);
-                    element.style.left = `${newX}px`;
-                    element.style.top = `${newYBase + relativeTopOffset}px`; // Apply stored relative offset
-                });
-            }
-
-            function onDocumentMouseMove(event) {
-                if (!draggedCards) return;
-                if (event.type === 'touchmove') event.preventDefault(); // Continue preventing scroll during touch move
-                const touch = event.touches ? event.touches[0] : event;
-                moveDraggedElements(touch.clientX, touch.clientY); // Update position based on cursor/touch
-            }
-
+            function moveDraggedElements(clientX, clientY) { if (!draggedCards?.draggedElements?.length) return; const gameBoardRect = gameBoardEl.getBoundingClientRect(); const desiredViewportX = clientX - dragOffsetX; const desiredViewportY = clientY - dragOffsetY; const newX = desiredViewportX - gameBoardRect.left; const newYBase = desiredViewportY - gameBoardRect.top; draggedCards.draggedElements.forEach(element => { if (!element) return; const relativeTopOffset = parseFloat(element.dataset.dragRelativeTop || 0); element.style.left = `${newX}px`; element.style.top = `${newYBase + relativeTopOffset}px`; }); }
+            function onDocumentMouseMove(event) { if (!draggedCards) return; if (event.type === 'touchmove') event.preventDefault(); const touch = event.touches ? event.touches[0] : event; moveDraggedElements(touch.clientX, touch.clientY); }
             function onDocumentMouseUp(event) {
                 if (!draggedCards) return;
-
-                // Temporarily disable pointer events on dragged elements to find element underneath
                 draggedCards.draggedElements.forEach(el => { if(el) el.style.pointerEvents = 'none'; });
-                const touch = event.changedTouches ? event.changedTouches[0] : event; // Use changedTouches for touchend
+                const touch = event.changedTouches ? event.changedTouches[0] : event;
                 const dropTargetElement = document.elementFromPoint(touch.clientX, touch.clientY);
-                draggedCards.draggedElements.forEach(el => { if(el) el.style.pointerEvents = 'auto'; }); // Re-enable pointer events
+                draggedCards.draggedElements.forEach(el => { if(el) el.style.pointerEvents = 'auto'; });
 
                 const targetPileInfo = getPileFromElement(dropTargetElement);
                 const sourcePileInfo = getPileFromElement(document.getElementById(draggedCards.sourcePileId));
                 let moveSuccessful = false;
+                let revealedAndFlippedId = null;
 
-                // Check if dropped onto a valid pile different from the source
+                const cardsDataForHistory = draggedCards.cards.map(c => ({...c, element: null, faceUp: c.faceUp}));
+                const sourceIndexInPileForHistory = draggedCards.sourceIndex; // Index within the source pile array
+
+
                 if (targetPileInfo && sourcePileInfo && targetPileInfo.element.id !== sourcePileInfo.element.id) {
-                    const cardToMove = draggedCards.cards[0]; // The top card determines validity
+                    const cardToMove = draggedCards.cards[0];
                     if (isValidMove(cardToMove, sourcePileInfo, targetPileInfo)) {
-                        // Perform the move in the data model
-                        let removedCards = [];
-                        if (sourcePileInfo.type === 'waste') {
-                            if (sourcePileInfo.pile.length > 0 && sourcePileInfo.pile[sourcePileInfo.pile.length - 1]?.id === cardToMove.id) {
-                                const rem = sourcePileInfo.pile.pop(); if(rem) removedCards.push(rem);
+                        if (sourcePileInfo.type === 'tableau' && sourcePileInfo.pile.length > draggedCards.cards.length) {
+                            if (sourceIndexInPileForHistory > 0) {
+                                const cardBelowDraggedStack = sourcePileInfo.pile[sourceIndexInPileForHistory -1];
+                                if(cardBelowDraggedStack && !cardBelowDraggedStack.faceUp) {
+                                    // This was the original logic, but it might be incorrect.
+                                    // revealedAndFlippedId should be the card that IS ACTUALLY flipped up
+                                    // as a result of this move. That logic is handled *after* the splice.
+                                }
                             }
-                        } else if (sourcePileInfo.type === 'tableau') {
-                             if(sourcePileInfo.pile[draggedCards.sourceIndex]?.id === cardToMove.id) {
-                                removedCards = sourcePileInfo.pile.splice(draggedCards.sourceIndex);
-                             }
-                        } else if (sourcePileInfo.type === 'foundation') {
-                             if (sourcePileInfo.pile.length > 0 && sourcePileInfo.pile[sourcePileInfo.pile.length - 1]?.id === cardToMove.id) {
-                                const rem = sourcePileInfo.pile.pop(); if(rem) removedCards.push(rem);
-                             }
                         }
 
-                        // Verify the removed cards match the dragged cards
+
+                        let removedCards = [];
+                        if (sourcePileInfo.type === 'waste') { if (sourcePileInfo.pile.length > 0 && sourcePileInfo.pile[sourcePileInfo.pile.length - 1]?.id === cardToMove.id) { const rem = sourcePileInfo.pile.pop(); if(rem) removedCards.push(rem); } }
+                        else if (sourcePileInfo.type === 'tableau') { if(sourcePileInfo.pile[sourceIndexInPileForHistory]?.id === cardToMove.id) { removedCards = sourcePileInfo.pile.splice(sourceIndexInPileForHistory, draggedCards.cards.length); } }
+                        else if (sourcePileInfo.type === 'foundation') { if (sourcePileInfo.pile.length > 0 && sourcePileInfo.pile[sourcePileInfo.pile.length - 1]?.id === cardToMove.id) { const rem = sourcePileInfo.pile.pop(); if(rem) removedCards.push(rem); } }
+
                         if (removedCards.length === draggedCards.cards.length && removedCards.every((c, i) => c.id === draggedCards.cards[i].id)) {
-                            targetPileInfo.pile.push(...removedCards); // Add cards to target pile data
-                            // Flip underlying card in tableau if necessary
+                            targetPileInfo.pile.push(...removedCards);
                             if (sourcePileInfo.type === 'tableau' && sourcePileInfo.pile.length > 0) {
                                 const under = sourcePileInfo.pile[sourcePileInfo.pile.length - 1];
-                                if (under && !under.faceUp) under.faceUp = true;
+                                if (under && !under.faceUp) {
+                                    under.faceUp = true;
+                                    revealedAndFlippedId = under.id; // This is the card that was actually flipped.
+                                }
                             }
                             moveSuccessful = true;
                         } else {
-                            // Data mismatch - attempt to revert the splice/pop
-                            if (sourcePileInfo.type === 'tableau' && removedCards.length > 0) {
-                                sourcePileInfo.pile.splice(draggedCards.sourceIndex, 0, ...removedCards);
-                            } else if ((sourcePileInfo.type === 'waste' || sourcePileInfo.type === 'foundation') && removedCards.length > 0) {
-                                sourcePileInfo.pile.push(...removedCards);
-                            }
-                            /* console.warn("Drag failed: Card mismatch during data update."); */
+                            if (sourcePileInfo.type === 'tableau' && removedCards.length > 0) { sourcePileInfo.pile.splice(sourceIndexInPileForHistory, 0, ...removedCards); } // Put them back if data mismatch
+                            else if ((sourcePileInfo.type === 'waste' || sourcePileInfo.type === 'foundation') && removedCards.length > 0) { sourcePileInfo.pile.push(...removedCards); }
                         }
                     }
                 }
 
-                // --- Drag Cleanup ---
-                const recentlyDraggedElements = draggedCards.draggedElements; // Keep reference for cleanup
-                draggedCards = null; // Clear the global drag state
+                if(moveSuccessful) {
+                    recordMove({
+                        type: 'cards_moved',
+                        movedCardsData: cardsDataForHistory,
+                        originalSource: { id: sourcePileInfo.element.id, type: sourcePileInfo.type, pileIndex: sourcePileInfo.index, startIndexInPile: sourceIndexInPileForHistory },
+                        originalTarget: { id: targetPileInfo.element.id, type: targetPileInfo.type, pileIndex: targetPileInfo.index },
+                        cardFlippedDownInSource: revealedAndFlippedId
+                    });
+                }
 
-                // Remove document listeners
-                document.removeEventListener('mousemove', onDocumentMouseMove);
-                document.removeEventListener('mouseup', onDocumentMouseUp);
-                document.removeEventListener('touchmove', onDocumentMouseMove);
-                document.removeEventListener('touchend', onDocumentMouseUp);
+
+                const recentlyDraggedElements = draggedCards.draggedElements;
+                draggedCards = null;
+                document.removeEventListener('mousemove', onDocumentMouseMove); document.removeEventListener('mouseup', onDocumentMouseUp);
+                document.removeEventListener('touchmove', onDocumentMouseMove); document.removeEventListener('touchend', onDocumentMouseUp);
                 document.removeEventListener('touchcancel', onDocumentMouseUp);
-
-                // Reset styles on the elements that were dragged
-                recentlyDraggedElements.forEach(el => {
-                    if (!el) return;
-                    el.classList.remove('dragging');
-                    el.style.zIndex = 'auto';
-                    el.style.pointerEvents = 'auto';
-                    // Clear inline styles set during drag - CSS will take over or renderGame will reposition
-                    el.style.top = '';
-                    el.style.left = '';
-                    el.style.position = ''; // Reset position to rely on CSS/renderPile
-                    delete el.dataset.dragRelativeTop; // Clean up custom data attribute
-                });
-
-                // Re-render the entire game board to reflect the changes or snap back
+                recentlyDraggedElements.forEach(el => { if (!el) return; el.classList.remove('dragging'); el.style.zIndex = 'auto'; el.style.pointerEvents = 'auto'; el.style.top = ''; el.style.left = ''; el.style.position = ''; delete el.dataset.dragRelativeTop; });
                 renderGame();
             }
             // --- End Drag and Drop Functions ---
 
+            // --- Undo/Replay Specific Functions ---
+            function recordMove(moveDetails) {
+                if (isReplaying) return;
+                moveHistory.push(JSON.parse(JSON.stringify(moveDetails)));
+                undoButton.disabled = false;
+            }
+
+            function getPileData(pileId) {
+                if (pileId === 'stock') return stock;
+                if (pileId === 'waste') return waste;
+                if (pileId.startsWith('foundation-')) return foundations[parseInt(pileId.split('-')[1])];
+                if (pileId.startsWith('tableau-')) return tableau[parseInt(pileId.split('-')[1])];
+                return null;
+            }
+
+            function findCardObjectInGame(cardId) {
+                const allPilesData = [stock, waste, ...foundations, ...tableau];
+                for (const pile of allPilesData) {
+                    const found = pile.find(card => card.id === cardId);
+                    if (found) return found;
+                }
+                return null;
+            }
+
+
+            function undoLastMove() {
+                if (moveHistory.length === 0 || isReplaying) return;
+                const lastMove = moveHistory.pop();
+                undoButton.disabled = moveHistory.length === 0;
+
+                if (lastMove.type === 'cards_moved' || lastMove.type === 'auto_cards_moved') {
+                    const sourceDataPile = getPileData(lastMove.originalSource.id);
+                    const targetDataPile = getPileData(lastMove.originalTarget.id);
+                    const cardsToRestoreData = lastMove.type === 'cards_moved' ? lastMove.movedCardsData : [lastMove.movedCardData];
+
+                    // Remove cards from where they were moved TO (target of original move)
+                    cardsToRestoreData.forEach(movedCardData => {
+                        const idx = targetDataPile.findIndex(c => c.id === movedCardData.id);
+                        if (idx !== -1) targetDataPile.splice(idx, 1);
+                    });
+
+                    const cardObjectsToMoveBack = cardsToRestoreData.map(cd => {
+                        const card = createCard(cd.suit, cd.rank);
+                        card.faceUp = cd.faceUp;
+                        return card;
+                    });
+
+                    // Add cards back to their original source pile
+                    // The startIndexInPile should be the index where the card(s) originally were in that pile
+                    if (lastMove.originalSource.type === 'tableau') {
+                        if (typeof lastMove.originalSource.startIndexInPile === 'number' && lastMove.originalSource.startIndexInPile !== -1) {
+                             sourceDataPile.splice(lastMove.originalSource.startIndexInPile, 0, ...cardObjectsToMoveBack);
+                        } else {
+                            // Fallback for safety, though startIndexInPile should always be valid for tableau moves
+                            cardObjectsToMoveBack.forEach(c => sourceDataPile.push(c));
+                        }
+                    } else { // waste, foundation (single card from auto-move or top card drag)
+                         cardObjectsToMoveBack.forEach(c => sourceDataPile.push(c)); // Add to end is usually correct for these
+                    }
+
+                    if (lastMove.cardFlippedDownInSource) {
+                        const cardToFlip = findCardObjectInGame(lastMove.cardFlippedDownInSource);
+                        if (cardToFlip) cardToFlip.faceUp = false;
+                    }
+
+                } else if (lastMove.type === 'stock_to_waste') {
+                    const cardToMoveBack = waste.pop();
+                    if (cardToMoveBack && cardToMoveBack.id === lastMove.cardData.id) {
+                        cardToMoveBack.faceUp = false;
+                        stock.push(cardToMoveBack);
+                    } else if (cardToMoveBack) {
+                        waste.push(cardToMoveBack);
+                    }
+                } else if (lastMove.type === 'waste_to_stock') {
+                    waste = stock.map(sCard => {
+                        sCard.faceUp = true;
+                        return sCard;
+                    });
+                    stock = [];
+                }
+                if(winMessageEl.style.display === 'block' && !checkWinCondition()) {
+                    winMessageEl.style.display = 'none';
+                    isReplaying = false;
+                    if (replayInterval) clearInterval(replayInterval);
+                    autoMoveButton.disabled = false;
+                    newGameButton.disabled = false;
+                }
+                renderGame();
+            }
+
+            function startWinReplay() {
+                if (!initialGameState || moveHistory.length === 0) {
+                    winMessageEl.innerHTML = "🎉 You Win! 🎉<br><small>(No history for replay)</small>";
+                    winMessageEl.style.display = 'block';
+                    autoMoveButton.disabled = true;
+                    newGameButton.disabled = false; // Ensure New Game is enabled
+                    undoButton.disabled = true;
+                    return;
+                }
+
+                isReplaying = true;
+                winMessageEl.innerHTML = "🎉 Replaying Game... 🎉 <br><small>(Click 'New Game' to stop)</small>";
+                winMessageEl.style.display = 'block';
+                undoButton.disabled = true;
+                autoMoveButton.disabled = true;
+                newGameButton.disabled = false; // Explicitly enable New Game button for stopping replay
+
+                // Reset to initial state using initialGameState for replay
+                stock = initialGameState.stock.map(cd => { const card = createCard(cd.suit, cd.rank); card.faceUp = cd.faceUp; return card; });
+                tableau = initialGameState.tableau.map(tPileData =>
+                    tPileData.map(cd => { const card = createCard(cd.suit, cd.rank); card.faceUp = cd.faceUp; return card; })
+                );
+                waste = [];
+                foundations = Array.from({ length: 4 }, () => []);
+                renderGame();
+
+                currentReplayMoveIndex = 0;
+                setTimeout(replayNextMoveVisual, 500);
+            }
+
+            function replayNextMoveVisual() {
+                if (!isReplaying) return;
+
+                if (currentReplayMoveIndex >= moveHistory.length) {
+                    currentReplayMoveIndex = 0;
+                    // Reset to initial state for looping replay
+                    stock = initialGameState.stock.map(cd => { const card = createCard(cd.suit, cd.rank); card.faceUp = cd.faceUp; return card; });
+                    tableau = initialGameState.tableau.map(tPileData =>
+                        tPileData.map(cd => { const card = createCard(cd.suit, cd.rank); card.faceUp = cd.faceUp; return card; })
+                    );
+                    waste = [];
+                    foundations = Array.from({ length: 4 }, () => []);
+                    renderGame();
+                    replayInterval = setTimeout(replayNextMoveVisual, 1500);
+                    return;
+                }
+
+                const move = moveHistory[currentReplayMoveIndex];
+                applyMoveForReplayVisual(move, () => {
+                    currentReplayMoveIndex++;
+                    if (isReplaying) { // Check again in case New Game was pressed during animation
+                       replayInterval = setTimeout(replayNextMoveVisual, 700);
+                    }
+                });
+            }
+
+            function applyMoveForReplayVisual(move, callback) {
+                const gameBoardRect = gameBoardEl.getBoundingClientRect();
+                let animationMoves = [];
+
+                if (move.type === 'cards_moved' || move.type === 'auto_cards_moved') {
+                    const cardsDataToRecreate = move.type === 'cards_moved' ? move.movedCardsData : [move.movedCardData];
+                    const sourceData = getPileData(move.originalSource.id);
+                    const targetData = getPileData(move.originalTarget.id);
+                    const targetPileEl = document.getElementById(move.originalTarget.id);
+
+                    let tempRemovedCardObjects = [];
+
+                    cardsDataToRecreate.forEach(cardData => {
+                        const idx = sourceData.findIndex(c => c.id === cardData.id);
+                        if (idx !== -1) {
+                            tempRemovedCardObjects.push(sourceData.splice(idx, 1)[0]);
+                        } else {
+                             // If card not found in source (should be rare in controlled replay), create it for animation
+                            const cardForAnim = createCard(cardData.suit, cardData.rank);
+                            cardForAnim.faceUp = cardData.faceUp;
+                            updateCardElement(cardForAnim); // ensure visual state is correct
+                            tempRemovedCardObjects.push(cardForAnim);
+                            // console.warn("Replay: Card not found in source data for move, creating for animation.", cardData.id, move.originalSource.id);
+                        }
+                    });
+
+
+                    tempRemovedCardObjects.forEach((cardObj, index) => {
+                        if (!cardObj.element) { console.error("Replay: card missing element", cardObj); return; }
+                        // Ensure card element is on gameBoardEl for consistent getBoundingClientRect
+                        if (cardObj.element.parentElement !== gameBoardEl && cardObj.element.parentElement?.classList.contains('pile')) {
+                             const pileRect = cardObj.element.parentElement.getBoundingClientRect();
+                             const cardRelLeft = parseFloat(cardObj.element.style.left || 0);
+                             const cardRelTop = parseFloat(cardObj.element.style.top || 0);
+                             // Set absolute position relative to gameBoardEl before animation
+                             cardObj.element.style.left = `${pileRect.left - gameBoardRect.left + cardRelLeft}px`;
+                             cardObj.element.style.top = `${pileRect.top - gameBoardRect.top + cardRelTop}px`;
+                             gameBoardEl.appendChild(cardObj.element); // Move to game board for animation
+                        } else if (cardObj.element.parentElement !== gameBoardEl) {
+                            // If it's not in a pile and not on game board, just append and hope for best
+                            gameBoardEl.appendChild(cardObj.element);
+                        }
+
+
+                        const startRect = cardObj.element.getBoundingClientRect();
+                        const startX = startRect.left - gameBoardRect.left;
+                        const startY = startRect.top - gameBoardRect.top;
+
+                        let targetX, targetY;
+                        const targetElementRect = targetPileEl.getBoundingClientRect();
+                        targetX = targetElementRect.left - gameBoardRect.left;
+                        targetY = targetElementRect.top - gameBoardRect.top;
+
+                        if (move.originalTarget.type === 'tableau') {
+                            let currentTargetOffset = 0;
+                            targetData.forEach(tc => currentTargetOffset += (tc.faceUp ? cardVerticalOffset : cardFaceDownOffset));
+                            // When multiple cards are moved, they stack, so only add currentTargetOffset for first card
+                            // subsequent cards in the stack are relative to the first animated card (handled by renderPile)
+                            // For animation, we just need to target the base position for the stack.
+                            // If multiple cards moved, they should animate as a block.
+                            // The animation here targets the *top-most* card's final position.
+                            // If animating a stack, the relative offsets are maintained by how `draggedCards` was built.
+                            // For replay, we are animating one (or more) cards from `tempRemovedCardObjects`.
+                            // If it's a stack, `animateCardMoves` should handle their relative positions if they are styled that way before animation.
+                            // Let's assume single card for simplicity in targetY calculation for now, render will fix.
+                            targetY += currentTargetOffset; // This is where the *new card* will start stacking
+                            if(cardsDataToRecreate.length > 1 && index > 0) { // If animating a stack from history
+                                targetY += index * cardVerticalOffset; // Approximate stacking for animation if it was a multi-card move
+                            }
+
+                        } else if (move.originalTarget.type === 'waste') {
+                            targetX += targetData.length * 20; // Approximate waste fan
+                        } else if (move.originalTarget.type === 'foundation') {
+                            // No additional offset usually, cards stack directly on top.
+                        }
+
+
+                        animationMoves.push({ element: cardObj.element, startX, startY, targetX, targetY, duration: 400 });
+                    });
+
+                    animateCardMoves(animationMoves, () => {
+                        targetData.push(...tempRemovedCardObjects); // Add to target data model
+                        if (move.cardFlippedDownInSource) { // For replay, this is the card that *was* flipped down, so now flip it up
+                            const cardToFlip = findCardObjectInGame(move.cardFlippedDownInSource);
+                            if (cardToFlip) cardToFlip.faceUp = true;
+                        }
+                        renderGame();
+                        if (callback) callback();
+                    });
+
+                } else if (move.type === 'stock_to_waste') {
+                    const cardToMove = stock.pop();
+                    if (cardToMove && cardToMove.id === move.cardData.id) {
+                        cardToMove.faceUp = true;
+                        waste.push(cardToMove);
+                        renderGame(); // Render immediately
+                    }
+                    if (callback) setTimeout(callback, 100); // Short delay for visual
+                } else if (move.type === 'waste_to_stock') {
+                    stock = waste.reverse();
+                    stock.forEach(card => card.faceUp = false);
+                    waste = [];
+                    renderGame(); // Render immediately
+                    if (callback) setTimeout(callback, 100); // Short delay for visual
+                } else {
+                    if (callback) callback(); // Unknown move type
+                }
+            }
+            // --- End Undo/Replay ---
+
+
             // --- Initial Game Start ---
-            dealGame();
+            dealGame(false);
 
         });
     </script>
