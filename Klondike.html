@@ -787,7 +787,7 @@
             function undoLastMove() {
                 if (moveHistory.length === 0 || isReplaying) return;
                 const lastMove = moveHistory.pop();
-                undoButton.disabled = moveHistory.length === 0;
+                undoButton.disabled = true;
 
                 if (lastMove.type === 'cards_moved' || lastMove.type === 'auto_cards_moved') {
                     const sourceDataPile = getPileData(lastMove.originalSource.id);
@@ -846,6 +846,7 @@
                     autoMoveButton.disabled = false;
                     newGameButton.disabled = false;
                 }
+                undoButton.disabled = moveHistory.length === 0;
                 renderGame();
             }
 
@@ -860,7 +861,7 @@
                 }
 
                 isReplaying = true;
-                winMessageEl.innerHTML = "🎉 Replaying Game... 🎉 <br><small>(Click 'New Game')</small>";
+                winMessageEl.innerHTML = "🎉 ...You Won... 🎉 <br><small>(Click 'New Game')</small>";
                 winMessageEl.style.display = 'block';
                 undoButton.disabled = true;
                 autoMoveButton.disabled = true;
