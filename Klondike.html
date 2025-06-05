@@ -224,7 +224,7 @@
         button:disabled { background-color: #aaa; cursor: not-allowed; } /* Style for disabled button */
 
 
-        #win-message { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 100, 0, 0.9); color: #ffdf00; padding: 30px 50px; border-radius: 10px; font-size: 2em; font-weight: bold; text-align: center; z-index: 2000; display: none; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #win-message { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0, 100, 0, 0.9); color: #ffdf00; padding: 30px 50px; border-radius: 10px; font-size: 2em; font-weight: bold; text-align: center; z-index: 3000; display: none; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
 
         /* Media Queries */
         @media (max-width: 700px) {
@@ -860,7 +860,7 @@
                 }
 
                 isReplaying = true;
-                winMessageEl.innerHTML = "🎉 Replaying Game... 🎉 <br><small>(Click 'New Game' to stop)</small>";
+                winMessageEl.innerHTML = "🎉 Replaying Game... 🎉 <br><small>(Click 'New Game')</small>";
                 winMessageEl.style.display = 'block';
                 undoButton.disabled = true;
                 autoMoveButton.disabled = true;
