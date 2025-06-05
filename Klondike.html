@@ -901,7 +901,7 @@
                 applyMoveForReplayVisual(move, () => {
                     currentReplayMoveIndex++;
                     if (isReplaying) { // Check again in case New Game was pressed during animation
-                       replayInterval = setTimeout(replayNextMoveVisual, 700);
+                       replayInterval = setTimeout(replayNextMoveVisual, 50);
                     }
                 });
             }
