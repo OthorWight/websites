@@ -335,6 +335,10 @@
             let currentReplayMoveIndex = 0;
             // --- End New State ---
 
+            // --- Animation/Replay Cancel State ---
+            let currentAnimationFrame = null;
+            let currentAnimationTimeout = null;
+            // --- End Animation/Replay Cancel State ---
 
             // --- Core Functions ---
             function createCard(suit, rank) {
@@ -353,7 +357,35 @@
                 return el;
             }
             function easeInOutQuad(t, b, c, d) { t /= d / 2; if (t < 1) return c / 2 * t * t + b; t--; return -c / 2 * (t * (t - 2) - 1) + b; }
-            function animateCardMoves(moves, onComplete) { if (moves.length === 0) { if (onComplete) onComplete(); return; } let startTime = performance.now(); const duration = moves[0].duration || 300; moves.forEach((move, i) => { if (move.element.parentElement !== gameBoardEl) gameBoardEl.appendChild(move.element); move.element.style.position = 'absolute'; move.element.style.zIndex = 2000 + i + (isReplaying ? 500 : 0) ; move.element.style.left = `${move.startX}px`; move.element.style.top = `${move.startY}px`; }); function animationStep(currentTime) { const elapsedTime = currentTime - startTime; const progress = Math.min(1, elapsedTime / duration); moves.forEach(move => { const currentX = easeInOutQuad(elapsedTime, move.startX, move.targetX - move.startX, duration); const currentY = easeInOutQuad(elapsedTime, move.startY, move.targetY - move.startY, duration); move.element.style.left = `${currentX}px`; move.element.style.top = `${currentY}px`; }); if (progress < 1) requestAnimationFrame(animationStep); else { moves.forEach(move => { move.element.style.zIndex = 'auto'; }); if (onComplete) onComplete(); } } requestAnimationFrame(animationStep); }
+            function animateCardMoves(moves, onComplete) {
+                if (moves.length === 0) { if (onComplete) onComplete(); return; }
+                let startTime = performance.now();
+                const duration = moves[0].duration || 300;
+                moves.forEach((move, i) => {
+                    if (move.element.parentElement !== gameBoardEl) gameBoardEl.appendChild(move.element);
+                    move.element.style.position = 'absolute';
+                    move.element.style.zIndex = 2000 + i + (isReplaying ? 500 : 0);
+                    move.element.style.left = `${move.startX}px`;
+                    move.element.style.top = `${move.startY}px`;
+                });
+                function animationStep(currentTime) {
+                    const elapsedTime = currentTime - startTime;
+                    const progress = Math.min(1, elapsedTime / duration);
+                    moves.forEach(move => {
+                        const currentX = easeInOutQuad(elapsedTime, move.startX, move.targetX - move.startX, duration);
+                        const currentY = easeInOutQuad(elapsedTime, move.startY, move.targetY - move.startY, duration);
+                        move.element.style.left = `${currentX}px`;
+                        move.element.style.top = `${currentY}px`;
+                    });
+                    if (progress < 1) {
+                        currentAnimationFrame = requestAnimationFrame(animationStep);
+                    } else {
+                        moves.forEach(move => { move.element.style.zIndex = 'auto'; });
+                        if (onComplete) onComplete();
+                    }
+                }
+                currentAnimationFrame = requestAnimationFrame(animationStep);
+            }
 
             function performAutoMovePass(onPassComplete) {
                 if (draggedCards || isReplaying) { onPassComplete(false); return; }
@@ -474,10 +506,32 @@
                 });
             }
             function updateCardElement(card) { if (!card || !card.element) return; if (card.faceUp) { card.element.classList.remove('face-down'); card.element.style.backgroundColor = ''; card.element.style.backgroundImage = ''; card.element.querySelectorAll('.rank, .suit').forEach(span => span.style.visibility = 'visible'); } else { card.element.classList.add('face-down'); card.element.querySelectorAll('.rank, .suit').forEach(span => span.style.visibility = 'hidden'); } if (!card.element.classList.contains('dragging')) card.element.style.zIndex = 'auto'; }
-            function createDeck() { deck = []; for (const suit of suits) for (const rank of ranks) deck.push(createCard(suit, rank)); }
+            function createDeck() {
+                deck = [];
+                for (const suit of suits) {
+                    for (const rank of ranks) {
+                        const card = createCard(suit, rank);
+                        card.faceUp = false; // Ensure every card starts face down
+                        deck.push(card);
+                    }
+                }
+            }
             function shuffleDeck() { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } }
 
             function dealGame(forReplay = false) {
+                // Cancel any pending animation frames or timeouts
+                if (currentAnimationFrame) {
+                    cancelAnimationFrame(currentAnimationFrame);
+                    currentAnimationFrame = null;
+                }
+                if (currentAnimationTimeout) {
+                    clearTimeout(currentAnimationTimeout);
+                    currentAnimationTimeout = null;
+                }
+                if (replayInterval) {
+                    clearTimeout(replayInterval);
+                    replayInterval = null;
+                }
                 winMessageEl.style.display = 'none';
                 if (replayInterval) clearInterval(replayInterval);
                 isReplaying = false;
@@ -867,6 +921,20 @@
                 autoMoveButton.disabled = true;
                 newGameButton.disabled = false; // Explicitly enable New Game button for stopping replay
 
+                // Cancel any pending animation frames or timeouts
+                if (currentAnimationFrame) {
+                    cancelAnimationFrame(currentAnimationFrame);
+                    currentAnimationFrame = null;
+                }
+                if (currentAnimationTimeout) {
+                    clearTimeout(currentAnimationTimeout);
+                    currentAnimationTimeout = null;
+                }
+                if (replayInterval) {
+                    clearTimeout(replayInterval);
+                    replayInterval = null;
+                }
+
                 // Reset to initial state using initialGameState for replay
                 stock = initialGameState.stock.map(cd => { const card = createCard(cd.suit, cd.rank); card.faceUp = cd.faceUp; return card; });
                 tableau = initialGameState.tableau.map(tPileData =>
@@ -893,7 +961,8 @@
                     waste = [];
                     foundations = Array.from({ length: 4 }, () => []);
                     renderGame();
-                    replayInterval = setTimeout(replayNextMoveVisual, 1500);
+                    currentAnimationTimeout = setTimeout(replayNextMoveVisual, 1500);
+                    replayInterval = currentAnimationTimeout;
                     return;
                 }
 
@@ -901,7 +970,8 @@
                 applyMoveForReplayVisual(move, () => {
                     currentReplayMoveIndex++;
                     if (isReplaying) { // Check again in case New Game was pressed during animation
-                       replayInterval = setTimeout(replayNextMoveVisual, 50);
+                       currentAnimationTimeout = setTimeout(replayNextMoveVisual, 50);
+                       replayInterval = currentAnimationTimeout;
                     }
                 });
             }
