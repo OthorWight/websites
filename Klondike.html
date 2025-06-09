@@ -42,7 +42,7 @@
             background-color: #00500086; /* Slightly different green for contrast */
             padding: 10px;
             box-sizing: border-box;
-            height: 600px; /* Fixed Height */
+            height: 800px; /* Fixed Height */
         }
 
         /* --- Layout Rules --- */
@@ -76,8 +76,8 @@
 
         .pile {
             position: relative;
-            width: 80px; /* Card width */
-            height: 112px; /* Card height */
+            width: 100px; /* Card width increased */
+            height: 140px; /* Card height increased */
             border: 1px solid #0000007e;
             border-radius: 5px;
             background-color: rgba(255, 255, 255, 0.1);
@@ -85,7 +85,7 @@
         }
 
         .tableau .pile { /* This targets the tableau column container, not individual cards */
-            min-height: 300px; /* Allow space for stacked cards */
+            min-height: 380px; /* Allow space for stacked cards */
             background-color: transparent; /* Tableau background shouldn't obscure cards below */
             border: none; /* Remove border for tableau columns themselves */
         }
@@ -96,7 +96,7 @@
             top: 0;
             left: 0;
             width: 100%; /* Use pile width */
-            height: 112px; /* Use card height for placeholder size */
+            height: 140px; /* Use card height for placeholder size */
             border: 2px dashed rgba(255, 255, 255, 0.3);
             border-radius: 5px;
             box-sizing: border-box;
@@ -117,9 +117,9 @@
 
         #stock.pile.empty::before {
             content: '♻️'; /* Recycle symbol */
-            font-size: 40px;
+            font-size: 50px;
             text-align: center;
-            line-height: 112px;
+            line-height: 140px;
             color: rgba(255, 255, 255, 0.5);
             border: 1px solid #ccc; /* Keep border for empty stock */
             background-color: rgba(255, 255, 255, 0.1);
@@ -128,20 +128,20 @@
 
         .card {
             position: absolute;
-            width: 80px;
-            height: 112px;
+            width: 100px;
+            height: 140px;
             border: 1px solid #888;
             border-radius: 5px;
             background-color: #f7f7f7;
             color: #000;
             box-sizing: border-box;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 5px;
+            padding: 8px;
             box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
             transition: top 0.1s ease-out, left 0.1s ease-out; /* Smooth snap back */
             transform: translateZ(0);
@@ -196,7 +196,7 @@
         }
 
         .card .rank { line-height: 1; }
-        .card .suit { font-size: 24px; text-align: center; line-height: 1; }
+        .card .suit { font-size: 32px; text-align: center; line-height: 1; }
         .card .rank-bottom { transform: rotate(180deg); line-height: 1; }
         .card.red { color: #ff0000; }
         .card.black { color: #000000; }
@@ -228,7 +228,7 @@
 
         /* Media Queries */
         @media (max-width: 700px) {
-            #game-board { max-width: 95%; padding: 5px; height: auto; min-height: 500px; }
+            #game-board { max-width: 95%; padding: 5px; height: auto; min-height: 600px; }
             .card { width: 60px; height: 84px; font-size: 14px; padding: 3px; }
             .card .suit { font-size: 18px; }
             .pile { width: 60px; height: 84px; }
@@ -324,8 +324,8 @@
             let dragOffsetY = 0;
 
             // Visual Offsets
-            const cardVerticalOffset = 25;
-            const cardFaceDownOffset = 5;
+            const cardVerticalOffset = 30;
+            const cardFaceDownOffset = 10;
 
             // --- New State for Undo/Replay ---
             let moveHistory = [];
@@ -620,7 +620,7 @@
                 });
             }
             function renderStock() { const topCard = stock.length > 0 ? [stock[stock.length - 1]] : []; renderPile(stockPileEl, topCard, (card) => { card.faceUp = false; updateCardElement(card); card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = 0; }); stockPileEl.classList.toggle('empty', stock.length === 0); }
-            function renderWaste() { const wasteRenderCount = 3; const cardHorizontalSpacing = 20; const startIdx = Math.max(0, waste.length - wasteRenderCount); const visibleWaste = waste.slice(startIdx); renderPile(wastePileEl, visibleWaste, (card, indexInVisibleArray) => { card.faceUp = true; updateCardElement(card); card.element.style.top = '0px'; const leftOffset = indexInVisibleArray * cardHorizontalSpacing; card.element.style.left = `${leftOffset}px`; card.element.style.zIndex = indexInVisibleArray; }); waste.forEach(c => c.faceUp = true); wastePileEl.classList.toggle('empty', waste.length === 0); }
+            function renderWaste() { const wasteRenderCount = 3; const cardHorizontalSpacing = 35; const startIdx = Math.max(0, waste.length - wasteRenderCount); const visibleWaste = waste.slice(startIdx); renderPile(wastePileEl, visibleWaste, (card, indexInVisibleArray) => { card.faceUp = true; updateCardElement(card); card.element.style.top = '0px'; const leftOffset = indexInVisibleArray * cardHorizontalSpacing; card.element.style.left = `${leftOffset}px`; card.element.style.zIndex = indexInVisibleArray; }); waste.forEach(c => c.faceUp = true); wastePileEl.classList.toggle('empty', waste.length === 0); }
             function renderFoundations() { const foundationCardUnderOffset = 0; foundationPileEls.forEach((pileEl, i) => { const pile = foundations[i]; let cardsToDisplayInDOM = []; if (pile.length === 1) { cardsToDisplayInDOM = [pile[0]]; } else if (pile.length >= 2) { cardsToDisplayInDOM = [pile[pile.length - 2], pile[pile.length - 1]]; } pile.forEach(c => { if (c) c.faceUp = true; }); renderPile(pileEl, cardsToDisplayInDOM, (card, displayIndex, displayedArray) => { updateCardElement(card); if (displayedArray.length === 1) { card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = pile.indexOf(card); } else if (displayedArray.length === 2) { if (card === pile[pile.length - 2]) { card.element.style.top = `${foundationCardUnderOffset}px`; card.element.style.left = '0px'; card.element.style.zIndex = pile.length - 2; } else if (card === pile[pile.length - 1]) { card.element.style.top = '0px'; card.element.style.left = '0px'; card.element.style.zIndex = pile.length - 1; } } }); pileEl.classList.toggle('empty', pile.length === 0); }); }
             function renderTableau() { tableauPileEls.forEach((pileEl, i) => { let currentOffset = 0; renderPile(pileEl, tableau[i], (card, cardIndex) => { if (!card.element.classList.contains('dragging')) { card.element.style.left = '0px'; card.element.style.top = `${currentOffset}px`; card.element.style.zIndex = cardIndex; } currentOffset += card.faceUp ? cardVerticalOffset : cardFaceDownOffset; }); }); }
             // --- End Rendering Functions ---
@@ -967,9 +967,7 @@
                             // For animation, we just need to target the base position for the stack.
                             // If multiple cards moved, they should animate as a block.
                             // The animation here targets the *top-most* card's final position.
-                            // If animating a stack, the relative offsets are maintained by how `draggedCards` was built.
-                            // For replay, we are animating one (or more) cards from `tempRemovedCardObjects`.
-                            // If it's a stack, `animateCardMoves` should handle their relative positions if they are styled that way before animation.
+                            // If animating a stack, `animateCardMoves` should handle their relative positions if they are styled that way before animation.
                             // Let's assume single card for simplicity in targetY calculation for now, render will fix.
                             targetY += currentTargetOffset; // This is where the *new card* will start stacking
                             if(cardsDataToRecreate.length > 1 && index > 0) { // If animating a stack from history
