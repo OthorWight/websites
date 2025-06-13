@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tomagochi Incremental</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+        }
+        .pixel-border {
+            border: 4px solid #a0aec0; /* Lighter border */
+            border-radius: 8px;
+            box-shadow: 0 4px #4a5568; /* Darker shadow */
+            background-color: #2d3748; /* Dark container background */
+        }
+        .btn-pixel {
+            background-color: #4a5568; /* Darker button */
+            border: 2px solid #a0aec0; /* Lighter border */
+            color: #e2e8f0; /* Light text */
+            border-radius: 6px;
+            padding: 10px 15px;
+            box-shadow: 0 2px #2d3748;
+            transition: all 0.1s ease-in-out;
+            cursor: pointer;
+        }
+        .btn-pixel:active {
+            box-shadow: none;
+            transform: translateY(2px);
+        }
+        .btn-pixel:disabled {
+            background-color: #2d3748;
+            color: #718096;
+            cursor: not-allowed;
+        }
+        .progress-bar-container {
+            height: 20px;
+            border: 2px solid #a0aec0;
+            border-radius: 4px;
+            background-color: #1a202c; /* Darker progress background */
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        .pet-container {
+            width: 150px;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #2c5282; /* Darker blue */
+            border: 4px solid #a0aec0;
+            border-radius: 50%;
+        }
+        .pet {
+            font-size: 80px;
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #userIdDisplay {
+            background-color: #1a202c;
+            color: #a0aec0;
+        }
+        .upgrade-item {
+            background-color: #4a5568;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div id="loading" class="text-center">
+        <p class="text-2xl">Loading Game...</p>
+    </div>
+
+    <div id="game-container" class="hidden w-full max-w-lg mx-auto p-4 backdrop-blur-sm pixel-border">
+        
+        <!-- User ID Display -->
+        <div class="mb-4 text-center">
+            <p class="text-xs">Your User ID (for sharing):</p>
+            <p id="userIdDisplay" class="text-sm font-mono p-1 rounded"></p>
+        </div>
+        
+        <!-- Pet Display -->
+        <div class="flex flex-col items-center mb-4">
+            <h1 id="petName" class="text-3xl mb-2">My Pet</h1>
+            <div class="pet-container">
+                <div id="pet" class="pet">😀</div>
+            </div>
+            <p id="petLevel" class="mt-2 text-lg">Level: 1</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="space-y-3 mb-4">
+            <div>
+                <label>Hunger</label>
+                <div class="progress-bar-container">
+                    <div id="hunger-bar" class="progress-bar bg-green-500" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div>
+                <label>Happiness</label>
+                <div class="progress-bar-container">
+                    <div id="happiness-bar" class="progress-bar bg-yellow-500" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div>
+                <label>Energy</label>
+                <div class="progress-bar-container">
+                    <div id="energy-bar" class="progress-bar bg-blue-500" style="width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <button id="feed-btn" class="btn-pixel">Feed</button>
+            <button id="play-btn" class="btn-pixel">Play</button>
+            <button id="rest-btn" class="btn-pixel">Rest</button>
+        </div>
+
+        <!-- Currency -->
+        <div class="text-center mb-4">
+            <p class="text-xl">Coins: <span id="coins">0</span></p>
+        </div>
+
+        <!-- Upgrades Store -->
+        <div>
+            <h2 class="text-2xl text-center mb-2">Upgrades</h2>
+            <div id="upgrades-container" class="space-y-2">
+                <!-- Upgrades will be dynamically inserted here -->
+            </div>
+        </div>
+
+    </div>
+
+    <div id="message-box" class="message-box"></div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- DOM Elements ---
+        const gameContainer = document.getElementById('game-container');
+        const loadingScreen = document.getElementById('loading');
+        const petElement = document.getElementById('pet');
+        const petNameElement = document.getElementById('petName');
+        const petLevelElement = document.getElementById('petLevel');
+        const hungerBar = document.getElementById('hunger-bar');
+        const happinessBar = document.getElementById('happiness-bar');
+        const energyBar = document.getElementById('energy-bar');
+        const feedBtn = document.getElementById('feed-btn');
+        const playBtn = document.getElementById('play-btn');
+        const restBtn = document.getElementById('rest-btn');
+        const coinsElement = document.getElementById('coins');
+        const upgradesContainer = document.getElementById('upgrades-container');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const messageBox = document.getElementById('message-box');
+
+        // --- Firebase Setup ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO_KEY", authDomain: "DEMO.firebaseapp.com", projectId: "DEMO" };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tamagotchi-game';
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userId = null;
+        let dbRef = null;
+        let unsubscribe = null; // To detach the onSnapshot listener
+
+        // --- Game State ---
+        let gameState = {
+            name: "Goober",
+            level: 1,
+            xp: 0,
+            hunger: 100,
+            happiness: 100,
+            energy: 100,
+            coins: 0,
+            lastUpdate: Date.now(),
+            upgrades: {
+                autoFeeder: 0,
+                autoPlayer: 0,
+            }
+        };
+        
+        // --- Upgrade Definitions ---
+        const upgradeDefs = {
+            autoFeeder: {
+                name: "Auto Feeder",
+                baseCost: 50,
+                costIncrease: 2,
+                description: (level) => `Feeds your pet automatically. Level ${level}.`
+            },
+            autoPlayer: {
+                name: "Robo-Toy",
+                baseCost: 75,
+                costIncrease: 2.5,
+                description: (level) => `Plays with your pet automatically. Level ${level}.`
+            }
+        };
+
+        // --- Authentication ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                userIdDisplay.textContent = userId;
+                dbRef = doc(db, `artifacts/${appId}/users/${userId}/gameData/gameState`);
+                loadGame();
+            } else {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Authentication Error:", error);
+                    showMessage("Could not connect to the game server.", "bg-red-500");
+                }
+            }
+        });
+
+        // --- Game Logic ---
+
+        function loadGame() {
+            // Detach any existing listener
+            if (unsubscribe) {
+                unsubscribe();
+            }
+            // Listen for real-time updates
+            unsubscribe = onSnapshot(dbRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const loadedState = docSnap.data();
+                    // Basic validation to prevent malformed data from crashing the game
+                    if (loadedState && typeof loadedState.hunger === 'number') {
+                       Object.assign(gameState, loadedState);
+                    } else {
+                       console.log("No valid save data found, starting new game.");
+                       saveGame(true); // Create a new game document
+                    }
+                } else {
+                    console.log("No save data found, starting new game.");
+                    saveGame(true); // Create a new game document
+                }
+                
+                // Once data is loaded or created, start the game
+                if (!isGameRunning) {
+                    startGame();
+                }
+            }, (error) => {
+                console.error("Firestore snapshot error:", error);
+                showMessage("Error connecting to game data.", "bg-red-500");
+            });
+        }
+
+        async function saveGame(isInitial = false) {
+            if (!dbRef) return;
+            try {
+                // Use setDoc with merge for creating or overwriting, updateDoc for partial updates
+                if (isInitial) {
+                    await setDoc(dbRef, gameState);
+                } else {
+                    await updateDoc(dbRef, gameState);
+                }
+            } catch (error) {
+                console.error("Error saving game:", error);
+                showMessage("Could not save progress.", "bg-red-500");
+            }
+        }
+        
+        let isGameRunning = false;
+
+        function startGame() {
+            loadingScreen.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            setInterval(gameLoop, 1000); // Game loop runs every second
+            isGameRunning = true;
+        }
+
+        function gameLoop() {
+            const now = Date.now();
+            const elapsedSeconds = (now - gameState.lastUpdate) / 1000;
+
+            // Stat decay
+            gameState.hunger = Math.max(0, gameState.hunger - 0.5 * elapsedSeconds);
+            gameState.happiness = Math.max(0, gameState.happiness - 0.3 * elapsedSeconds);
+            gameState.energy = Math.max(0, gameState.energy - 0.2 * elapsedSeconds);
+
+            // Auto-upgrades
+            if (gameState.upgrades.autoFeeder > 0) {
+                gameState.hunger = Math.min(100, gameState.hunger + (0.5 * gameState.upgrades.autoFeeder * elapsedSeconds));
+            }
+            if (gameState.upgrades.autoPlayer > 0) {
+                gameState.happiness = Math.min(100, gameState.happiness + (0.3 * gameState.upgrades.autoPlayer * elapsedSeconds));
+            }
+            
+            // Earn coins based on pet's well-being
+            const averageStat = (gameState.hunger + gameState.happiness + gameState.energy) / 3;
+            if (averageStat > 70) {
+                gameState.coins += (0.1 * gameState.level * elapsedSeconds);
+            }
+            
+            gameState.lastUpdate = now;
+            updateUI();
+            saveGame(); // Save state every loop
+        }
+
+        function updateUI() {
+            petNameElement.textContent = gameState.name;
+            petLevelElement.textContent = `Level: ${gameState.level}`;
+            coinsElement.textContent = Math.floor(gameState.coins);
+
+            hungerBar.style.width = `${gameState.hunger}%`;
+            happinessBar.style.width = `${gameState.happiness}%`;
+            energyBar.style.width = `${gameState.energy}%`;
+
+            // Change pet face based on stats
+            const avgStat = (gameState.hunger + gameState.happiness) / 2;
+            if (gameState.energy < 20) pet.textContent = '😴';
+            else if (avgStat < 30) pet.textContent = '😭';
+            else if (avgStat < 60) pet.textContent = '😐';
+            else pet.textContent = '�';
+
+            // Update progress bar colors
+            updateBarColor(hungerBar, gameState.hunger);
+            updateBarColor(happinessBar, gameState.happiness);
+            updateBarColor(energyBar, gameState.energy);
+            
+            // Update upgrades display
+            renderUpgrades();
+        }
+        
+        function updateBarColor(bar, value) {
+            bar.classList.remove('bg-green-500', 'bg-yellow-500', 'bg-red-500');
+            if (value > 60) {
+                bar.classList.add('bg-green-500');
+            } else if (value > 30) {
+                bar.classList.add('bg-yellow-500');
+            } else {
+                bar.classList.add('bg-red-500');
+            }
+        }
+
+        function addXp(amount) {
+            gameState.xp += amount;
+            const xpToNextLevel = gameState.level * 100;
+            if (gameState.xp >= xpToNextLevel) {
+                gameState.level++;
+                gameState.xp = 0;
+                showMessage(`Your pet leveled up to Level ${gameState.level}!`, 'bg-purple-500');
+            }
+        }
+        
+        function showMessage(text, bgColor) {
+            messageBox.textContent = text;
+            messageBox.className = 'message-box'; // Reset classes
+            messageBox.classList.add(bgColor, 'opacity-100');
+            
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+            }, 3000);
+        }
+
+        // --- Action Handlers ---
+        feedBtn.addEventListener('click', () => {
+            if (gameState.energy > 5) {
+                gameState.hunger = Math.min(100, gameState.hunger + 15);
+                gameState.energy -= 5;
+                addXp(10);
+                showMessage("Yum!", "bg-green-500");
+                updateUI();
+            } else {
+                showMessage("Too tired to eat...", "bg-gray-500");
+            }
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (gameState.energy > 10) {
+                gameState.happiness = Math.min(100, gameState.happiness + 20);
+                gameState.energy -= 10;
+                gameState.hunger -= 5;
+                addXp(15);
+                showMessage("Whee!", "bg-yellow-500");
+                updateUI();
+            } else {
+                showMessage("Too tired to play...", "bg-gray-500");
+            }
+        });
+
+        restBtn.addEventListener('click', () => {
+            gameState.energy = Math.min(100, gameState.energy + 50);
+            gameState.hunger -= 5;
+            gameState.happiness -= 5;
+            addXp(5);
+            showMessage("Zzz...", "bg-blue-500");
+            updateUI();
+        });
+        
+        // --- Upgrades Rendering & Logic ---
+        function getUpgradeCost(key) {
+            const def = upgradeDefs[key];
+            const level = gameState.upgrades[key] || 0;
+            return Math.floor(def.baseCost * Math.pow(def.costIncrease, level));
+        }
+
+        function renderUpgrades() {
+            upgradesContainer.innerHTML = ''; // Clear existing
+            for (const key in upgradeDefs) {
+                const def = upgradeDefs[key];
+                const level = gameState.upgrades[key] || 0;
+                const cost = getUpgradeCost(key);
+                
+                const canAfford = gameState.coins >= cost;
+                
+                const upgradeEl = document.createElement('div');
+                upgradeEl.className = 'pixel-border p-2 upgrade-item flex justify-between items-center';
+                upgradeEl.innerHTML = `
+                    <div>
+                        <p>${def.name} (Lvl ${level})</p>
+                        <p class="text-xs">${def.description(level)}</p>
+                    </div>
+                    <button 
+                        class="btn-pixel" 
+                        ${canAfford ? '' : 'disabled'}
+                        data-key="${key}"
+                    >
+                        Buy (${cost}c)
+                    </button>
+                `;
+
+                const buyButton = upgradeEl.querySelector('button');
+                if (canAfford) {
+                    buyButton.classList.add('bg-green-600');
+                }
+                
+                upgradesContainer.appendChild(upgradeEl);
+            }
+        }
+        
+        upgradesContainer.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON' && e.target.dataset.key) {
+                const key = e.target.dataset.key;
+                const cost = getUpgradeCost(key);
+                if (gameState.coins >= cost) {
+                    gameState.coins -= cost;
+                    gameState.upgrades[key]++;
+                    showMessage(`Upgraded ${upgradeDefs[key].name}!`, "bg-purple-500");
+                    updateUI();
+                    saveGame();
+                }
+            }
+        });
+        
+    </script>
+</body>
+</html>
+�
