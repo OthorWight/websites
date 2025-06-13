@@ -94,12 +94,6 @@
 
     <div id="game-container" class="hidden w-full max-w-lg mx-auto p-4 backdrop-blur-sm pixel-border">
         
-        <!-- User ID Display -->
-        <div class="mb-4 text-center">
-            <p class="text-xs">Your User ID (for sharing):</p>
-            <p id="userIdDisplay" class="text-sm font-mono p-1 rounded"></p>
-        </div>
-        
         <!-- Pet Display -->
         <div class="flex flex-col items-center mb-4">
             <h1 id="petName" class="text-3xl mb-2">My Pet</h1>
@@ -156,11 +150,6 @@
     <div id="message-box" class="message-box"></div>
 
     <script type="module">
-        // Firebase Imports
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
         // --- DOM Elements ---
         const gameContainer = document.getElementById('game-container');
         const loadingScreen = document.getElementById('loading');
@@ -175,20 +164,7 @@
         const restBtn = document.getElementById('rest-btn');
         const coinsElement = document.getElementById('coins');
         const upgradesContainer = document.getElementById('upgrades-container');
-        const userIdDisplay = document.getElementById('userIdDisplay');
         const messageBox = document.getElementById('message-box');
-
-        // --- Firebase Setup ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO_KEY", authDomain: "DEMO.firebaseapp.com", projectId: "DEMO" };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tamagotchi-game';
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-
-        let userId = null;
-        let dbRef = null;
-        let unsubscribe = null; // To detach the onSnapshot listener
 
         // --- Game State ---
         let gameState = {
@@ -205,7 +181,7 @@
                 autoPlayer: 0,
             }
         };
-        
+
         // --- Upgrade Definitions ---
         const upgradeDefs = {
             autoFeeder: {
@@ -222,75 +198,28 @@
             }
         };
 
-        // --- Authentication ---
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                userIdDisplay.textContent = userId;
-                dbRef = doc(db, `artifacts/${appId}/users/${userId}/gameData/gameState`);
-                loadGame();
-            } else {
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (error) {
-                    console.error("Authentication Error:", error);
-                    showMessage("Could not connect to the game server.", "bg-red-500");
-                }
-            }
-        });
-
-        // --- Game Logic ---
-
+        // --- Local Storage Persistence ---
         function loadGame() {
-            // Detach any existing listener
-            if (unsubscribe) {
-                unsubscribe();
-            }
-            // Listen for real-time updates
-            unsubscribe = onSnapshot(dbRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const loadedState = docSnap.data();
-                    // Basic validation to prevent malformed data from crashing the game
+            const saved = localStorage.getItem('tamagochiGameState');
+            if (saved) {
+                try {
+                    const loadedState = JSON.parse(saved);
                     if (loadedState && typeof loadedState.hunger === 'number') {
-                       Object.assign(gameState, loadedState);
-                    } else {
-                       console.log("No valid save data found, starting new game.");
-                       saveGame(true); // Create a new game document
+                        Object.assign(gameState, loadedState);
                     }
-                } else {
-                    console.log("No save data found, starting new game.");
-                    saveGame(true); // Create a new game document
+                } catch (e) {
+                    // Ignore parse errors, start new game
                 }
-                
-                // Once data is loaded or created, start the game
-                if (!isGameRunning) {
-                    startGame();
-                }
-            }, (error) => {
-                console.error("Firestore snapshot error:", error);
-                showMessage("Error connecting to game data.", "bg-red-500");
-            });
+            }
+            if (!isGameRunning) {
+                startGame();
+            }
         }
 
-        async function saveGame(isInitial = false) {
-            if (!dbRef) return;
-            try {
-                // Use setDoc with merge for creating or overwriting, updateDoc for partial updates
-                if (isInitial) {
-                    await setDoc(dbRef, gameState);
-                } else {
-                    await updateDoc(dbRef, gameState);
-                }
-            } catch (error) {
-                console.error("Error saving game:", error);
-                showMessage("Could not save progress.", "bg-red-500");
-            }
+        function saveGame() {
+            localStorage.setItem('tamagochiGameState', JSON.stringify(gameState));
         }
-        
+
         let isGameRunning = false;
 
         function startGame() {
@@ -298,6 +227,7 @@
             gameContainer.classList.remove('hidden');
             setInterval(gameLoop, 1000); // Game loop runs every second
             isGameRunning = true;
+            updateUI();
         }
 
         function gameLoop() {
@@ -316,13 +246,13 @@
             if (gameState.upgrades.autoPlayer > 0) {
                 gameState.happiness = Math.min(100, gameState.happiness + (0.3 * gameState.upgrades.autoPlayer * elapsedSeconds));
             }
-            
+
             // Earn coins based on pet's well-being
             const averageStat = (gameState.hunger + gameState.happiness + gameState.energy) / 3;
             if (averageStat > 70) {
                 gameState.coins += (0.1 * gameState.level * elapsedSeconds);
             }
-            
+
             gameState.lastUpdate = now;
             updateUI();
             saveGame(); // Save state every loop
@@ -339,20 +269,20 @@
 
             // Change pet face based on stats
             const avgStat = (gameState.hunger + gameState.happiness) / 2;
-            if (gameState.energy < 20) pet.textContent = '😴';
-            else if (avgStat < 30) pet.textContent = '😭';
-            else if (avgStat < 60) pet.textContent = '😐';
-            else pet.textContent = '�';
+            if (gameState.energy < 20) petElement.textContent = '😴';
+            else if (avgStat < 30) petElement.textContent = '😭';
+            else if (avgStat < 60) petElement.textContent = '😐';
+            else petElement.textContent = '😀';
 
             // Update progress bar colors
             updateBarColor(hungerBar, gameState.hunger);
             updateBarColor(happinessBar, gameState.happiness);
             updateBarColor(energyBar, gameState.energy);
-            
+
             // Update upgrades display
             renderUpgrades();
         }
-        
+
         function updateBarColor(bar, value) {
             bar.classList.remove('bg-green-500', 'bg-yellow-500', 'bg-red-500');
             if (value > 60) {
@@ -373,12 +303,12 @@
                 showMessage(`Your pet leveled up to Level ${gameState.level}!`, 'bg-purple-500');
             }
         }
-        
+
         function showMessage(text, bgColor) {
             messageBox.textContent = text;
             messageBox.className = 'message-box'; // Reset classes
             messageBox.classList.add(bgColor, 'opacity-100');
-            
+
             setTimeout(() => {
                 messageBox.classList.remove('opacity-100');
             }, 3000);
@@ -392,6 +322,7 @@
                 addXp(10);
                 showMessage("Yum!", "bg-green-500");
                 updateUI();
+                saveGame();
             } else {
                 showMessage("Too tired to eat...", "bg-gray-500");
             }
@@ -405,6 +336,7 @@
                 addXp(15);
                 showMessage("Whee!", "bg-yellow-500");
                 updateUI();
+                saveGame();
             } else {
                 showMessage("Too tired to play...", "bg-gray-500");
             }
@@ -417,8 +349,9 @@
             addXp(5);
             showMessage("Zzz...", "bg-blue-500");
             updateUI();
+            saveGame();
         });
-        
+
         // --- Upgrades Rendering & Logic ---
         function getUpgradeCost(key) {
             const def = upgradeDefs[key];
@@ -432,9 +365,9 @@
                 const def = upgradeDefs[key];
                 const level = gameState.upgrades[key] || 0;
                 const cost = getUpgradeCost(key);
-                
+
                 const canAfford = gameState.coins >= cost;
-                
+
                 const upgradeEl = document.createElement('div');
                 upgradeEl.className = 'pixel-border p-2 upgrade-item flex justify-between items-center';
                 upgradeEl.innerHTML = `
@@ -455,11 +388,11 @@
                 if (canAfford) {
                     buyButton.classList.add('bg-green-600');
                 }
-                
+
                 upgradesContainer.appendChild(upgradeEl);
             }
         }
-        
+
         upgradesContainer.addEventListener('click', (e) => {
             if (e.target.tagName === 'BUTTON' && e.target.dataset.key) {
                 const key = e.target.dataset.key;
@@ -473,8 +406,9 @@
                 }
             }
         });
-        
+
+        // --- Start the game ---
+        loadGame();
     </script>
 </body>
 </html>
-�
