@@ -6,21 +6,20 @@
     <title>Ambient Music Generator</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1a1a1d; color: #c5c6c7; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 1rem; box-sizing: border-box; }
-        .container { width: 100%; max-width: 700px; padding: 2rem; text-align: center; }
+        .container { width: 100%; max-width: 800px; padding: 2rem; text-align: center; }
         h1 { color: #66fcf1; font-size: clamp(1.8rem, 5vw, 2.5rem); margin-bottom: 0.5rem; }
         #startStopButton { background-color: #45a29e; color: #0b0c10; border: none; border-radius: 8px; padding: 15px 30px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: background-color 0.3s; margin-top: 1rem; }
         #startStopButton:hover { background-color: #66fcf1; }
         #startStopButton.playing { background-color: #c50000; color: #fff; }
         #startStopButton.playing:hover { background-color: #ff4d4d; }
-        .controls-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 2.5rem; background-color: #0b0c10; padding: 1.5rem; border-radius: 8px; border: 1px solid #4b5263; }
+        .controls-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; margin-top: 2.5rem; background-color: #0b0c10; padding: 1.5rem; border-radius: 8px; border: 1px solid #4b5263; }
         .control-group { text-align: left; }
         .control-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; color: #c5c6c7; }
         select, input[type="text"], input[type="range"] { width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #4b5263; background-color: #1f2833; color: #c5c6c7; font-size: 1rem; }
         input[type="range"] { padding: 0; }
         .slider-group { display: flex; align-items: center; gap: 1rem; }
         .slider-value { font-weight: bold; color: #66fcf1; min-width: 35px; }
-        @media (max-width: 720px) { .controls-panel { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 500px) { .controls-panel { grid-template-columns: 1fr; } }
+        .progression-group { grid-column: 1 / -1; }
     </style>
 </head>
 <body>
@@ -30,13 +29,23 @@
         <button id="startStopButton">Start</button>
 
         <div class="controls-panel">
+            <!-- Row 1: Core Music Settings -->
             <div class="control-group"><label for="key-select">Key</label><select id="key-select"></select></div>
             <div class="control-group"><label for="scale-select">Scale</label><select id="scale-select"><option value="major">Major</option><option value="minor">Minor</option></select></div>
             <div class="control-group"><label for="wave-select">Melody Wave</label><select id="wave-select"><option value="triangle">Triangle</option><option value="sine">Sine</option><option value="square">Square</option><option value="sawtooth">Sawtooth</option></select></div>
+
+            <!-- Row 2: Timing and Effects -->
             <div class="control-group"><label for="octave-slider">Melody Octave <span id="octave-value" class="slider-value"></span></label><input type="range" id="octave-slider" min="3" max="6" step="1"></div>
             <div class="control-group"><label for="bpm-slider">Tempo (BPM) <span id="bpm-value" class="slider-value"></span></label><input type="range" id="bpm-slider" min="40" max="140" step="1"></div>
             <div class="control-group"><label for="reverb-slider">Reverb <span id="reverb-value" class="slider-value"></span></label><input type="range" id="reverb-slider" min="0" max="1" step="0.05"></div>
-            <div class="control-group" style="grid-column: 1 / -1;"><label for="progression-input">Chord Progression (e.g. 0,4,5,3)</label><input type="text" id="progression-input"></div>
+            
+            <!-- Row 3: Mix Levels -->
+            <div class="control-group"><label for="chord-slider">Chord Level <span id="chord-value" class="slider-value"></span></label><input type="range" id="chord-slider" min="0" max="1" step="0.05"></div>
+            <div class="control-group"><label for="melody-slider">Melody Level <span id="melody-value" class="slider-value"></span></label><input type="range" id="melody-slider" min="0" max="1" step="0.05"></div>
+            <div class="control-group"><label for="drum-slider">Drum Level <span id="drum-value" class="slider-value"></span></label><input type="range" id="drum-slider" min="0" max="1" step="0.05"></div>
+
+            <!-- Row 4: Chord Progression -->
+            <div class="control-group progression-group"><label for="progression-input">Chord Progression (e.g. 0,4,5,3)</label><input type="text" id="progression-input"></div>
         </div>
     </div>
 
@@ -44,86 +53,239 @@
     // --- Global State & Elements ---
     let audioContext;
     let mainGainNode, reverbGain, delayGain, convolver, delay;
+    let chordGainNode, melodyGainNode, drumGainNode, noiseBuffer;
     let isPlaying = false, nextNoteTime = 0.0, currentChordIndex = 0, rhythmIndex = 0;
     let lastMelodyDegree = 0, schedulerTimeoutId = null;
 
     const startStopButton = document.getElementById('startStopButton');
-    const keySelect = document.getElementById('key-select'), scaleSelect = document.getElementById('scale-select'), octaveSlider = document.getElementById('octave-slider'), octaveValue = document.getElementById('octave-value'), bpmSlider = document.getElementById('bpm-slider'), bpmValue = document.getElementById('bpm-value'), waveSelect = document.getElementById('wave-select'), progressionInput = document.getElementById('progression-input'), reverbSlider = document.getElementById('reverb-slider'), reverbValue = document.getElementById('reverb-value');
+    const keySelect = document.getElementById('key-select'), scaleSelect = document.getElementById('scale-select'), octaveSlider = document.getElementById('octave-slider'), octaveValue = document.getElementById('octave-value'), bpmSlider = document.getElementById('bpm-slider'), bpmValue = document.getElementById('bpm-value'), waveSelect = document.getElementById('wave-select'), progressionInput = document.getElementById('progression-input'), reverbSlider = document.getElementById('reverb-slider'), reverbValue = document.getElementById('reverb-value'), drumSlider = document.getElementById('drum-slider'), drumValue = document.getElementById('drum-value'), chordSlider = document.getElementById('chord-slider'), chordValue = document.getElementById('chord-value'), melodySlider = document.getElementById('melody-slider'), melodyValue = document.getElementById('melody-value');
 
     // --- Music Theory & Generation Settings ---
     const NOTES = { C: 261.63, 'C#': 277.18, D: 293.66, 'D#': 311.13, E: 329.63, F: 349.23, 'F#': 369.99, G: 392.00, 'G#': 415.30, A: 440.00, 'A#': 466.16, B: 493.88 };
     const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
-    const RHYTHM_PATTERN = [0.5, 0.5, 1.0, 1.5];
-    const SETTINGS = { KEY: "C", OCTAVE: 4, SCALE: 'major', WAVE_TYPE: 'triangle', CHORD_PROGRESSION: [0, 4, 5, 3], BASE_BPM: 70, REVERB: 0.3 };
+    const RHYTHM_PATTERN = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+    const SETTINGS = { KEY: "C", OCTAVE: 4, SCALE: 'major', WAVE_TYPE: 'triangle', CHORD_PROGRESSION: [0, 4, 5, 3], BASE_BPM: 70, REVERB: 0.3, DRUM_LEVEL: 0.5, CHORD_LEVEL: 0.7, MELODY_LEVEL: 0.7 };
 
     // --- UI Initialization and Listeners ---
-    function initializeControls() { Object.keys(NOTES).forEach(note => { const option = document.createElement('option'); option.value = note; option.textContent = note; keySelect.appendChild(option); }); keySelect.value = SETTINGS.KEY; scaleSelect.value = SETTINGS.SCALE; octaveSlider.value = SETTINGS.OCTAVE; octaveValue.textContent = SETTINGS.OCTAVE; bpmSlider.value = SETTINGS.BASE_BPM; bpmValue.textContent = SETTINGS.BASE_BPM; waveSelect.value = SETTINGS.WAVE_TYPE; reverbSlider.value = SETTINGS.REVERB; reverbValue.textContent = Math.round(SETTINGS.REVERB * 100); progressionInput.value = SETTINGS.CHORD_PROGRESSION.join(','); }
-    function setupControlListeners() { keySelect.addEventListener('change', (e) => SETTINGS.KEY = e.target.value); scaleSelect.addEventListener('change', (e) => SETTINGS.SCALE = e.target.value); waveSelect.addEventListener('change', (e) => SETTINGS.WAVE_TYPE = e.target.value); octaveSlider.addEventListener('input', (e) => { SETTINGS.OCTAVE = parseInt(e.target.value); octaveValue.textContent = SETTINGS.OCTAVE; }); bpmSlider.addEventListener('input', (e) => { SETTINGS.BASE_BPM = parseInt(e.target.value); bpmValue.textContent = SETTINGS.BASE_BPM; }); reverbSlider.addEventListener('input', (e) => { SETTINGS.REVERB = parseFloat(e.target.value); reverbValue.textContent = Math.round(SETTINGS.REVERB * 100); if (reverbGain) { reverbGain.gain.linearRampToValueAtTime(SETTINGS.REVERB, audioContext.currentTime + 0.1); } }); progressionInput.addEventListener('change', (e) => { try { const newProgression = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)); if (newProgression.length > 0) { SETTINGS.CHORD_PROGRESSION = newProgression; currentChordIndex = 0; rhythmIndex = 0; } } catch (error) { console.error("Invalid chord progression format:", error); } }); }
+    function initializeControls() { 
+        Object.keys(NOTES).forEach(note => { const option = document.createElement('option'); option.value = note; option.textContent = note; keySelect.appendChild(option); }); 
+        keySelect.value = SETTINGS.KEY; 
+        scaleSelect.value = SETTINGS.SCALE; 
+        octaveSlider.value = SETTINGS.OCTAVE; 
+        octaveValue.textContent = SETTINGS.OCTAVE; 
+        bpmSlider.value = SETTINGS.BASE_BPM; 
+        bpmValue.textContent = SETTINGS.BASE_BPM; 
+        waveSelect.value = SETTINGS.WAVE_TYPE; 
+        reverbSlider.value = SETTINGS.REVERB; 
+        reverbValue.textContent = Math.round(SETTINGS.REVERB * 100); 
+        drumSlider.value = SETTINGS.DRUM_LEVEL;
+        drumValue.textContent = Math.round(SETTINGS.DRUM_LEVEL * 100);
+        chordSlider.value = SETTINGS.CHORD_LEVEL;
+        chordValue.textContent = Math.round(SETTINGS.CHORD_LEVEL * 100);
+        melodySlider.value = SETTINGS.MELODY_LEVEL;
+        melodyValue.textContent = Math.round(SETTINGS.MELODY_LEVEL * 100);
+        progressionInput.value = SETTINGS.CHORD_PROGRESSION.join(','); 
+    }
+    
+    function setupControlListeners() { 
+        keySelect.addEventListener('change', (e) => SETTINGS.KEY = e.target.value); 
+        scaleSelect.addEventListener('change', (e) => SETTINGS.SCALE = e.target.value); 
+        waveSelect.addEventListener('change', (e) => SETTINGS.WAVE_TYPE = e.target.value); 
+        octaveSlider.addEventListener('input', (e) => { SETTINGS.OCTAVE = parseInt(e.target.value); octaveValue.textContent = SETTINGS.OCTAVE; }); 
+        bpmSlider.addEventListener('input', (e) => { SETTINGS.BASE_BPM = parseInt(e.target.value); bpmValue.textContent = SETTINGS.BASE_BPM; }); 
+        reverbSlider.addEventListener('input', (e) => { SETTINGS.REVERB = parseFloat(e.target.value); reverbValue.textContent = Math.round(SETTINGS.REVERB * 100); if (reverbGain) { reverbGain.gain.linearRampToValueAtTime(SETTINGS.REVERB, audioContext.currentTime + 0.1); } }); 
+        drumSlider.addEventListener('input', (e) => { SETTINGS.DRUM_LEVEL = parseFloat(e.target.value); drumValue.textContent = Math.round(SETTINGS.DRUM_LEVEL * 100); if (drumGainNode) { drumGainNode.gain.linearRampToValueAtTime(SETTINGS.DRUM_LEVEL, audioContext.currentTime + 0.1); } });
+        chordSlider.addEventListener('input', (e) => { SETTINGS.CHORD_LEVEL = parseFloat(e.target.value); chordValue.textContent = Math.round(SETTINGS.CHORD_LEVEL * 100); if (chordGainNode) { chordGainNode.gain.linearRampToValueAtTime(SETTINGS.CHORD_LEVEL, audioContext.currentTime + 0.1); } });
+        melodySlider.addEventListener('input', (e) => { SETTINGS.MELODY_LEVEL = parseFloat(e.target.value); melodyValue.textContent = Math.round(SETTINGS.MELODY_LEVEL * 100); if (melodyGainNode) { melodyGainNode.gain.linearRampToValueAtTime(SETTINGS.MELODY_LEVEL, audioContext.currentTime + 0.1); } });
+        progressionInput.addEventListener('change', (e) => { try { const newProgression = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)); if (newProgression.length > 0) { SETTINGS.CHORD_PROGRESSION = newProgression; currentChordIndex = 0; rhythmIndex = 0; } } catch (error) { console.error("Invalid chord progression format:", error); } }); 
+    }
 
     // --- Core Audio & Music Logic ---
-    function createAudioGraph() { audioContext = new (window.AudioContext || window.webkitAudioContext)(); mainGainNode = audioContext.createGain(); mainGainNode.connect(audioContext.destination); convolver = audioContext.createConvolver(); reverbGain = audioContext.createGain(); const impulse = createImpulseResponse(); convolver.buffer = impulse; mainGainNode.connect(reverbGain); reverbGain.connect(convolver); convolver.connect(audioContext.destination); delay = audioContext.createDelay(2.0); delayGain = audioContext.createGain(); const feedback = audioContext.createGain(); delayGain.gain.value = 0.3; feedback.gain.value = 0.4; mainGainNode.connect(delay); delay.connect(feedback); feedback.connect(delay); delay.connect(delayGain); delayGain.connect(audioContext.destination); reverbGain.gain.value = SETTINGS.REVERB; }
+    function createAudioGraph() { 
+        audioContext = new (window.AudioContext || window.webkitAudioContext)(); 
+        mainGainNode = audioContext.createGain(); 
+        
+        // Create individual gain nodes for each part
+        chordGainNode = audioContext.createGain();
+        melodyGainNode = audioContext.createGain();
+        drumGainNode = audioContext.createGain();
+
+        // Set initial gain values
+        chordGainNode.gain.value = SETTINGS.CHORD_LEVEL;
+        melodyGainNode.gain.value = SETTINGS.MELODY_LEVEL;
+        drumGainNode.gain.value = SETTINGS.DRUM_LEVEL;
+        
+        // Connect instrument gains to the main gain
+        chordGainNode.connect(mainGainNode);
+        melodyGainNode.connect(mainGainNode);
+        drumGainNode.connect(mainGainNode);
+
+        // Connect main gain to destination for overall control
+        mainGainNode.connect(audioContext.destination); 
+        
+        // Effects (connected to the main mix)
+        convolver = audioContext.createConvolver(); 
+        reverbGain = audioContext.createGain(); 
+        const impulse = createImpulseResponse(); 
+        convolver.buffer = impulse; 
+        mainGainNode.connect(reverbGain); 
+        reverbGain.connect(convolver); 
+        convolver.connect(audioContext.destination); 
+        delay = audioContext.createDelay(2.0); 
+        delayGain = audioContext.createGain(); 
+        const feedback = audioContext.createGain(); 
+        delayGain.gain.value = 0.3; 
+        feedback.gain.value = 0.4; 
+        mainGainNode.connect(delay); 
+        delay.connect(feedback); 
+        feedback.connect(delay); 
+        delay.connect(delayGain); 
+        delayGain.connect(audioContext.destination); 
+        reverbGain.gain.value = SETTINGS.REVERB;
+        
+        createNoiseBuffer(); // For snare/hats
+    }
+
     function createImpulseResponse() { const sampleRate = audioContext.sampleRate, length = sampleRate * 2.0, impulse = audioContext.createBuffer(2, length, sampleRate); for (let channel = 0; channel < 2; channel++) { const channelData = impulse.getChannelData(channel); for (let i = 0; i < length; i++) { channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5); } } return impulse; }
+    
+    function createNoiseBuffer() {
+        const bufferSize = audioContext.sampleRate;
+        noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+    }
+
     function getNoteFrequency(rootFreq, scaleDegree, octaveOffset = 0) { const scaleIntervals = SCALES[SETTINGS.SCALE] || SCALES.major, totalDegrees = scaleIntervals.length, noteOctave = Math.floor(scaleDegree / totalDegrees), noteInScale = scaleDegree % totalDegrees, semitones = scaleIntervals[noteInScale < 0 ? noteInScale + totalDegrees : noteInScale]; return rootFreq * Math.pow(2, octaveOffset + noteOctave) * Math.pow(2, semitones / 12); }
-    function playNote(frequency, startTime, duration, velocity = 0.5, wave = 'sine') { if (!mainGainNode) return; const oscillator = audioContext.createOscillator(), noteGain = audioContext.createGain(); oscillator.type = wave; oscillator.frequency.setValueAtTime(frequency, startTime); noteGain.gain.setValueAtTime(0, startTime); noteGain.gain.linearRampToValueAtTime(velocity, startTime + 0.02); noteGain.gain.linearRampToValueAtTime(0, startTime + duration + 0.3); oscillator.connect(noteGain); noteGain.connect(mainGainNode); oscillator.start(startTime); oscillator.stop(startTime + duration + 0.3); }
+    
+    function playNote(frequency, startTime, duration, velocity = 0.5, wave = 'sine', destination) { if (!audioContext || !destination) return; const oscillator = audioContext.createOscillator(), noteGain = audioContext.createGain(); oscillator.type = wave; oscillator.frequency.setValueAtTime(frequency, startTime); noteGain.gain.setValueAtTime(0, startTime); noteGain.gain.linearRampToValueAtTime(velocity, startTime + 0.02); noteGain.gain.linearRampToValueAtTime(0, startTime + duration); oscillator.connect(noteGain); noteGain.connect(destination); oscillator.start(startTime); oscillator.stop(startTime + duration + 0.1); }
+
+    // --- Drum Synthesis Functions ---
+    function playKick(time) {
+        if (!audioContext) return;
+        const kickOsc = audioContext.createOscillator();
+        const kickGain = audioContext.createGain();
+        kickOsc.connect(kickGain);
+        kickGain.connect(drumGainNode); // Route to drum channel
+
+        kickOsc.frequency.setValueAtTime(150, time);
+        kickOsc.frequency.exponentialRampToValueAtTime(0.01, time + 0.5);
+        kickGain.gain.setValueAtTime(1, time);
+        kickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+
+        kickOsc.start(time);
+        kickOsc.stop(time + 0.5);
+    }
+
+    function playSnare(time) {
+        if (!audioContext || !noiseBuffer) return;
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        const noiseFilter = audioContext.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.frequency.value = 1500;
+        noiseFilter.Q.value = 1;
+        const noiseEnvelope = audioContext.createGain();
+        noiseSource.connect(noiseFilter);
+        noiseFilter.connect(noiseEnvelope);
+        noiseEnvelope.connect(drumGainNode); // Route to drum channel
+        noiseEnvelope.gain.setValueAtTime(1, time);
+        noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+        noiseSource.start(time);
+        noiseSource.stop(time + 0.2);
+    }
+
+    function playHiHat(time) {
+        if (!audioContext || !noiseBuffer) return;
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        const noiseFilter = audioContext.createBiquadFilter();
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.value = 7000;
+        const noiseEnvelope = audioContext.createGain();
+        noiseSource.connect(noiseFilter);
+        noiseFilter.connect(noiseEnvelope);
+        noiseEnvelope.connect(drumGainNode); // Route to drum channel
+        noiseEnvelope.gain.setValueAtTime(0.3, time);
+        noiseEnvelope.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+        noiseSource.start(time);
+        noiseSource.stop(time + 0.05);
+    }
 
     function scheduleNextEvent() {
         const rootFreq = NOTES[SETTINGS.KEY] * Math.pow(2, SETTINGS.OCTAVE - 4);
         const progression = SETTINGS.CHORD_PROGRESSION;
         const chordRootDegree = progression[currentChordIndex % progression.length];
 
+        // --- Drum Scheduling ---
+        playHiHat(nextNoteTime);
+        if (rhythmIndex === 0 || rhythmIndex === 4) { playKick(nextNoteTime); }
+        if (rhythmIndex === 2 || rhythmIndex === 6) { playSnare(nextNoteTime); }
+
+        // --- Chord Scheduling ---
         if (rhythmIndex === 0) {
-            // Make chords ring out longer by increasing duration
-            const chordDuration = RHYTHM_PATTERN[0] * (60.0 / SETTINGS.BASE_BPM) * 4; // sustain 4x longer
-            const chordDegrees = [0, 2, 4, 6]; // Root, 3rd, 5th, 7th
+            const chordDuration = RHYTHM_PATTERN.length * 0.5 * (60.0 / SETTINGS.BASE_BPM);
+            const chordDegrees = [0, 2, 4, 6]; 
             chordDegrees.forEach((degree, i) => {
-                const velocity = (i === 0) ? 0.6 : 0.35; // Increased velocity
-                playNote(getNoteFrequency(rootFreq, chordRootDegree + degree, -1), nextNoteTime, chordDuration, velocity, 'sine');
+                // Pass chordGainNode as the destination
+                playNote(getNoteFrequency(rootFreq, chordRootDegree + degree, -1), nextNoteTime, chordDuration, 0.4, 'sine', chordGainNode);
             });
             lastMelodyDegree = chordRootDegree + chordDegrees[Math.floor(Math.random() * 2)];
-        } else if (rhythmIndex < 4) {
-            // --- Melody Direction Logic ---
+        } 
+        
+        // --- Melody Scheduling ---
+        if (rhythmIndex % 2 !== 0) {
             const chordTones = [0, 2, 4, 6].map(d => (chordRootDegree + d) % 7);
             let nextDegree, attempts = 0;
-            let lastDegree = lastMelodyDegree;
-            let preferChordTone = (rhythmIndex === 1);
-            let approachingNextChord = (rhythmIndex === 3);
-            let targetDegree = null;
-            if (approachingNextChord) {
-                // Target root or third of next chord
-                const nextChordRootDegree = progression[(currentChordIndex + 1) % progression.length];
-                const nextChordTones = [0, 2].map(d => (nextChordRootDegree + d) % 7);
-                // Pick the closest target to current note
-                targetDegree = nextChordTones.reduce((a, b) => Math.abs((a % 7) - (lastDegree % 7)) < Math.abs((b % 7) - (lastDegree % 7)) ? a : b);
-            }
             do {
-                // Prefer small steps, but allow larger leaps rarely
                 const stepChoices = Math.random() < 0.8 ? [-2, -1, 1, 2] : [-3, 3];
-                // If approaching next chord, bias toward targetDegree
-                let step;
-                if (targetDegree !== null && Math.random() < 0.7) {
-                    // Move toward targetDegree
-                    step = (targetDegree > lastDegree) ? 1 : (targetDegree < lastDegree) ? -1 : 0;
-                    // Occasionally allow a skip
-                    if (Math.abs(targetDegree - lastDegree) > 2 && Math.random() < 0.3) {
-                        step = (targetDegree > lastDegree) ? 2 : -2;
-                    }
-                } else {
-                    step = stepChoices[Math.floor(Math.random() * stepChoices.length)];
-                }
-                nextDegree = lastDegree + step;
+                let step = stepChoices[Math.floor(Math.random() * stepChoices.length)];
+                nextDegree = lastMelodyDegree + step;
                 attempts++;
-            } while ((nextDegree === lastDegree || Math.abs(lastDegree - nextDegree) > 4 || (preferChordTone && !chordTones.includes(nextDegree % 7))) && attempts < 8);
+            } while ((nextDegree === lastMelodyDegree || Math.abs(lastMelodyDegree - nextDegree) > 4) && attempts < 8);
+           
             const noteIsChordTone = chordTones.includes(nextDegree % 7);
-            // Favor chord tones on first melody note, allow more color on others
             const velocity = noteIsChordTone ? 0.45 + Math.random() * 0.15 : 0.25 + Math.random() * 0.1;
-            const noteDuration = RHYTHM_PATTERN[rhythmIndex] * (60.0 / SETTINGS.BASE_BPM) * 0.8;
-            playNote(getNoteFrequency(rootFreq, nextDegree), nextNoteTime, noteDuration, velocity, SETTINGS.WAVE_TYPE);
+            const noteDuration = RHYTHM_PATTERN[rhythmIndex] * (60.0 / SETTINGS.BASE_BPM) * 1.5;
+            // Pass melodyGainNode as the destination
+            playNote(getNoteFrequency(rootFreq, nextDegree), nextNoteTime, noteDuration, velocity, SETTINGS.WAVE_TYPE, melodyGainNode);
             lastMelodyDegree = nextDegree;
         }
     }
 
-    function schedulerLoop() { const secondsPerBeat = 60.0 / SETTINGS.BASE_BPM; while (nextNoteTime < audioContext.currentTime + 0.1) { scheduleNextEvent(); const noteDurationInBeats = RHYTHM_PATTERN[rhythmIndex]; nextNoteTime += noteDurationInBeats * secondsPerBeat; rhythmIndex = (rhythmIndex + 1) % RHYTHM_PATTERN.length; if (rhythmIndex === 0) { currentChordIndex++; } } schedulerTimeoutId = setTimeout(schedulerLoop, 50.0); }
-    function togglePlayback() { isPlaying = !isPlaying; if (isPlaying) { if (!audioContext) { createAudioGraph(); } if (audioContext.state === 'suspended') { audioContext.resume(); } mainGainNode.gain.cancelScheduledValues(audioContext.currentTime); mainGainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.1); currentChordIndex = 0; rhythmIndex = 0; nextNoteTime = audioContext.currentTime + 0.1; schedulerLoop(); startStopButton.textContent = 'Stop'; startStopButton.classList.add('playing'); } else { if (schedulerTimeoutId) { clearTimeout(schedulerTimeoutId); schedulerTimeoutId = null; } if (mainGainNode) { mainGainNode.gain.cancelScheduledValues(audioContext.currentTime); mainGainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5); } startStopButton.textContent = 'Start'; startStopButton.classList.remove('playing'); } }
+    function schedulerLoop() { 
+        const secondsPerBeat = 60.0 / SETTINGS.BASE_BPM; 
+        while (nextNoteTime < audioContext.currentTime + 0.1) { 
+            scheduleNextEvent(); 
+            const noteDurationInBeats = RHYTHM_PATTERN[rhythmIndex]; 
+            nextNoteTime += noteDurationInBeats * secondsPerBeat; 
+            rhythmIndex = (rhythmIndex + 1) % RHYTHM_PATTERN.length; 
+            if (rhythmIndex === 0) { currentChordIndex++; } 
+        } 
+        schedulerTimeoutId = setTimeout(schedulerLoop, 50.0); 
+    }
+
+    function togglePlayback() { 
+        isPlaying = !isPlaying; 
+        if (isPlaying) { 
+            if (!audioContext) { createAudioGraph(); } 
+            if (audioContext.state === 'suspended') { audioContext.resume(); } 
+            mainGainNode.gain.cancelScheduledValues(audioContext.currentTime); 
+            mainGainNode.gain.linearRampToValueAtTime(1.0, audioContext.currentTime + 0.1); // Main gain at full
+            currentChordIndex = 0; 
+            rhythmIndex = 0; 
+            nextNoteTime = audioContext.currentTime + 0.1; 
+            schedulerLoop(); 
+            startStopButton.textContent = 'Stop'; 
+            startStopButton.classList.add('playing'); 
+        } else { 
+            if (schedulerTimeoutId) { clearTimeout(schedulerTimeoutId); schedulerTimeoutId = null; } 
+            if (mainGainNode) { mainGainNode.gain.cancelScheduledValues(audioContext.currentTime); mainGainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5); } 
+            startStopButton.textContent = 'Start'; 
+            startStopButton.classList.remove('playing'); 
+        } 
+    }
 
     // --- Start Everything ---
     initializeControls();
