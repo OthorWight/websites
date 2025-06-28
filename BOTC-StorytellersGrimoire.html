@@ -1089,22 +1089,27 @@
                 document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
                 try {
                     const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                     if (!data) return;
+                    if (!data) return;
 
-                    const targetSpot = e.target.closest('.player-spot');
-                    if (!targetSpot) return;
-                    
-                    const targetCard = e.target.closest('.player-card');
-                    if (!targetCard) return;
+                    // Allow drop on player-spot or bluff-spot
+                    const targetPlayerSpot = e.target.closest('.player-spot');
+                    const targetBluffSpot = e.target.closest('.bluff-spot');
 
-                    const targetId = parseInt(targetSpot.dataset.playerId, 10);
-                    
                     if (data.type === 'role') {
-                        handleRoleDrop(data.id, targetId);
-                    } else if (data.type === 'token') {
+                        if (targetPlayerSpot) {
+                            const targetId = parseInt(targetPlayerSpot.dataset.playerId, 10);
+                            handleRoleDrop(data.id, targetId);
+                        } else if (targetBluffSpot) {
+                            const bluffId = targetBluffSpot.dataset.bluffId;
+                            handleBluffRoleDrop(data.id, bluffId);
+                        }
+                    } else if (data.type === 'token' && targetPlayerSpot) {
+                        const targetCard = e.target.closest('.player-card');
+                        if (!targetCard) return;
+                        const targetId = parseInt(targetPlayerSpot.dataset.playerId, 10);
                         const rect = targetCard.getBoundingClientRect();
-                        const x = e.clientX - rect.left - 12; // Adjust for half token width
-                        const y = e.clientY - rect.top - 12; // Adjust for half token height
+                        const x = e.clientX - rect.left - 12;
+                        const y = e.clientY - rect.top - 12;
                         handleTokenDrop(data.sourceId, data.tokenId, targetId, x, y);
                     }
                 } catch(err) {
@@ -1167,6 +1172,16 @@
                 player.links = {}; // Clear links on role change
             }
             renderApp();
+        }
+        
+        function handleBluffRoleDrop(roleId, bluffId) {
+            const bluff = state.bluffs.find(b => b.id === bluffId);
+            if (bluff) {
+                bluff.role = ROLES[roleId];
+                bluff.thinksRole = null;
+                bluff.links = {};
+                renderDemonBluffs();
+            }
         }
         
         function removeLink(sourceId, tokenId, targetId) {
