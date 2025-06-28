@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCT Grimoire</title>
+    <style>
+        /* General Setup */
+        :root {
+            --bg-dark: #111827;
+            --bg-med: #1f2937;
+            --bg-light: #374151;
+            --text-light: #e5e7eb;
+            --text-med: #9ca3af;
+            --border-color: #4b5563;
+            --townsfolk: #059669;
+            --outsider: #0284c7;
+            --minion: #ca8a04;
+            --demon: #be123c;
+            --red: #be123c;
+            --poison: #84cc16; /* Lime green for poison */
+            --yellow: #ca8a04;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 1.5rem;
+        }
+        body.dragging-token {
+             cursor: grabbing;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1400px;
+            margin: auto;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        @media (min-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr 2.5fr 1fr;
+            }
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin: 0;
+        }
+        header p {
+            color: var(--text-med);
+            font-size: 1.125rem;
+        }
+
+        /* Panels */
+        .panel {
+            background-color: var(--bg-med);
+            border-radius: 0.75rem;
+            padding: 1rem;
+        }
+        #center-panel {
+            position: relative; /* For SVG overlay */
+        }
+        #right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 1rem;
+            padding: 0.5rem 0;
+        }
+
+        /* Role Library */
+        #role-library-container {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .role-group h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            padding: 0.5rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+            margin: 1rem 0 0 0;
+            color: white;
+        }
+        .role-group-body {
+            padding: 0.5rem;
+            border: 2px solid;
+            border-top: none;
+            border-radius: 0 0 0.5rem 0.5rem;
+        }
+        .role-card-small {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            margin-bottom: 0.25rem;
+            cursor: grab;
+            background-color: var(--bg-light);
+        }
+        .role-card-small:active { cursor: grabbing; }
+
+        /* Color Themes */
+        .townsfolk-header { background-color: var(--townsfolk); }
+        .townsfolk-body { border-color: var(--townsfolk); }
+        .townsfolk-card { border-color: var(--townsfolk); }
+        .outsider-header { background-color: var(--outsider); }
+        .outsider-body { border-color: var(--outsider); }
+        .outsider-card { border-color: var(--outsider); }
+        .minion-header { background-color: var(--minion); }
+        .minion-body { border-color: var(--minion); }
+        .minion-card { border-color: var(--minion); }
+        .demon-header { background-color: var(--demon); }
+        .demon-body { border-color: var(--demon); }
+        .demon-card { border-color: var(--demon); }
+
+        /* Player Table */
+        .player-rows-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.5rem;
+            padding: 1rem;
+        }
+        .player-spot, .bluff-spot {
+            width: 192px; /* Card width */
+            transition: box-shadow 0.2s;
+            position: relative;
+        }
+        .player-spot.drag-over {
+            box-shadow: 0 0 20px 5px var(--townsfolk);
+            border-radius: 0.75rem;
+        }
+        .player-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .player-name-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-light);
+            font-size: 1.125rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 0.25rem;
+            box-sizing: border-box;
+            flex-grow: 1;
+        }
+        .player-name-input:focus {
+            outline: none;
+            border-bottom-color: var(--townsfolk);
+        }
+        .player-card {
+            width: 192px;
+            height: 256px;
+            border: 2px solid var(--border-color);
+            background-color: var(--bg-dark);
+            border-radius: 0.75rem;
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+            position: relative;
+        }
+        .player-card.dead {
+            filter: grayscale(1) opacity(0.5);
+            border-color: var(--red);
+        }
+        .player-card-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-med);
+            height: 100%;
+        }
+        .player-card-header {
+            font-size: 1.125rem;
+            font-weight: 800;
+            text-align: center;
+            border-bottom: 2px solid;
+            padding-bottom: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+        .player-card-header .thinker-indicator {
+            font-size: 0.8rem;
+            font-style: italic;
+            color: var(--text-med);
+        }
+        .player-card-ability {
+            font-size: 0.875rem;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .player-card-type {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        /* Card Tokens */
+        .source-tokens-container {
+            display: flex;
+            gap: 0.5rem;
+            height: 28px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+        .card-token {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: grab;
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+        .card-token:active {
+            cursor: grabbing;
+        }
+        .card-token.used {
+            opacity: 0.4;
+        }
+        .card-token.received-token {
+             position: absolute;
+             width: 24px;
+             height: 24px;
+             font-size: 14px;
+             z-index: 12;
+             cursor: pointer;
+        }
+
+
+        /* Controls */
+        #table-controls {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        #table-controls label { font-weight: bold; margin-right: 0.5rem; }
+        #table-controls select, #table-controls button {
+            background-color: var(--bg-light);
+            color: var(--text-light);
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+            font-size: 1rem;
+        }
+        #table-controls button { cursor: pointer; background-color: var(--red); }
+        #table-controls button:hover { opacity: 0.9; }
+        
+        /* Night Order & Bluffs */
+        #night-order-panel, #demon-bluffs-panel, #role-counts-panel {
+             height: fit-content;
+        }
+        .night-order-list {
+            list-style-type: decimal;
+            list-style-position: inside;
+            padding-left: 0;
+            margin: 0;
+        }
+        .night-order-list li {
+            margin-bottom: 0.25rem;
+        }
+        .night-order-list span {
+            color: var(--text-med);
+        }
+        .night-order-section h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            border-bottom: 2px solid var(--townsfolk);
+            padding-bottom: 0.25rem;
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        /* Notes & Visual Links Feature */
+        .notes-btn, .death-toggle-btn {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background-color: rgba(0,0,0,0.4);
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px; /* For Emojis */
+            color: var(--text-med);
+        }
+        .notes-btn { 
+            top: 8px; 
+            right: 8px;
+            font-size: 16px; 
+        }
+        .notes-btn.has-notes { 
+            color: var(--townsfolk); 
+        }
+        .death-toggle-btn {
+            position: relative;
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
+        }
+        .death-toggle-btn.is-dead {
+            background-color: var(--red);
+            border-color: var(--red);
+            color: white;
+        }
+
+        #notes-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 99;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #notes-modal {
+            background-color: var(--bg-med);
+            padding: 2rem;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid var(--border-color);
+        }
+        #notes-modal h2 {
+            margin-top: 0;
+            text-align: center;
+        }
+        #notes-modal-textarea {
+            width: 100%;
+            height: 150px;
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        .notes-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .hidden {
+            display: none !important;
+        }
+        #visual-links-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            overflow: visible;
+        }
+        
+        .linker-line {
+             stroke-width: 3;
+        }
+
+        /* Role Counts */
+        .role-count-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            text-align: center;
+        }
+        .role-count-grid div {
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+        }
+        .role-count-grid div[style*="--townsfolk"] { background-color: var(--townsfolk); }
+        .role-count-grid div[style*="--outsider"] { background-color: var(--outsider); }
+        .role-count-grid div[style*="--minion"] { background-color: var(--minion); }
+        .role-count-grid div[style*="--demon"] { background-color: var(--demon); }
+        
+        .role-count-value {
+            font-weight: bold;
+            padding: 0 0.25rem;
+        }
+        .count-ok { color: lightgreen; }
+        .count-under { color: yellow; }
+        .count-over { color: #ff8a8a; }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Storyteller's Grimoire</h1>
+            <p>Create scripts and run your game of Blood on the Clocktower</p>
+        </header>
+
+        <main id="app-container" class="main-layout">
+            <div id="role-library-container" class="panel">
+                <h2 class="panel-title">Role Library</h2>
+                <div id="role-library-content"></div>
+            </div>
+
+            <div id="center-panel">
+                <div id="table-controls" class="panel"></div>
+                <div id="table-container" class="player-rows-container"></div>
+                <svg id="visual-links-svg">
+                    <defs></defs>
+                </svg>
+            </div>
+
+            <div id="right-column">
+                <div id="role-counts-panel" class="panel">
+                    <h2 class="panel-title">Role Counts</h2>
+                    <div id="role-counts-content"></div>
+                </div>
+                <div id="night-order-panel" class="panel">
+                    <h2 class="panel-title">Night Order</h2>
+                    <div id="night-order-content"></div>
+                </div>
+                <div id="demon-bluffs-panel" class="panel">
+                    <h2 class="panel-title">Demon Bluffs</h2>
+                    <div id="demon-bluffs-content" class="player-rows-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="notes-modal-backdrop" class="hidden">
+        <div id="notes-modal">
+            <h2 id="notes-modal-title"></h2>
+            <textarea id="notes-modal-textarea"></textarea>
+            <div class="notes-modal-actions">
+                <button id="notes-modal-cancel">Cancel</button>
+                <button id="notes-modal-save" class="townsfolk-header">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA STORE ---
+        const ROLES = {
+            chef: { id: 'chef', name: 'Chef', type: 'Townsfolk', script: 'tb', firstNight: 10, ability: "On the first night, you learn how many pairs of evil players are sat next to each other." },
+            investigator: { id: 'investigator', name: 'Investigator', type: 'Townsfolk', script: 'tb', firstNight: 9, ability: "On the first night, you learn that one of two players is a specific Minion." },
+            washerwoman: { id: 'washerwoman', name: 'Washerwoman', type: 'Townsfolk', script: 'tb', firstNight: 7, ability: "On the first night, you learn that one of two players is a specific Townsfolk." },
+            librarian: { id: 'librarian', name: 'Librarian', type: 'Townsfolk', script: 'tb', firstNight: 8, ability: "On the first night, you learn that 1 of 2 players is a particular Outsider. (Or that zero are in play.)" },
+            empath: { id: 'empath', name: 'Empath', type: 'Townsfolk', script: 'tb', firstNight: 11, otherNight: 8, ability: "Each night, you learn how many of your 2 alive neighbors are evil." },
+            fortune_teller: { id: 'fortune_teller', name: 'Fortune Teller', type: 'Townsfolk', script: 'tb', firstNight: 7, otherNight: 7, ability: "Each night, pick 2 players. You learn if either is a Demon. One good player registers as a Demon to you." },
+            undertaker: { id: 'undertaker', name: 'Undertaker', type: 'Townsfolk', script: 'tb', otherNight: 5, ability: "Each night*, you learn which character was executed today." },
+            monk: { id: 'monk', name: 'Monk', type: 'Townsfolk', script: 'tb', otherNight: 2, ability: "Each night*, you may protect one player (not yourself) from the Demon." },
+            ravenkeeper: { id: 'ravenkeeper', name: 'Ravenkeeper', type: 'Townsfolk', script: 'tb', ability: "If you die at night, you are woken to choose a player, you learn their character." },
+            slayer: { id: 'slayer', name: 'Slayer', type: 'Townsfolk', script: 'tb', ability: "Once per game, you may publicly choose a player. If they are the Demon, they die." },
+            soldier: { id: 'soldier', name: 'Soldier', type: 'Townsfolk', script: 'tb', ability: "You are safe from the Demon's night ability." },
+            virgin: { id: 'virgin', name: 'Virgin', type: 'Townsfolk', script: 'tb', ability: "The first time you are nominated by a Townsfolk, they are executed immediately." },
+            mayor: { id: 'mayor', name: 'Mayor', type: 'Townsfolk', script: 'tb', ability: "If only 3 players are alive and no one is executed, your team wins. A different player might die instead of you at night." },
+            butler: { id: 'butler', name: 'Butler', type: 'Outsider', script: 'tb', otherNight: 9, ability: "Each night, choose a player. Tomorrow, you may only vote if they do." },
+            drunk: { id: 'drunk', name: 'Drunk', type: 'Outsider', script: 'tb', ability: "You do not know you are the Drunk. You think you are a Townsfolk, but you are not. Your ability is non-functional." },
+            recluse: { id: 'recluse', name: 'Recluse', type: 'Outsider', script: 'tb', ability: "You might register as evil, as a Minion, or as a Demon, even if dead." },
+            saint: { id: 'saint', name: 'Saint', type: 'Outsider', script: 'tb', ability: "If you die by execution, your team loses." },
+            poisoner: { id: 'poisoner', name: 'Poisoner', type: 'Minion', script: 'tb', firstNight: 1, otherNight: 1, ability: "Each night, choose a player. They are poisoned for the night and following day." },
+            spy: { id: 'spy', name: 'Spy', type: 'Minion', script: 'tb', firstNight: 2, otherNight: 3, ability: "Each night, you see the Grimoire. You might register as a good character to some players." },
+            scarlet_woman: { id: 'scarlet_woman', name: 'Scarlet Woman', type: 'Minion', script: 'tb', ability: "If the Demon dies and there are 5 or more players alive, you become the Demon." },
+            baron: { id: 'baron', name: 'Baron', type: 'Minion', script: 'tb', ability: "Setup: There are extra Outsiders in play. [+2 Outsiders, -2 Townsfolk]" },
+            imp: { id: 'imp', name: 'Imp', type: 'Demon', script: 'tb', otherNight: 4, ability: "Each night, choose a player. They die. If you kill yourself, a minion becomes the Imp." },
+            chambermaid: { id: 'chambermaid', name: 'Chambermaid', type: 'Townsfolk', script: 'bmr', firstNight: 15, otherNight: 15, ability: "Each night, choose 2 alive players (not yourself): you learn how many woke tonight due to their ability." },
+            exorcist: { id: 'exorcist', name: 'Exorcist', type: 'Townsfolk', script: 'bmr', otherNight: 2, ability: "Each night*, choose a player. If they are the Demon, they do not act tonight, and the Demon learns who you are." },
+            innkeeper: { id: 'innkeeper', name: 'Innkeeper', type: 'Townsfolk', script: 'bmr', otherNight: 3, ability: "Each night*, choose 2 players. They can't die tonight, but one is drunk." },
+            grandmother: { id: 'grandmother', name: 'Grandmother', type: 'Townsfolk', script: 'bmr', ability: "You start knowing a good player & their character. If the Demon kills them, you die too." },
+            gambler: { id: 'gambler', name: 'Gambler', type: 'Townsfolk', script: 'bmr', otherNight: 4, ability: "Each night*, choose a player and a character. If you are wrong, you die." },
+            gossip: { id: 'gossip', name: 'Gossip', type: 'Townsfolk', script: 'bmr', ability: "Each day, you may make a public statement. If it's true, a player dies tonight." },
+            courtier: { id: 'courtier', name: 'Courtier', type: 'Townsfolk', script: 'bmr', firstNight: 1, otherNight: 1, ability: "Once per game at night, choose a character. They are drunk for 3 days & nights." },
+            professor: { id: 'professor', name: 'Professor', type: 'Townsfolk', script: 'bmr', ability: "Once per game at night*, choose a dead Townsfolk. They are resurrected." },
+            minstrel: { id: 'minstrel', name: 'Minstrel', type: 'Townsfolk', script: 'bmr', ability: "When a Minion dies by execution, all players (except Travellers) are drunk until dusk tomorrow." },
+            sailor: { id: 'sailor', name: 'Sailor', type: 'Townsfolk', script: 'bmr', firstNight: 1, otherNight: 1, ability: "Each night, choose an alive player: either you or they are drunk until dusk. You can't die if sober." },
+            tea_lady: { id: 'tea_lady', name: 'Tea Lady', type: 'Townsfolk', script: 'bmr', ability: "If both your alive neighbors are good, they cannot die." },
+            pacifist: { id: 'pacifist', name: 'Pacifist', type: 'Townsfolk', script: 'bmr', ability: "Executed good players might not die." },
+            fool: { id: 'fool', name: 'Fool', type: 'Townsfolk', script: 'bmr', ability: "The first time you die, you don't." },
+            tinker: { id: 'tinker', name: 'Tinker', type: 'Outsider', script: 'bmr', ability: "You might die at any time, for any reason." },
+            moonchild: { id: 'moonchild', name: 'Moonchild', type: 'Outsider', script: 'bmr', onDeath: true, ability: "When you learn you died, publicly choose a player. Tonight, if they are good, they die." },
+            goon: { id: 'goon', name: 'Goon', type: 'Outsider', script: 'bmr', ability: "Each night, the first player who targets you with their ability is drunk. You become their alignment." },
+            lunatic: { id: 'lunatic', name: 'Lunatic', type: 'Outsider', script: 'bmr', ability: "You think you are a Demon, but you aren't. The Demon knows who you are." },
+            godfather: { id: 'godfather', name: 'Godfather', type: 'Minion', script: 'bmr', firstNight: 2, ability: "You start knowing which Outsiders are in play. If an Outsider dies by execution, you may choose a player to die tonight." },
+            devils_advocate: { id: 'devils_advocate', name: 'Devil\'s Advocate', type: 'Minion', script: 'bmr', firstNight: 5 ,otherNight: 5, ability: "Each night, choose a living player. If they are executed tomorrow, they don't die." },
+            assassin: { id: 'assassin', name: 'Assassin', type: 'Minion', otherNight: 6 ,script: 'bmr', ability: "Once per game, at night, choose a player: they die, even if for some reason they could not." },
+            mastermind: { id: 'mastermind', name: 'Mastermind', type: 'Minion', script: 'bmr', ability: "If the Demon dies by execution, the game continues for one more day. If a player is executed on that day, their team loses." },
+            zombuul: { id: 'zombuul', name: 'Zombuul', type: 'Demon', script: 'bmr', otherNight: 6, ability: "Each night*, if no one died today, choose a player: they die. The 1st time you die, you live but register as dead." },
+            pukka: { id: 'pukka', name: 'Pukka', type: 'Demon', script: 'bmr', otherNight: 7, ability: "Each night, choose a player. They are poisoned. The previously poisoned player dies." },
+            shabaloth: { id: 'shabaloth', name: 'Shabaloth', type: 'Demon', script: 'bmr', otherNight: 8, ability: "Each night*, choose 2 players. They die. A dead player you chose last night might be regurgitated." },
+            po: { id: 'po', name: 'Po', type: 'Demon', script: 'bmr', otherNight: 9, ability: "Each night*, you may choose a player, they die. If you chose no one last night, choose 3 tonight." },
+            clockmaker: { id: 'clockmaker', name: 'Clockmaker', type: 'Townsfolk', script: 'sv', firstNight: 1, ability: "On the first night, you learn how many steps away the Demon is from their nearest Minion." },
+            dreamer: { id: 'dreamer', name: 'Dreamer', type: 'Townsfolk', script: 'sv', otherNight: 1, ability: "Each night, choose a player. You learn one good and one evil character; one of them is the chosen player's." },
+            snake_charmer: { id: 'snake_charmer', name: 'Snake Charmer', type: 'Townsfolk', script: 'sv', firstNight: 2, otherNight: 2, ability: "Each night, choose a living player. If they are the Demon, you swap characters and alignments. They are then poisoned." },
+            mathematician: { id: 'mathematician', name: 'Mathematician', type: 'Townsfolk', script: 'sv', otherNight: 3, ability: "Each night, you learn how many players' abilities malfunctioned today." },
+            flowergirl: { id: 'flowergirl', name: 'Flowergirl', type: 'Townsfolk', script: 'sv', otherNight: 4, ability: "Each night*, you learn if a Demon voted today." },
+            town_crier: { id: 'town_crier', name: 'Town Crier', type: 'Townsfolk', script: 'sv', otherNight: 5, ability: "Each night*, you learn if a Minion nominated today." },
+            oracle: { id: 'oracle', name: 'Oracle', type: 'Townsfolk', script: 'sv', otherNight: 6, ability: "Each night*, you learn how many dead players are evil." },
+            savant: { id: 'savant', name: 'Savant', type: 'Townsfolk', script: 'sv', ability: "Each day, you may ask the Storyteller for 2 statements. One is true, one is false." },
+            seamstress: { id: 'seamstress', name: 'Seamstress', type: 'Townsfolk', firstNight: 15, otherNight: 15, script: 'sv', ability: "Once per game at night, choose 2 players. You learn if they are the same alignment." },
+            philosopher: { id: 'philosopher', name: 'Philosopher', type: 'Townsfolk', firstNight: 15, otherNight: 15, script: 'sv', ability: "Once per game, at night, choose a good character: gain that ability. If this character is in play, they are drunk." },
+            artist: { id: 'artist', name: 'Artist', type: 'Townsfolk', script: 'sv', ability: "Once per game during the day, you may ask the Storyteller a private 'yes' or 'no' question." },
+            juggler: { id: 'juggler', name: 'Juggler', type: 'Townsfolk', script: 'sv', ability: "On your first day, you may publicly guess up to 5 players' characters. For each correct guess, you learn it is correct." },
+            sage: { id: 'sage', name: 'Sage', type: 'Townsfolk', script: 'sv', onDeath: true, ability: "If you die while the Demon is one of your neighbors, you learn they are the Demon." },
+            mutant: { id: 'mutant', name: 'Mutant', type: 'Outsider', script: 'sv', ability: "If you are 'mad' about being an Outsider, you might be executed." },
+            sweetheart: { id: 'sweetheart', name: 'Sweetheart', type: 'Outsider', script: 'sv', onDeath: true, ability: "When you die, one player becomes drunk." },
+            barber: { id: 'barber', name: 'Barber', type: 'Outsider', script: 'sv', onDeath: true, ability: "If you died today or tonight, the Demon may choose 2 players (not another Demon) to swap characters." },
+            klutz: { id: 'klutz', name: 'Klutz', type: 'Outsider', script: 'sv', ability: "When you learn that you died, publicly choose 1 alive player: if they are evil, your team loses." },
+            evil_twin: { id: 'evil_twin', name: 'Evil Twin', type: 'Minion', script: 'sv', ability: "You & an opposing player know each other. If the good player is executed, evil wins. Good can't win if you both live." },
+            witch: { id: 'witch', name: 'Witch', type: 'Minion', script: 'sv', firstNight: 7, otherNight: 7, ability: "Each night, choose a player. If they nominate tomorrow, they die." },
+            cerenovus: { id: 'cerenovus', name: 'Cerenovus', type: 'Minion', script: 'sv', firstNight: 8, otherNight: 8, ability: "Each night, choose a player & a good character: they are 'mad' they are this character tomorrow, or might be executed." },
+            pit_hag: { id: 'pit_hag', name: 'Pit-Hag', type: 'Minion', script: 'sv', otherNight: 9, ability: "Each night*, choose a player & a character they become (if not in play). If a Demon is made, deaths tonight are arbitrary." },
+            fang_gu: { id: 'fang_gu', name: 'Fang Gu', type: 'Demon', script: 'sv', otherNight: 10, ability: "Each night*, choose a player: they die. The 1st Outsider this kills becomes an evil Fang Gu & you die instead. [+1 Outsider]" },
+            vortox: { id: 'vortox', name: 'Vortox', type: 'Demon', script: 'sv', otherNight: 11, ability: "Each night*, choose a player: they die. Townsfolk abilities yield false info. Each day, if no-one is executed, evil wins." },
+            no_dashii: { id: 'no_dashii', name: 'No-Dashii', type: 'Demon', script: 'sv', otherNight: 12, ability: "Each night*, choose a player: they die. Your 2 Townsfolk neighbors are poisoned." },
+            vigormortis: { id: 'vigormortis', name: 'Vigormortis', type: 'Demon', script: 'sv', otherNight: 13, ability: "Each night*, choose a player: they die. Minions you kill keep their ability & poison 1 Townsfolk neighbor. [-1 Outsider]" },
+        };
+        const SCRIPTS = {
+            tb: { name: "Trouble Brewing", roles: ['chef', 'investigator', 'washerwoman', 'librarian', 'empath', 'fortune_teller', 'undertaker', 'monk', 'ravenkeeper', 'slayer', 'soldier', 'virgin', 'mayor', 'butler', 'drunk', 'recluse', 'saint', 'poisoner', 'spy', 'scarlet_woman', 'baron', 'imp'] },
+            bmr: { name: "Bad Moon Rising", roles: ['chambermaid', 'exorcist', 'innkeeper', 'grandmother','gambler', 'gossip', 'courtier', 'professor', 'minstrel', 'sailor', 'tea_lady', 'pacifist', 'fool', 'tinker', 'moonchild', 'goon', 'lunatic', 'godfather', 'devils_advocate', 'assassin', 'mastermind', 'zombuul', 'pukka', 'shabaloth', 'po'] },
+            sv: { name: "Sects & Violets", roles: ['clockmaker', 'dreamer', 'snake_charmer', 'mathematician', 'flowergirl', 'town_crier', 'oracle', 'savant', 'seamstress', 'philosopher', 'artist', 'juggler', 'sage', 'mutant', 'sweetheart', 'barber', 'klutz', 'evil_twin', 'witch', 'cerenovus', 'pit_hag', 'fang_gu', 'vortox', 'no_dashii', 'vigormortis'] },
+            catfishing: { name: "Catfishing", roles: ['chef', 'empath', 'fortune_teller', 'flowergirl', 'town_crier', 'ravenkeeper', 'slayer', 'philosopher', 'artist', 'juggler', 'sage', 'recluse', 'lunatic', 'sweetheart', 'spy', 'poisoner', 'pit_hag', 'fang_gu', 'vortox'] },
+            laissez_faire: { name: "Laissez-faire", roles: ['chambermaid', 'courtier', 'exorcist', 'fool', 'gossip', 'innkeeper', 'minstrel', 'pacifist', 'professor', 'tea_lady', 'goon', 'moonchild', 'tinker', 'assassin', 'godfather', 'mastermind', 'pukka', 'shabaloth', 'zombuul'] },
+        };
+        const ROLE_TYPES = ['Townsfolk', 'Outsider', 'Minion', 'Demon'];
+        const RECOMMENDED_COUNTS = {
+            5: { "Townsfolks": 3, "Outsiders": 0, "Minions": 1, "Demons": 1 },
+            6: { "Townsfolks": 3, "Outsiders": 1, "Minions": 1, "Demons": 1 },
+            7: { "Townsfolks": 5, "Outsiders": 0, "Minions": 1, "Demons": 1 },
+            8: { "Townsfolks": 5, "Outsiders": 1, "Minions": 1, "Demons": 1 },
+            9: { "Townsfolks": 5, "Outsiders": 2, "Minions": 1, "Demons": 1 },
+            10: { "Townsfolks": 7, "Outsiders": 0, "Minions": 2, "Demons": 1 },
+            11: { "Townsfolks": 7, "Outsiders": 1, "Minions": 2, "Demons": 1 },
+            12: { "Townsfolks": 7, "Outsiders": 2, "Minions": 2, "Demons": 1 },
+            13: { "Townsfolks": 9, "Outsiders": 0, "Minions": 3, "Demons": 1 },
+            14: { "Townsfolks": 9, "Outsiders": 1, "Minions": 3, "Demons": 1 },
+            15: { "Townsfolks": 9, "Outsiders": 2, "Minions": 3, "Demons": 1 }
+        };
+
+        // Configuration for roles that think they are another role
+        const THINKER_ROLES = {
+            drunk: { id: 'drunk', name: 'Drunk', thinksAs: ['Townsfolk'] },
+            lunatic: { id: 'lunatic', name: 'Lunatic', thinksAs: ['Demon'] },
+            philosopher: { id: 'philosopher', name: 'Philosopher', thinksAs: ['Townsfolk'] },
+        };
+
+        // Configuration for roles that create visual links to other players via tokens
+        const LINKER_ROLES = {
+            monk: { tokens: [{ id: 'monk-protect', icon: '🛡️', color: 'white', max: 1 }] },
+            butler: { tokens: [{ id: 'butler-master', icon: '👑', color: 'var(--outsider)', max: 1 }] },
+            poisoner: { tokens: [{ id: 'poisoner-poison', icon: '☠️', color: 'var(--poison)', max: 1 }] },
+            grandmother: { tokens: [{ id: 'grandmother-child', icon: '👶', color: 'var(--townsfolk)', max: 1 }] },
+            sailor: { tokens: [{ id: 'sailor-drunk', icon: '🍻', color: 'var(--townsfolk)', max: 1 }] },
+            innkeeper: {
+                tokens: [
+                    { id: 'innkeeper-protect', icon: '🛡️', color: 'white', max: 2 },
+                    { id: 'innkeeper-drunk', icon: '🍻', color: 'var(--yellow)', max: 1 }
+                ]
+            },
+            courtier: { tokens: [{ id: 'courtier-drunk', icon: '🍻', color: 'var(--townsfolk)', max: 1 }] },
+            tea_lady: { tokens: [{ id: 'tea_lady-protect', icon: '🛡️', color: 'white', max: 2 }] },
+            moonchild: { tokens: [{ id: 'moonchild-curse', icon: '🌙', color: 'var(--outsider)', max: 1 }] },
+            goon: { tokens: [{ id: 'goon-drunk', icon: '🍻', color: 'var(--outsider)', max: 1 }] },
+            devils_advocate: { tokens: [{ id: 'devils_advocate-protect', icon: '🛡️', color: 'white', max: 1 }] },
+            pukka: { tokens: [{ id: 'pukka-poison', icon: '☠️', color: 'var(--poison)', max: 1 }] },
+            shabaloth: { tokens: [{ id: 'shabaloth-eaten', icon: '🍽️', color: 'var(--demon)', max: 2 }] },
+            snake_charmer: { tokens: [{ id: 'snake_charmer-swap', icon: '🍻', color: 'var(--townsfolk)', max: 1 }] },
+            mathematician: { tokens: [{ id: 'mathematician-malfunction', icon: '❓', color: 'var(--townsfolk)', max: 5 }] },
+            philosopher: { tokens: [{ id: 'philosopher-drunk', icon: '🍻', color: 'var(--townsfolk)', max: 1 }] },
+            sweetheart: { tokens: [{ id: 'sweetheart-drunk', icon: '🍻', color: 'var(--outsider)', max: 1 }] },
+            barber: { tokens: [{ id: 'barber-haircut', icon: '✂️', color: 'var(--outsider)', max: 1 }] },
+            evil_twin: { tokens: [{ id: 'evil_twin-twin', icon: '👯', color: 'var(--minion)', max: 1 }] },
+            witch: { tokens: [{ id: 'witch-curse', icon: '🧙‍♀️', color: 'var(--minion)', max: 1 }] },
+            cerenovus: { tokens: [{ id: 'cerenovus-mad', icon: '😵', color: 'var(--minion)', max: 1 }] },
+            no_dashii: { tokens: [{ id: 'no_dashii-poison', icon: '☠️', color: 'var(--poison)', max: 2 }] },
+            vigormortis: { tokens: [{ id: 'vigormortis-poison', icon: '☠️', color: 'var(--poison)', max: 1 }] },
+        };
+
+        // --- APPLICATION STATE ---
+        let state = {
+            playerCount: 8,
+            players: [],
+            bluffs: [
+                { id: 'bluff-1', role: null, notes: '' },
+                { id: 'bluff-2', role: null, notes: '' },
+                { id: 'bluff-3', role: null, notes: '' },
+            ],
+            activeScriptId: 'tb',
+            notesModal: {
+                isOpen: false,
+                entityId: null,
+            },
+        };
+
+        // --- RENDER & LOGIC FUNCTIONS ---
+
+        function renderApp() {
+            renderControls();
+            renderTable();
+            renderRoleLibrary();
+            renderNightOrder();
+            renderDemonBluffs();
+            // A brief delay to ensure DOM elements are painted before drawing SVG
+            setTimeout(renderVisualLinks, 0); 
+            renderRoleCounts();
+            attachAllEventListeners();
+        }
+        
+        function initializeApp(playerCount) {
+            const newPlayers = [];
+            for (let i = 0; i < playerCount; i++) {
+                const existingPlayer = state.players.find(p => p.id === i);
+                newPlayers.push({
+                    id: i,
+                    name: existingPlayer ? existingPlayer.name : `Player ${i + 1}`,
+                    role: existingPlayer ? existingPlayer.role : null,
+                    thinksRole: existingPlayer ? existingPlayer.thinksRole : null,
+                    status: 'alive',
+                    notes: existingPlayer ? existingPlayer.notes : '',
+                    links: existingPlayer ? existingPlayer.links : {},
+                });
+            }
+            state.playerCount = playerCount;
+            state.players = newPlayers;
+            renderApp();
+        }
+
+        function renderControls() {
+            const container = document.getElementById('table-controls');
+            container.innerHTML = `
+                <div>
+                    <label for="player-count">Players:</label>
+                    <select id="player-count">
+                        ${[...Array(11).keys()].map(i => `<option value="${i+5}" ${state.playerCount === i+5 ? 'selected' : ''}>${i+5}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label for="script-select">View Roles From:</label>
+                    <select id="script-select">
+                        <option value="all" ${state.activeScriptId === 'all' ? 'selected' : ''}>All Roles</option>
+                        ${Object.keys(SCRIPTS).map(id => `<option value="${id}" ${state.activeScriptId === id ? 'selected' : ''}>${SCRIPTS[id].name}</option>`).join('')}
+                    </select>
+                </div>
+                <button id="clear-board-btn">Clear Board</button>
+            `;
+        }
+        
+        function renderTable() {
+            const container = document.getElementById('table-container');
+            container.innerHTML = state.players.map(player => `
+                <div class="player-spot" data-player-id="${player.id}">
+                    <div class="player-header">
+                        <input type="text" class="player-name-input" data-player-id="${player.id}" value="${player.name}" placeholder="Player ${player.id + 1}">
+                        <button class="death-toggle-btn ${player.status === 'dead' ? 'is-dead' : ''}" data-player-id="${player.id}" title="Toggle Dead/Alive">
+                             💀
+                        </button>
+                    </div>
+                    ${getCardHTML(player)}
+                </div>
+            `).join('');
+        }
+        
+        function renderDemonBluffs() {
+            const container = document.getElementById('demon-bluffs-content');
+            container.innerHTML = state.bluffs.map((bluff, index) => `
+                <div class="bluff-spot" data-bluff-id="${bluff.id}">
+                    <input type="text" class="player-name-input" value="Bluff ${index + 1}" readonly>
+                    ${getCardHTML(bluff)}
+                </div>
+            `).join('');
+        }
+
+        function getCardHTML(entity) {
+            const trueRole = entity.role;
+            const thinksRole = entity.thinksRole;
+            const displayRole = thinksRole || trueRole;
+
+            if (!displayRole) {
+                return `<div class="player-card"><div class="player-card-placeholder">Drop Role Here</div></div>`;
+            }
+            
+            const typeClass = (trueRole ? trueRole.type : displayRole.type).toLowerCase() + '-card';
+            const deadClass = entity.status === 'dead' ? 'dead' : '';
+            const hasNotes = entity.notes && entity.notes.length > 0;
+            const thinkerRole = trueRole && THINKER_ROLES[trueRole.id] ? trueRole : null;
+            const thinkerIndicator = thinkerRole ? ` <span class="thinker-indicator">(${thinkerRole.name})</span>` : '';
+
+            // --- RENDER TOKENS ---
+            
+            // 1. Render Source Tokens (at the bottom of the card)
+            let sourceTokensHTML = '';
+            const linkerConfig = LINKER_ROLES[displayRole.id];
+            if (linkerConfig) {
+                const sourceTokenElements = linkerConfig.tokens.flatMap(token => {
+                    const existingLinks = entity.links[token.id] || [];
+                    const availableTokens = token.max - existingLinks.length;
+                    let elements = [];
+                    
+                    // Gray "used" tokens
+                    existingLinks.forEach(link => {
+                        elements.push(`<div class="card-token used" data-token-instance="${token.id}-${entity.id}-${link.targetId}-source" title="Linked to ${state.players.find(p => p.id === link.targetId)?.name}">${token.icon}</div>`);
+                    });
+
+                    // Draggable "available" tokens
+                    for (let i = 0; i < availableTokens; i++) {
+                        elements.push(`<div class="card-token" draggable="true" data-token-source-id="${entity.id}" data-token-id="${token.id}">${token.icon}</div>`);
+                    }
+                    return elements;
+                }).join('');
+                sourceTokensHTML = `<div class="source-tokens-container">${sourceTokenElements}</div>`;
+            }
+
+            // 2. Render Received Tokens (at their drop coordinates)
+            let receivedTokensHTML = '';
+            const receivedTokens = [];
+            state.players.forEach(sourcePlayer => {
+                 if (!sourcePlayer.role && !sourcePlayer.thinksRole) return;
+                 for (const tokenId in sourcePlayer.links) {
+                    const links = sourcePlayer.links[tokenId] || [];
+                    links.forEach(link => {
+                        if (link.targetId === entity.id) {
+                            const sourceRoleId = sourcePlayer.role?.id || sourcePlayer.thinksRole?.id;
+                            const tokenConfig = LINKER_ROLES[sourceRoleId]?.tokens.find(t => t.id === tokenId);
+                            if (tokenConfig) {
+                                receivedTokens.push({
+                                    ...tokenConfig,
+                                    sourceId: sourcePlayer.id,
+                                    targetId: entity.id,
+                                    x: link.x,
+                                    y: link.y
+                                });
+                            }
+                        }
+                    });
+                 }
+            });
+
+            if (receivedTokens.length > 0) {
+                 receivedTokensHTML = receivedTokens.map(token => `
+                    <div class="card-token received-token" 
+                         data-token-instance="${token.id}-${token.sourceId}-${token.targetId}-target"
+                         data-source-id="${token.sourceId}"
+                         data-target-id="${token.targetId}"
+                         data-token-id="${token.id}"
+                         style="top: ${token.y}px; left: ${token.x}px;"
+                         title="From ${state.players.find(p => p.id === token.sourceId).name}. Click to remove.">
+                         ${token.icon}
+                    </div>
+                `).join('');
+            }
+
+            return `
+                <div class="player-card ${typeClass} ${deadClass}">
+                     ${receivedTokensHTML}
+                     <button class="notes-btn ${hasNotes ? 'has-notes' : ''}" data-entity-id="${entity.id}" title="${entity.notes ? entity.notes.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ') : ''}">
+                        📝
+                    </button>
+                    <div>
+                        <div class="player-card-header" style="border-color: var(--${(trueRole || displayRole).type.toLowerCase()});">${displayRole.name}${thinkerIndicator}</div>
+                        <p class="player-card-ability">${displayRole.ability}</p>
+                    </div>
+                    ${sourceTokensHTML}
+                    <p class="player-card-type">${(trueRole || displayRole).type}</p>
+                </div>
+            `;
+        }
+
+        function renderSvgDefs() {
+            const defs = document.querySelector('#visual-links-svg defs');
+            let markersHTML = '';
+            for (const roleId in LINKER_ROLES) {
+                LINKER_ROLES[roleId].tokens.forEach(token => {
+                    markersHTML += `
+                        <marker id="arrowhead-${token.id}" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="${token.color}" />
+                        </marker>
+                    `;
+                });
+            }
+            defs.innerHTML = markersHTML;
+        }
+        
+        function renderVisualLinks() {
+            const svg = document.getElementById('visual-links-svg');
+            const centerPanel = document.getElementById('center-panel');
+            const panelRect = centerPanel.getBoundingClientRect();
+            
+            let linesHTML = svg.querySelector('defs').outerHTML;
+
+            state.players.forEach(sourcePlayer => {
+                for (const tokenId in sourcePlayer.links) {
+                    const links = sourcePlayer.links[tokenId] || [];
+                    const roleId = sourcePlayer.role?.id || sourcePlayer.thinksRole?.id;
+                    const tokenConfig = LINKER_ROLES[roleId]?.tokens.find(t => t.id === tokenId);
+
+                    if (tokenConfig) {
+                        links.forEach(link => {
+                            const sourceTokenSelector = `[data-token-instance='${tokenId}-${sourcePlayer.id}-${link.targetId}-source']`;
+                            const targetTokenSelector = `[data-token-instance='${tokenId}-${sourcePlayer.id}-${link.targetId}-target']`;
+                            const lineCoords = getLineCoords(sourceTokenSelector, targetTokenSelector, panelRect);
+                             if (lineCoords) {
+                                const style = `stroke: ${tokenConfig.color}; filter: drop-shadow(0 0 3px ${tokenConfig.color});`;
+                                const marker = `marker-end="url(#arrowhead-${tokenConfig.id})"`;
+                                linesHTML += `<line class="linker-line" style="${style}" ${marker} x1="${lineCoords.x1}" y1="${lineCoords.y1}" x2="${lineCoords.x2}" y2="${lineCoords.y2}" />`;
+                            }
+                        });
+                    }
+                }
+            });
+
+            svg.innerHTML = linesHTML;
+        }
+
+        function getLineCoords(sourceSelector, targetSelector, panelRect) {
+            const sourceEl = document.querySelector(sourceSelector);
+            const targetEl = document.querySelector(targetSelector);
+            if (!sourceEl || !targetEl) return null;
+            
+            const sourceRect = sourceEl.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+
+            return {
+                x1: sourceRect.left + sourceRect.width / 2 - panelRect.left,
+                y1: sourceRect.top + sourceRect.height / 2 - panelRect.top,
+                x2: targetRect.left + targetRect.width / 2 - panelRect.left,
+                y2: targetRect.top + targetRect.height / 2 - panelRect.top
+            };
+        }
+
+
+        function renderRoleLibrary() {
+            const container = document.getElementById('role-library-content');
+            
+            const rolesToList = state.activeScriptId === 'all' 
+                ? Object.values(ROLES)
+                : SCRIPTS[state.activeScriptId].roles.map(id => ROLES[id]);
+
+            container.innerHTML = ROLE_TYPES.map(type => {
+                const filteredRoles = rolesToList.filter(r => r.type === type);
+                if (filteredRoles.length === 0) return '';
+                
+                return `
+                    <div class="role-group">
+                        <h3 class="${type.toLowerCase()}-header">${type}s</h3>
+                        <div class="role-group-body ${type.toLowerCase()}-body">
+                            ${filteredRoles.map(role => `
+                                <div class="role-card-small" draggable="true" data-role-id="${role.id}">
+                                    ${role.name}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `
+            }).join('');
+        }
+
+        function renderNightOrder() {
+            const getDisplayRole = (player) => {
+                const isThinker = player.role && THINKER_ROLES[player.role.id];
+                return isThinker && player.thinksRole ? player.thinksRole : player.role;
+            };
+            const getOrder = (role, phase) => phase === 'first' ? role.firstNight : role.otherNight;
+
+            const createSortedList = (phase) => state.players
+                .filter(p => {
+                    const displayRole = getDisplayRole(p);
+                    return displayRole && p.status === 'alive' && getOrder(displayRole, phase);
+                })
+                .sort((a, b) => {
+                    const aRole = getDisplayRole(a);
+                    const bRole = getDisplayRole(b);
+                    return getOrder(aRole, phase) - getOrder(bRole, phase);
+                })
+                .map(p => {
+                    const displayRole = getDisplayRole(p);
+                    return `<li>${displayRole.name} <span>(${p.name || `Player ${p.id + 1}`})</span></li>`;
+                })
+                .join('');
+
+            const firstNightHTML = createSortedList('first');
+            const otherNightsHTML = createSortedList('other');
+            
+            document.getElementById('night-order-content').innerHTML = `
+                <div class="night-order-section">
+                    <h3>First Night</h3>
+                    ${firstNightHTML ? `<ol class="night-order-list">${firstNightHTML}</ol>` : `<p style="color: var(--text-med);">No first night actions.</p>`}
+                </div>
+                <div class="night-order-section">
+                    <h3>Other Nights</h3>
+                    ${otherNightsHTML ? `<ol class="night-order-list">${otherNightsHTML}</ol>` : `<p style="color: var(--text-med);">No other night actions.</p>`}
+                </div>
+            `;
+        }
+
+        function renderRoleCounts() {
+            const container = document.getElementById('role-counts-content');
+            const current = { "Townsfolks": 0, "Outsiders": 0, "Minions": 0, "Demons": 0 };
+            
+            state.players.forEach(p => {
+                if (p.role) {
+                    current[p.role.type + 's']++;
+                }
+            });
+            
+            const recommended = { ...RECOMMENDED_COUNTS[state.playerCount] };
+            
+            // Apply Baron modifier
+            if (state.players.some(p => p.role && p.role.id === 'baron')) {
+                recommended.Outsiders += 2;
+                recommended.Townsfolks -= 2;
+            }
+            // Apply Fang Gu modifier
+            if (state.players.some(p => p.role && p.role.id === 'fang_gu')) {
+                recommended.Outsiders += 1;
+                recommended.Townsfolks -= 1;
+            }
+            // Apply Vigormortis modifier
+            if (state.players.some(p => p.role && p.role.id === 'vigormortis')) {
+                recommended.Outsiders -= 1;
+                recommended.Townsfolks += 1;
+            }
+
+            const getCountClass = (current, recommended) => {
+                if (current === recommended) return 'count-ok';
+                if (current < recommended) return 'count-under';
+                return 'count-over';
+            };
+
+            container.innerHTML = `
+                <div class="role-count-grid">
+                    ${Object.keys(recommended).map(type => {
+                        const currentCount = current[type];
+                        const recommendedCount = recommended[type];
+                        return `<div style="--color: var(--${type.toLowerCase().slice(0, -1)}); display: flex; flex-direction: column; align-items: center; padding: 0.5em 0;">
+                            <span class="role-label">${type}</span>
+                            <span class="role-count-value ${getCountClass(currentCount, recommendedCount)}">
+                                ${currentCount} / ${recommendedCount}
+                            </span>
+                        </div>`
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        function handleClearBoard() {
+            state.players.forEach(p => {
+                p.role = null;
+                p.thinksRole = null;
+                p.status = 'alive';
+                p.notes = '';
+                p.links = {};
+            });
+            state.bluffs.forEach(b => {
+                b.role = null;
+                b.notes = '';
+            });
+            renderApp();
+        }
+        
+        function handleScriptLoad(scriptId) {
+            state.activeScriptId = scriptId;
+            renderRoleLibrary();
+        }
+
+        function attachAllEventListeners() {
+            document.getElementById('player-count').addEventListener('change', e => initializeApp(parseInt(e.target.value, 10)));
+            document.getElementById('script-select').addEventListener('change', e => handleScriptLoad(e.target.value));
+            document.getElementById('clear-board-btn').addEventListener('click', handleClearBoard);
+        }
+        
+        function openNotesModal(entityId) {
+            const player = state.players.find(p => p.id === entityId);
+            const bluff = state.bluffs.find(b => b.id === entityId);
+            const entity = player || bluff;
+            if (!entity) return;
+
+            state.notesModal.entityId = entityId;
+            let title = 'Notes';
+            const displayRole = entity.thinksRole || entity.role;
+            if (displayRole) {
+                 if (player) {
+                    title = `Notes for ${player.name || `Player ${player.id + 1}`} (${displayRole.name})`;
+                 } else if (bluff) {
+                    title = `Notes for Bluff (${displayRole.name})`
+                 }
+            }
+            
+            document.getElementById('notes-modal-title').textContent = title;
+            document.getElementById('notes-modal-textarea').value = entity.notes || '';
+            document.getElementById('notes-modal-backdrop').classList.remove('hidden');
+        }
+
+        function closeNotesModal() {
+            document.getElementById('notes-modal-backdrop').classList.add('hidden');
+        }
+
+        function saveNotes() {
+            const entityId = state.notesModal.entityId;
+            const player = state.players.find(p => p.id === entityId);
+            const bluff = state.bluffs.find(b => b.id === entityId);
+            const entity = player || bluff;
+
+            if (entity) {
+                entity.notes = document.getElementById('notes-modal-textarea').value;
+            }
+            closeNotesModal();
+            if (player) renderTable();
+            if (bluff) renderDemonBluffs();
+        }
+
+
+        function setupEventListeners(){
+            // Role library drag
+            document.getElementById('role-library-content').addEventListener('dragstart', e => {
+                if (e.target.matches('.role-card-small')) {
+                    e.dataTransfer.setData('application/json', JSON.stringify({type: 'role', id: e.target.dataset.roleId}));
+                }
+            });
+
+            const mainContainer = document.getElementById('app-container');
+            
+            // Token drag
+            mainContainer.addEventListener('dragstart', e => {
+                if (e.target.matches('.card-token')) {
+                    e.stopPropagation();
+                    document.body.classList.add('dragging-token');
+                    e.dataTransfer.setData('application/json', JSON.stringify({
+                        type: 'token',
+                        sourceId: parseInt(e.target.dataset.tokenSourceId, 10),
+                        tokenId: e.target.dataset.tokenId,
+                    }));
+                }
+            });
+            mainContainer.addEventListener('dragend', e => {
+                 if (document.body.classList.contains('dragging-token')) {
+                     document.body.classList.remove('dragging-token');
+                 }
+            });
+
+
+            mainContainer.addEventListener('dragover', e => {
+                e.preventDefault();
+                const spot = e.target.closest('.player-spot');
+                if (spot) {
+                    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                    spot.classList.add('drag-over');
+                }
+            });
+
+            mainContainer.addEventListener('dragleave', e => {
+                const spot = e.target.closest('.player-spot');
+                if (spot) spot.classList.remove('drag-over');
+            });
+
+            mainContainer.addEventListener('drop', e => {
+                e.preventDefault();
+                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                try {
+                    const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                     if (!data) return;
+
+                    const targetSpot = e.target.closest('.player-spot');
+                    if (!targetSpot) return;
+                    
+                    const targetCard = e.target.closest('.player-card');
+                    if (!targetCard) return;
+
+                    const targetId = parseInt(targetSpot.dataset.playerId, 10);
+                    
+                    if (data.type === 'role') {
+                        handleRoleDrop(data.id, targetId);
+                    } else if (data.type === 'token') {
+                        const rect = targetCard.getBoundingClientRect();
+                        const x = e.clientX - rect.left - 12; // Adjust for half token width
+                        const y = e.clientY - rect.top - 12; // Adjust for half token height
+                        handleTokenDrop(data.sourceId, data.tokenId, targetId, x, y);
+                    }
+                } catch(err) {
+                    // Could be a drag from outside the window
+                    console.log("Drag drop error", err);
+                }
+            });
+            
+            document.getElementById('table-container').addEventListener('click', e => {
+                 if (e.target.closest('.death-toggle-btn')) {
+                    const playerId = parseInt(e.target.closest('.death-toggle-btn').dataset.playerId, 10);
+                    handleDeathToggle(playerId);
+                    return;
+                }
+                 if (e.target.closest('.notes-btn')) {
+                    const entityId = e.target.closest('.notes-btn').dataset.entityId.startsWith('bluff') ? e.target.closest('.notes-btn').dataset.entityId : parseInt(e.target.closest('.notes-btn').dataset.entityId, 10);
+                    openNotesModal(entityId);
+                    return;
+                }
+                 if (e.target.matches('.received-token')) {
+                    const sourceId = parseInt(e.target.dataset.sourceId, 10);
+                    const targetId = parseInt(e.target.dataset.targetId, 10);
+                    const tokenId = e.target.dataset.tokenId;
+                    removeLink(sourceId, tokenId, targetId);
+                    return;
+                 }
+            });
+            
+             document.getElementById('table-container').addEventListener('change', e => {
+                if (e.target.matches('.player-name-input')) {
+                    const playerId = parseInt(e.target.dataset.playerId, 10);
+                    const player = state.players.find(p => p.id === playerId);
+                    if (player) {
+                        player.name = e.target.value;
+                        renderNightOrder(); // Only need to re-render this, not the whole app
+                    }
+                } 
+            });
+
+            // Modal listeners
+            document.getElementById('notes-modal-cancel').addEventListener('click', closeNotesModal);
+            document.getElementById('notes-modal-save').addEventListener('click', saveNotes);
+        }
+
+        function handleRoleDrop(roleId, targetPlayerId) {
+            const player = state.players.find(p => p.id === targetPlayerId);
+            const droppedRole = ROLES[roleId];
+            const currentRole = player.role;
+            const droppedRoleThinkerConfig = THINKER_ROLES[droppedRole.id];
+            const currentRoleThinkerConfig = currentRole ? THINKER_ROLES[currentRole.id] : null;
+
+            if (droppedRoleThinkerConfig && currentRole && droppedRoleThinkerConfig.thinksAs.includes(currentRole.type)) {
+                player.thinksRole = currentRole;
+                player.role = droppedRole;
+            } else if (currentRoleThinkerConfig && currentRoleThinkerConfig.thinksAs.includes(droppedRole.type)) {
+                player.thinksRole = droppedRole;
+            } else {
+                player.role = droppedRole;
+                player.thinksRole = null;
+                player.links = {}; // Clear links on role change
+            }
+            renderApp();
+        }
+        
+        function removeLink(sourceId, tokenId, targetId) {
+            const sourcePlayer = state.players.find(p => p.id === sourceId);
+            if (!sourcePlayer || !sourcePlayer.links[tokenId]) return;
+            
+            sourcePlayer.links[tokenId] = sourcePlayer.links[tokenId].filter(link => link.targetId !== targetId);
+
+            renderApp();
+        }
+
+        function handleTokenDrop(sourceId, tokenId, targetId, x, y) {
+            const sourcePlayer = state.players.find(p => p.id === sourceId);
+            if (!sourcePlayer || sourcePlayer.id === targetId) return;
+
+            const roleId = sourcePlayer.role?.id || sourcePlayer.thinksRole?.id;
+            const tokenConfig = LINKER_ROLES[roleId]?.tokens.find(t => t.id === tokenId);
+            if (!tokenConfig) return;
+
+            if (!sourcePlayer.links[tokenId]) {
+                sourcePlayer.links[tokenId] = [];
+            }
+            const existingLinks = sourcePlayer.links[tokenId];
+            
+            // Check if link already exists. If so, do nothing. Click handler removes links.
+            if (existingLinks.some(link => link.targetId === targetId)) {
+                return;
+            }
+           
+            if (existingLinks.length < tokenConfig.max) {
+                existingLinks.push({ targetId, x, y });
+            }
+            
+            renderApp();
+        }
+
+        function handleDeathToggle(playerId) {
+            const player = state.players.find(p => p.id === playerId);
+            if (player) {
+                player.status = (player.status === 'alive') ? 'dead' : 'alive';
+            }
+            renderApp();
+        }
+
+
+        // --- INITIALIZE ---
+        document.addEventListener('DOMContentLoaded', () => {
+            renderSvgDefs();
+            initializeApp(state.playerCount);
+            setupEventListeners();
+        });
+
+    </script>
+</body>
+</html>
