@@ -5,66 +5,66 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Baker's Percentage Calculator V2 - Enhanced</title>
     <style>
-        /* --- CSS Variables for Theming --- */
+        /* --- CSS Variables for Theming (HSL/HSLA) --- */
         :root {
-            /* Existing variables... */
-            --bg-color: #f8f9fa;
-            --text-color: #333;
-            --card-bg: #ffffff;
-            --input-bg: #ffffff;
-            --input-border: #ced4da;
-            --input-focus-border: #80bdff; /* Adjusted for glow */
-            --input-focus-shadow: rgba(0, 123, 255, 0.25);
-            --primary-color: #007bff;
-            --primary-hover-color: #0056b3;
-            --secondary-color: #6c757d;
-            --secondary-hover-color: #5a6268;
-            --danger-color: #dc3545;
-            --danger-hover-color: #c82333;
-            --border-color: #e9ecef;
-            --link-color: #007bff;
-            --label-color: #495057;
-            --heading-color: #343a40;
-            --subtle-text-color: #6c757d;
-            --results-span-color: #343a40;
+            /* --- Light Mode HSL Variables --- */
+            --bg-color: hsl(210, 17%, 98%);
+            --text-color: hsl(0, 0%, 20%);
+            --card-bg: hsl(0, 0%, 100%);
+            --input-bg: hsl(0, 0%, 100%);
+            --input-border: hsl(210, 16%, 82%);
+            --input-focus-border: hsl(211, 100%, 75%);
+            --input-focus-shadow: hsla(211, 100%, 50%, 0.25);
+            --primary-color: hsl(211, 100%, 50%);
+            --primary-hover-color: hsl(211, 100%, 35%);
+            --secondary-color: hsl(208, 7%, 49%);
+            --secondary-hover-color: hsl(208, 7%, 41%);
+            --danger-color: hsl(354, 70%, 54%);
+            --danger-hover-color: hsl(354, 70%, 46%);
+            --border-color: hsl(210, 16%, 93%);
+            --link-color: hsl(211, 100%, 50%);
+            --label-color: hsl(210, 8%, 31%);
+            --heading-color: hsl(210, 10%, 23%);
+            --subtle-text-color: hsl(208, 7%, 49%);
+            --results-span-color: hsl(210, 10%, 23%);
 
-            /* --- NEW: Variables for Effects --- */
+            /* --- Effect Variables --- */
             --glow-color: var(--primary-color);
-            --glow-shadow: rgba(0, 123, 255, 0.5); /* Slightly stronger shadow for glow */
-            --button-hover-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-            --gradient-start: #eef4ff; /* Subtle gradient start */
-            --gradient-end: #fdfdff;   /* Subtle gradient end */
+            --glow-shadow: hsla(211, 100%, 50%, 0.5);
+            --button-hover-shadow: 0 4px 8px hsla(0, 0%, 0%, 0.15);
+            --gradient-start: hsl(222, 100%, 97%);
+            --gradient-end: hsl(240, 100%, 99%);
         }
 
         /* --- Dark Mode --- */
         body.dark-mode {
-            /* Existing variables... */
-            --bg-color: #212529;
-            --text-color: #e9ecef;
-            --card-bg: #343a40;
-            --input-bg: #495057;
-            --input-border: #6c757d;
-            --input-focus-border: #adb5bd; /* Adjusted for glow */
-            --input-focus-shadow: rgba(173, 181, 189, 0.35); /* Adjusted for glow */
-            --primary-color: #0d6efd;
-            --primary-hover-color: #0b5ed7;
-            --secondary-color: #6c757d;
-            --secondary-hover-color: #5c636a;
-            --danger-color: #dc3545;
-            --danger-hover-color: #bb2d3b;
-            --border-color: #495057;
-            --link-color: #6ea8fe;
-            --label-color: #ced4da;
-            --heading-color: #f8f9fa;
-            --subtle-text-color: #adb5bd;
-            --results-span-color: #e9ecef;
+            /* --- Dark Mode HSL Variables --- */
+            --bg-color: hsl(210, 10%, 15%);
+            --text-color: hsl(210, 16%, 93%);
+            --card-bg: hsl(210, 10%, 23%);
+            --input-bg: hsl(210, 8%, 31%);
+            --input-border: hsl(208, 7%, 49%);
+            --input-focus-border: hsl(210, 13%, 71%);
+            --input-focus-shadow: hsla(210, 13%, 71%, 0.35);
+            --primary-color: hsl(217, 98%, 52%);
+            --primary-hover-color: hsl(217, 91%, 45%);
+            --secondary-color: hsl(208, 7%, 49%);
+            --secondary-hover-color: hsl(208, 7%, 41%);
+            --danger-color: hsl(354, 70%, 54%);
+            --danger-hover-color: hsl(354, 61%, 45%);
+            --border-color: hsl(210, 8%, 31%);
+            --link-color: hsl(217, 98%, 71%);
+            --label-color: hsl(210, 16%, 82%);
+            --heading-color: hsl(210, 17%, 98%);
+            --subtle-text-color: hsl(210, 13%, 71%);
+            --results-span-color: hsl(210, 16%, 93%);
 
-            /* --- NEW: Dark Mode Effect Variables --- */
-            --glow-color: #6ea8fe;
-            --glow-shadow: rgba(110, 168, 254, 0.4);
-            --button-hover-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            --gradient-start: #2a2f34; /* Subtle dark gradient start */
-            --gradient-end: #343a40;   /* Subtle dark gradient end */
+            /* --- Dark Mode Effect Variables --- */
+            --glow-color: hsl(217, 98%, 71%);
+            --glow-shadow: hsla(217, 98%, 71%, 0.4);
+            --button-hover-shadow: 0 4px 10px hsla(0, 0%, 0%, 0.3);
+            --gradient-start: hsl(212, 9%, 19%);
+            --gradient-end: hsl(210, 10%, 23%);
         }
 
         /* Basic Reset & Font */
@@ -97,7 +97,7 @@
             background-color: var(--card-bg);
             padding: 30px 40px;
             border-radius: 12px;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.1);
             max-width: 900px;
             width: 100%;
             border: 1px solid var(--border-color);
@@ -109,8 +109,8 @@
             content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
             border-radius: inherit; padding: 1px;
             background: linear-gradient(135deg, var(--primary-color), transparent, var(--secondary-color));
-            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask: linear-gradient(hsl(0, 0%, 100%) 0 0) content-box, linear-gradient(hsl(0, 0%, 100%) 0 0);
+            mask: linear-gradient(hsl(0, 0%, 100%) 0 0) content-box, linear-gradient(hsl(0, 0%, 100%) 0 0);
             -webkit-mask-composite: destination-out; mask-composite: exclude;
             opacity: 0; transition: opacity 0.4s ease; pointer-events: none; z-index: -1;
         }
@@ -124,22 +124,21 @@
         }
         .header-area h1 {
             text-align: left; color: var(--heading-color); margin-bottom: 0;
-            font-size: 1.8rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
-            body.dark-mode & { text-shadow: 1px 1px 3px rgba(0,0,0,0.3); }
+            font-size: 1.8rem; text-shadow: 1px 1px 2px hsla(0, 0%, 0%, 0.05);
+            body.dark-mode & { text-shadow: 1px 1px 3px hsla(0, 0%, 0%, 0.3); }
         }
 
         /* Toggles Styling */
-        .toggle-container { /* Common container for toggles */
+        .toggle-container {
             display: flex; align-items: center; cursor: pointer;
             padding: 5px 0;
             user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
         }
-        .toggle-container label:not(.switch) { /* Text label for the toggle */
+        .toggle-container label:not(.switch) {
             margin-right: 8px; font-size: 0.9em; color: var(--subtle-text-color);
-            min-width: 80px; /* Ensure alignment */
+            min-width: 80px;
             text-align: right;
         }
-         /* Specific alignment for dark mode toggle */
         .dark-mode-toggle { margin-left: auto; }
         .dark-mode-toggle label:not(.switch) { min-width: unset; }
 
@@ -148,40 +147,38 @@
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc; transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-            border-radius: 24px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+            background-color: hsl(0, 0%, 80%); transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            border-radius: 24px; box-shadow: inset 0 1px 3px hsla(0, 0%, 0%, 0.2);
         }
         .slider:before {
             position: absolute; content: ""; height: 18px; width: 18px;
-            left: 3px; bottom: 3px; background-color: white;
+            left: 3px; bottom: 3px; background-color: hsl(0, 0%, 100%);
             transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-            border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            border-radius: 50%; box-shadow: 0 1px 3px hsla(0, 0%, 0%, 0.3);
         }
         input:checked + .slider { background-color: var(--primary-color); }
         input:checked + .slider:before { transform: translateX(20px); }
-        /* --- END Toggle Switch CSS --- */
 
-        /* --- NEW: Weight Mode Toggle specific labels --- */
+        /* Weight Mode Toggle specific labels */
         .weight-mode-toggle-container {
-             margin-bottom: 10px; /* Space below toggle */
-             justify-content: flex-start; /* Align to left */
+             margin-bottom: 10px;
+             justify-content: flex-start;
         }
         .weight-mode-toggle-container label:not(.switch) {
-            min-width: 100px; /* Adjust width as needed */
-            text-align: left; /* Align text left */
+            min-width: 100px;
+            text-align: left;
         }
-        .weight-mode-label-text { /* Specific class for the mode text */
+        .weight-mode-label-text {
             font-weight: 500;
-            color: var(--label-color); /* Use label color */
-            margin-left: 8px; /* Space after slider */
+            color: var(--label-color);
+            margin-left: 8px;
             font-size: 0.9em;
             transition: color 0.3s ease;
         }
-        /* --- END NEW --- */
 
         .description {
             text-align: center; color: var(--subtle-text-color);
-            margin-bottom: 20px; /* Reduced margin */ font-size: 0.95em; margin-top: 5px;
+            margin-bottom: 20px; font-size: 0.95em; margin-top: 5px;
         }
 
         /* Two Column Layout */
@@ -202,18 +199,18 @@
             background-color: var(--input-bg); color: var(--text-color);
             border-radius: 6px; font-size: 1rem; width: 100%;
             transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: inset 0 1px 2px hsla(0, 0%, 0%, 0.05);
         }
         .input-group input[type="text"]:focus,
         .input-group input[type="number"]:focus,
         .input-group select:focus {
             outline: none; border-color: var(--glow-color);
-            box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 8px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 8px var(--glow-shadow), inset 0 1px 2px hsla(0, 0%, 0%, 0.05);
             animation: inputGlow 1.5s infinite alternate;
         }
         @keyframes inputGlow {
-            from { box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 5px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05); }
-            to   { box-shadow: 0 0 0 4px var(--input-focus-shadow), 0 0 12px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05); }
+            from { box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 5px var(--glow-shadow), inset 0 1px 2px hsla(0, 0%, 0%, 0.05); }
+            to   { box-shadow: 0 0 0 4px var(--input-focus-shadow), 0 0 12px var(--glow-shadow), inset 0 1px 2px hsla(0, 0%, 0%, 0.05); }
         }
         .input-group small { font-size: 0.8em; color: var(--subtle-text-color); margin-top: 5px; }
 
@@ -226,25 +223,25 @@
         #results-list { list-style: none; padding: 0; margin-bottom: 20px; }
         #results-list li {
             margin-bottom: 12px; font-size: 1rem; color: var(--text-color);
-            display: flex; /*justify-content: space-between; */
+            display: flex;
             align-items: baseline;
             padding: 8px 5px; border-bottom: 1px dashed var(--border-color);
             transition: border-color 0.3s ease, background-color 0.2s ease; border-radius: 4px;
         }
         #results-list li:hover {
-            background-color: rgba(0, 123, 255, 0.05);
-            body.dark-mode & { background-color: rgba(110, 168, 254, 0.1); }
+            background-color: hsla(211, 100%, 50%, 0.05);
+            body.dark-mode & { background-color: hsla(217, 98%, 71%, 0.1); }
         }
         #results-list li:last-child { border-bottom: none; }
         #results-list li strong { color: var(--heading-color); margin-right: 10px; flex-shrink: 0; }
         #results-list li span {
-            font-weight: 600; /*min-width: 60px; text-align: right;*/
+            font-weight: 600;
             color: var(--results-span-color); background-color: transparent;
             transition: background-color 0.4s ease, color 0.3s ease, transform 0.3s ease, padding 0.3s ease;
             display: inline-block; border-radius: 3px; padding: 0; margin-left: auto; margin-right: 5px;
         }
         #results-list li span.highlight-update {
-            background-color: var(--primary-color); color: white;
+            background-color: var(--primary-color); color: hsl(0, 0%, 100%);
             body.dark-mode & { color: var(--card-bg); }
             transform: scale(1.1); box-shadow: 0 0 8px var(--primary-color);
         }
@@ -259,7 +256,7 @@
 
         /* Error Message */
         .error {
-            color: var(--danger-color); background-color: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color); background-color: hsla(354, 70%, 54%, 0.1);
             border: 1px dashed var(--danger-color); padding: 8px 12px; border-radius: 4px;
             font-weight: 500; margin-top: 10px; min-height: 1.5em; font-size: 0.9em;
             opacity: 0; max-height: 0; overflow: hidden;
@@ -276,19 +273,19 @@
             border-radius: 6px; cursor: pointer; border: 1px solid transparent;
             transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease;
             margin-right: 8px; margin-top: 5px; position: relative; overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px hsla(0, 0%, 0%, 0.05);
         }
         button:hover { transform: translateY(-2px); box-shadow: var(--button-hover-shadow); }
-        button:active { transform: translateY(0px) scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        button:active { transform: translateY(0px) scale(0.98); box-shadow: 0 1px 2px hsla(0, 0%, 0%, 0.1); }
         button:last-child { margin-right: 0; }
-        .btn-primary { background-color: var(--primary-color); color: #fff; border-color: var(--primary-color); }
-        .btn-primary:hover { background-color: var(--primary-hover-color); border-color: var(--primary-hover-color); color: #fff; }
-        .btn-secondary { background-color: var(--secondary-color); color: #fff; border-color: var(--secondary-color); }
-        .btn-secondary:hover { background-color: var(--secondary-hover-color); border-color: var(--secondary-hover-color); color: #fff; }
-        .btn-danger { background-color: var(--danger-color); color: #fff; border-color: var(--danger-color); }
-        .btn-danger:hover { background-color: var(--danger-hover-color); border-color: var(--danger-hover-color); color: #fff; }
+        .btn-primary { background-color: var(--primary-color); color: hsl(0, 0%, 100%); border-color: var(--primary-color); }
+        .btn-primary:hover { background-color: var(--primary-hover-color); border-color: var(--primary-hover-color); color: hsl(0, 0%, 100%); }
+        .btn-secondary { background-color: var(--secondary-color); color: hsl(0, 0%, 100%); border-color: var(--secondary-color); }
+        .btn-secondary:hover { background-color: var(--secondary-hover-color); border-color: var(--secondary-hover-color); color: hsl(0, 0%, 100%); }
+        .btn-danger { background-color: var(--danger-color); color: hsl(0, 0%, 100%); border-color: var(--danger-color); }
+        .btn-danger:hover { background-color: var(--danger-hover-color); border-color: var(--danger-hover-color); color: hsl(0, 0%, 100%); }
         .btn-outline-secondary { background-color: transparent; color: var(--secondary-color); border-color: var(--secondary-color); }
-        .btn-outline-secondary:hover { background-color: var(--secondary-color); color: #fff; border-color: var(--secondary-color); }
+        .btn-outline-secondary:hover { background-color: var(--secondary-color); color: hsl(0, 0%, 100%); border-color: var(--secondary-color); }
 
         /* Action Sections */
         .actions-section {
@@ -303,13 +300,13 @@
             flex-grow: 1; min-width: 150px; padding: 12px 15px; border: 1px solid var(--input-border);
             background-color: var(--input-bg); color: var(--text-color); border-radius: 6px;
             font-size: 1rem; transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: inset 0 1px 2px hsla(0, 0%, 0%, 0.05);
         }
         .action-group input[type="text"]:focus,
         .action-group input[type="number"]:focus,
         .action-group select:focus {
             outline: none; border-color: var(--glow-color);
-            box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 8px var(--glow-shadow), inset 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 0 0 3px var(--input-focus-shadow), 0 0 8px var(--glow-shadow), inset 0 1px 2px hsla(0, 0%, 0%, 0.05);
             animation: inputGlow 1.5s infinite alternate;
         }
         .action-group button { flex-shrink: 0; }
@@ -336,7 +333,7 @@
             #results-list li { flex-wrap: wrap; }
             #results-list li strong { margin-bottom: 3px; }
             #results-list li span { min-width: 50px; }
-            .weight-mode-toggle-container label:not(.switch) { min-width: 90px; } /* Adjust toggle label width */
+            .weight-mode-toggle-container label:not(.switch) { min-width: 90px; }
         }
         /* --- CSS Ends --- */
     </style>
@@ -441,9 +438,8 @@
         // --- JavaScript Starts ---
         document.addEventListener('DOMContentLoaded', () => {
             // --- Element References ---
-            // MODIFIED: Changed ID reference
             const primaryWeightInput = document.getElementById('primaryWeight');
-            const primaryWeightLabel = document.getElementById('primaryWeightLabel'); // NEW
+            const primaryWeightLabel = document.getElementById('primaryWeightLabel');
             const hydrationInput = document.getElementById('hydration');
             const yeastInput = document.getElementById('yeast');
             const saltInput = document.getElementById('salt');
@@ -454,8 +450,8 @@
 
             // Mode Toggles
             const darkModeToggle = document.getElementById('darkModeToggle');
-            const weightModeToggle = document.getElementById('weightModeToggle'); // NEW
-            const weightModeLabelText = document.getElementById('weightModeLabelText'); // NEW
+            const weightModeToggle = document.getElementById('weightModeToggle');
+            const weightModeLabelText = document.getElementById('weightModeLabelText');
 
             // Result Spans
             const flourWeightSpan = document.getElementById('flour-weight');
@@ -487,7 +483,6 @@
 
             // Define inputs for saving/loading/resetting
             const savableInputs = {
-                // MODIFIED: Key matches the new input ID
                 primaryWeight: primaryWeightInput,
                 hydration: hydrationInput,
                 yeast: yeastInput,
@@ -498,14 +493,14 @@
             const inputIds = Object.keys(savableInputs);
 
             // --- State Variables ---
-            let isFlourWeightMode = false; // NEW: Track current weight calculation mode
+            let isFlourWeightMode = false;
 
             // --- Constants ---
             const RECIPES_STORAGE_KEY = 'bakersCalcRecipes_v1';
             const DARK_MODE_KEY = 'bakersCalcDarkMode';
-            const WEIGHT_MODE_KEY = 'bakersCalcWeightMode'; // NEW: Key for saving weight mode
+            const WEIGHT_MODE_KEY = 'bakersCalcWeightMode';
 
-            // Define built-in presets (MODIFIED: Added isFlourMode)
+            // Define built-in presets
             const PRESETS = {
                 "Basic White Loaf":        { primaryWeight: "900",  hydration: "65", yeast: "1.5", salt: "2", sugar: "1", fat: "2", isFlourMode: false },
                 "Whole Wheat Loaf (50%)":  { primaryWeight: "950",  hydration: "72", yeast: "1.5", salt: "2", sugar: "2", fat: "3", isFlourMode: false },
@@ -517,18 +512,17 @@
                 "Ciabatta":                { primaryWeight: "800",  hydration: "80", yeast: "0.3", salt: "2", sugar: "0", fat: "2", isFlourMode: false },
                 "Focaccia":                { primaryWeight: "750",  hydration: "78", yeast: "1.2", salt: "2", sugar: "0", fat: "8", isFlourMode: false },
                 "Lean Baguette":           { primaryWeight: "1000", hydration: "68", yeast: "0.8", salt: "2", sugar: "0", fat: "0", isFlourMode: false },
-                "Rich Brioche":            { primaryWeight: "1000", hydration: "50", yeast: "2.5", salt: "1.5", sugar: "12", fat: "25", isFlourMode: false }, // Hydration lower due to other liquids/fats
-                "Challah (Basic)":         { primaryWeight: "1100", hydration: "55", yeast: "1.8", salt: "1.8", sugar: "8", fat: "10", isFlourMode: false }, // Assumes eggs contribute liquid
+                "Rich Brioche":            { primaryWeight: "1000", hydration: "50", yeast: "2.5", salt: "1.5", sugar: "12", fat: "25", isFlourMode: false },
+                "Challah (Basic)":         { primaryWeight: "1100", hydration: "55", yeast: "1.8", salt: "1.8", sugar: "8", fat: "10", isFlourMode: false },
                 "Soft Dinner Rolls":       { primaryWeight: "700",  hydration: "60", yeast: "2.0", salt: "1.8", sugar: "6", fat: "8", isFlourMode: false },
-                "Bagels":                  { primaryWeight: "1200", hydration: "55", yeast: "1.0", salt: "2", sugar: "2", fat: "1", isFlourMode: false }, // Malt often used
-                "Soft Pretzels":           { primaryWeight: "800",  hydration: "58", yeast: "1.5", salt: "1.5", sugar: "1", fat: "3", isFlourMode: false }, // Salt % is for dough itself
-                // Example Flour Weight Preset:
+                "Bagels":                  { primaryWeight: "1200", hydration: "55", yeast: "1.0", salt: "2", sugar: "2", fat: "1", isFlourMode: false },
+                "Soft Pretzels":           { primaryWeight: "800",  hydration: "58", yeast: "1.5", salt: "1.5", sugar: "1", fat: "3", isFlourMode: false },
                 "500g Flour Base":         { primaryWeight: "500", hydration: "70", yeast: "1", salt: "2", sugar: "1", fat: "2", isFlourMode: true },
-                "Default":                 { primaryWeight: "1000", hydration: "65", yeast: "1.5", salt: "2", sugar: "0", fat: "0", isFlourMode: false } // Default uses Final Weight
+                "Default":                 { primaryWeight: "1000", hydration: "65", yeast: "1.5", salt: "2", sugar: "0", fat: "0", isFlourMode: false }
             };
 
-            // --- Local Storage Functions (unchanged) ---
-            const ls = { /* ... get, set, getObject, setObject, remove ... */
+            // --- Local Storage Functions ---
+            const ls = {
                 get: (key, defaultValue = null) => { try { const value = localStorage.getItem(key); return value !== null ? value : defaultValue; } catch (e) { console.error("LS get error", e); return defaultValue; } },
                 set: (key, value) => { try { localStorage.setItem(key, value); } catch (e) { console.error("LS set error", e); if(errorMessage) errorMessage.textContent = "Failed to save settings."; } },
                 getObject: (key, defaultValue = null) => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : defaultValue; } catch (e) { console.error("LS getObject error", e); return defaultValue; } },
@@ -548,9 +542,9 @@
                 ls.setObject(DARK_MODE_KEY, isDarkMode);
             }
 
-            // --- NEW: Weight Mode ---
+            // --- Weight Mode ---
             function applyWeightModePreference() {
-                isFlourWeightMode = ls.getObject(WEIGHT_MODE_KEY, false); // Load preference, default to false (Final Weight)
+                isFlourWeightMode = ls.getObject(WEIGHT_MODE_KEY, false);
                 if (weightModeToggle) weightModeToggle.checked = isFlourWeightMode;
                 updateWeightModeUI();
             }
@@ -558,8 +552,8 @@
             function toggleWeightMode() {
                 isFlourWeightMode = weightModeToggle.checked;
                 updateWeightModeUI();
-                ls.setObject(WEIGHT_MODE_KEY, isFlourWeightMode); // Save preference
-                calculateWeights(); // Recalculate as the input's meaning changes
+                ls.setObject(WEIGHT_MODE_KEY, isFlourWeightMode);
+                calculateWeights();
             }
 
             function updateWeightModeUI() {
@@ -574,12 +568,11 @@
                     primaryWeightInput.placeholder = 'e.g., 1000 or 8*50';
                 }
             }
-            // --- END NEW ---
 
-            // --- Recipe Management (minor change for input id) ---
+            // --- Recipe Management ---
             function getRecipes() { return ls.getObject(RECIPES_STORAGE_KEY, {}); }
             function saveRecipes(recipes) { ls.setObject(RECIPES_STORAGE_KEY, recipes); }
-            function populateRecipeDropdown() { /* ... unchanged ... */
+            function populateRecipeDropdown() {
                 if (!recipeSelect) return;
                 const recipes = getRecipes();
                 recipeSelect.innerHTML = '<option value="" disabled selected>-- Load or Delete Recipe --</option>';
@@ -615,7 +608,7 @@
             }
 
             function saveCurrentRecipe() {
-                if (!recipeNameInput || !errorMessage || !weightModeToggle) return; // Added weightModeToggle check
+                if (!recipeNameInput || !errorMessage || !weightModeToggle) return;
                 const name = recipeNameInput.value.trim();
                 if (!name) {
                     errorMessage.textContent = "Please enter a name for the recipe.";
@@ -630,73 +623,63 @@
 
                 const recipes = getRecipes();
                 if (recipes[name] && !confirm(`Recipe "${name}" already exists. Overwrite?`)) {
-                    return; // User cancelled overwrite
+                    return;
                 }
 
                 recipes[name] = {};
                 inputIds.forEach(id => {
-                    if (savableInputs[id]) { // Check if input exists
+                    if (savableInputs[id]) {
                         recipes[name][id] = savableInputs[id].value;
                     }
                 });
-
-                // *** NEW: Save the current weight mode state ***
-                recipes[name].isFlourMode = isFlourWeightMode; // Or weightModeToggle.checked
+                
+                recipes[name].isFlourMode = isFlourWeightMode;
 
                 saveRecipes(recipes);
-                populateRecipeDropdown(); // Update dropdown
-                recipeNameInput.value = ''; // Clear input field
+                populateRecipeDropdown();
+                recipeNameInput.value = '';
                 errorMessage.textContent = `Recipe "${name}" saved.`;
                 setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
             }
 
             function loadSelectedRecipe() {
-                if (!recipeSelect || !errorMessage || !weightModeToggle) return; // Added weightModeToggle check
+                if (!recipeSelect || !errorMessage || !weightModeToggle) return;
                 const selectedValue = recipeSelect.value;
                 if (!selectedValue) return;
 
                 let recipeData;
-                let recipeDisplayName = selectedValue; // Default to user recipe name
+                let recipeDisplayName = selectedValue;
 
                 if (selectedValue.startsWith("preset_")) {
-                    const presetName = selectedValue.substring(7); // Remove "preset_" prefix
+                    const presetName = selectedValue.substring(7);
                     recipeData = PRESETS[presetName];
-                    recipeDisplayName = presetName; // Use clean name for messages
+                    recipeDisplayName = presetName;
                 } else {
                     const recipes = getRecipes();
                     recipeData = recipes[selectedValue];
                 }
 
-
                 if (recipeData) {
-                    // *** NEW: Set the weight mode BEFORE loading values ***
-                    // Default to false (Final Weight) if the property doesn't exist (for older saved recipes)
-                    const loadedMode = recipeData.isFlourMode === true; // Explicitly check for true
-                    if (isFlourWeightMode !== loadedMode) { // Only update if mode changed
+                    const loadedMode = recipeData.isFlourMode === true;
+                    if (isFlourWeightMode !== loadedMode) {
                         isFlourWeightMode = loadedMode;
                         weightModeToggle.checked = isFlourWeightMode;
                         updateWeightModeUI();
-                        ls.setObject(WEIGHT_MODE_KEY, isFlourWeightMode); // Persist the loaded mode preference immediately
+                        ls.setObject(WEIGHT_MODE_KEY, isFlourWeightMode);
                     }
-                    // *** END NEW ***
 
-                    // Now load the input values
                     inputIds.forEach(id => {
-                        if (savableInputs[id] && recipeData[id] !== undefined) { // Check if input exists
+                        if (savableInputs[id] && recipeData[id] !== undefined) {
                             savableInputs[id].value = recipeData[id];
-                            // Don't trigger input event here yet, do it after all values are loaded
                         }
                     });
 
-                    // IMPORTANT: Trigger calculation AFTER all inputs (including mode) are set
                     calculateWeights();
-                    // Also save the new values as the 'last state'
                     inputIds.forEach(id => {
                          if (savableInputs[id] && recipeData[id] !== undefined) {
                             ls.set(id, savableInputs[id].value);
                          }
                     });
-
 
                     errorMessage.textContent = `Recipe "${recipeDisplayName}" loaded.`;
                     setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
@@ -705,10 +688,10 @@
                 }
             }
 
-            function deleteSelectedRecipe() { /* ... unchanged ... */
+            function deleteSelectedRecipe() {
                 if (!recipeSelect || !errorMessage) return;
                 const selectedValue = recipeSelect.value;
-                if (!selectedValue || selectedValue.startsWith("preset_")) { /* ... */ return; }
+                if (!selectedValue || selectedValue.startsWith("preset_")) { return; }
                 if (confirm(`Are you sure you want to delete the recipe "${selectedValue}"?`)) {
                     const recipes = getRecipes();
                     delete recipes[selectedValue];
@@ -719,7 +702,7 @@
                 }
             }
 
-            // --- Scaling (MODIFIED to handle both modes) ---
+            // --- Scaling ---
             function scaleRecipe(type) {
                 if (!scaleValueInput || !primaryWeightInput || !scaleErrorMessage || !errorMessage) return;
                 scaleErrorMessage.textContent = '';
@@ -748,53 +731,46 @@
 
                 let newPrimaryWeightValue;
 
-                try { // Wrap calculations in try/catch for safety
+                try {
                     if (type === 'factor') {
                         newPrimaryWeightValue = currentPrimaryWeightValue * scaleValue;
                     } else if (type === 'total') {
                         const targetTotalWeight = scaleValue;
                         if (isFlourWeightMode) {
-                             // We need to calculate the flour weight that yields this total weight
                              const weightPerPercent = targetTotalWeight / currentPercentages.totalPercentage;
-                             newPrimaryWeightValue = weightPerPercent * 100; // target flour weight
+                             newPrimaryWeightValue = weightPerPercent * 100;
                         } else {
-                            // We just set the final weight directly
                             newPrimaryWeightValue = targetTotalWeight;
                         }
                     } else if (type === 'flour') {
                          const targetFlourWeight = scaleValue;
                          if (isFlourWeightMode) {
-                            // We just set the flour weight directly
                             newPrimaryWeightValue = targetFlourWeight;
                          } else {
-                            // We need to calculate the final weight for this flour weight
                             const weightPerPercent = targetFlourWeight / 100;
-                            newPrimaryWeightValue = weightPerPercent * currentPercentages.totalPercentage; // target final weight
+                            newPrimaryWeightValue = weightPerPercent * currentPercentages.totalPercentage;
                          }
                     } else {
                         console.error("Unknown scaling type:", type);
                         return;
                     }
-
                 } catch (e) {
                     console.error("Scaling calculation error:", e);
                     scaleErrorMessage.textContent = "Error during scaling calculation.";
                     return;
                 }
 
-
                 if (isFinite(newPrimaryWeightValue) && newPrimaryWeightValue > 0) {
-                    const precision = newPrimaryWeightValue < 10 ? 2 : (newPrimaryWeightValue < 100 ? 1 : 0) ; // Dynamic precision
+                    const precision = newPrimaryWeightValue < 10 ? 2 : (newPrimaryWeightValue < 100 ? 1 : 0) ;
                     primaryWeightInput.value = newPrimaryWeightValue.toFixed(precision);
-                    primaryWeightInput.dispatchEvent(new Event('input')); // Trigger recalculation and save
+                    primaryWeightInput.dispatchEvent(new Event('input'));
                     scaleValueInput.value = '';
                 } else {
                     scaleErrorMessage.textContent = "Scaling resulted in an invalid weight (e.g., zero or negative).";
                 }
             }
 
-            // Helper to get current percentages (unchanged)
-            function getCurrentPercentages() { /* ... unchanged ... */
+            function getCurrentPercentages() {
                 const hydration = parseFloat(hydrationInput?.value) || 0;
                 const yeast = parseFloat(yeastInput?.value) || 0;
                 const salt = parseFloat(saltInput?.value) || 0;
@@ -804,7 +780,7 @@
                 return { hydration, yeast, salt, sugar, fat, totalPercentage };
             }
 
-            // --- Reset Form (minor change for default input id) ---
+            // --- Reset Form ---
             function resetForm() {
                  if (!errorMessage) return;
                 if (confirm("Reset all fields to default values? This will clear current inputs.")) {
@@ -815,19 +791,18 @@
                             savableInputs[id].dispatchEvent(new Event('input'));
                         }
                     });
-                    // NEW: Reset weight mode to default (Final Weight)
                     isFlourWeightMode = false;
                     if (weightModeToggle) weightModeToggle.checked = false;
                     updateWeightModeUI();
-                    ls.setObject(WEIGHT_MODE_KEY, false); // Save reset mode
+                    ls.setObject(WEIGHT_MODE_KEY, false);
 
                     errorMessage.textContent = "Fields reset to defaults.";
                     setTimeout(() => { if(errorMessage) errorMessage.textContent = ''; }, 3000);
                 }
             }
 
-            // --- Math Evaluation (unchanged) ---
-            function evaluateMathExpression(expression) { /* ... unchanged ... */
+            // --- Math Evaluation ---
+            function evaluateMathExpression(expression) {
                 if (!expression || typeof expression !== 'string') return NaN;
                 const expr = expression.trim();
                 if (expr === '') return NaN;
@@ -841,14 +816,14 @@
                 } catch (error) { console.error("Calc error:", expr, error); return NaN; }
             }
 
-            // --- Helper Function to Highlight Results (unchanged) ---
-            function highlightResultSpan(spanElement) { /* ... unchanged ... */
+            // --- Helper Function to Highlight Results ---
+            function highlightResultSpan(spanElement) {
                 if (!spanElement) return;
                 spanElement.classList.add('highlight-update');
                 setTimeout(() => { spanElement.classList.remove('highlight-update'); }, 500);
             }
 
-            // --- Core Calculation Logic (MODIFIED) ---
+            // --- Core Calculation Logic ---
             function calculateWeights() {
                 if (!errorMessage || !primaryWeightInput) return;
                 errorMessage.textContent = '';
@@ -858,7 +833,6 @@
                 const primaryWeightValue = evaluateMathExpression(primaryWeightString);
                 const percentages = getCurrentPercentages();
 
-                // Validation
                 let error = false;
                 const inputName = isFlourWeightMode ? "Flour Weight" : "Final Weight";
                 if (isNaN(primaryWeightValue)) { errorMessage.textContent = `Invalid ${inputName} format (e.g., use 1000 or 5*200).`; error = true; }
@@ -871,30 +845,27 @@
                     return;
                 }
 
-                // Calculation - BRANCH BASED ON MODE
                 let flourWeight, waterWeight, yeastWeight, saltWeight, sugarWeight, fatWeight, calculatedTotalWeight;
                 const totalPercentage = percentages.totalPercentage;
 
                 if (isFlourWeightMode) {
-                    // Input is Flour Weight
                     flourWeight = primaryWeightValue;
-                    if (flourWeight <= 0) { // Should be caught above, but double check
+                    if (flourWeight <= 0) {
                          errorMessage.textContent = 'Flour Weight cannot be zero or negative.';
                          resetResultsDisplay(false);
                          return;
                     }
-                    const weightPerPercent = flourWeight / 100; // Flour is base
+                    const weightPerPercent = flourWeight / 100;
                     waterWeight = weightPerPercent * percentages.hydration;
                     yeastWeight = weightPerPercent * percentages.yeast;
                     saltWeight = weightPerPercent * percentages.salt;
                     sugarWeight = weightPerPercent * percentages.sugar;
                     fatWeight = weightPerPercent * percentages.fat;
-                    calculatedTotalWeight = weightPerPercent * totalPercentage; // Calculate the final total weight
+                    calculatedTotalWeight = weightPerPercent * totalPercentage;
 
                 } else {
-                    // Input is Final Weight
                     const finalWeight = primaryWeightValue;
-                     if (totalPercentage <= 0) { // Should be caught above, but double check
+                     if (totalPercentage <= 0) {
                          errorMessage.textContent = 'Total percentage cannot be zero or negative for Final Weight mode.';
                          resetResultsDisplay(false);
                          return;
@@ -906,11 +877,9 @@
                     saltWeight = weightPerPercent * percentages.salt;
                     sugarWeight = weightPerPercent * percentages.sugar;
                     fatWeight = weightPerPercent * percentages.fat;
-                    // Recalculate total from ingredients for verification/display
                     calculatedTotalWeight = flourWeight + waterWeight + yeastWeight + saltWeight + sugarWeight + fatWeight;
                 }
 
-                // Display Results & Highlight
                 updateResultSpan(flourWeightSpan, flourWeight.toFixed(1));
                 updateResultSpan(waterWeightSpan, waterWeight.toFixed(1));
                 updateResultSpan(yeastWeightSpan, yeastWeight.toFixed(2));
@@ -921,8 +890,7 @@
                 updateResultSpan(calculatedTotalWeightSpan, calculatedTotalWeight.toFixed(1));
             }
 
-            // Helper to update span and trigger highlight (unchanged)
-            function updateResultSpan(span, value) { /* ... unchanged ... */
+            function updateResultSpan(span, value) {
                 if (span && span.textContent !== value) {
                     span.textContent = value;
                     highlightResultSpan(span);
@@ -931,8 +899,7 @@
                 }
             }
 
-            // --- Reset Results Display Only (unchanged) ---
-            function resetResultsDisplay(shouldHighlight = false) { /* ... unchanged ... */
+            function resetResultsDisplay(shouldHighlight = false) {
                  const defaultValue = '-';
                 if (shouldHighlight) {
                     updateResultSpan(flourWeightSpan, defaultValue); updateResultSpan(waterWeightSpan, defaultValue);
@@ -944,7 +911,6 @@
                 }
             }
 
-            // --- Load Last Input State (uses correct input IDs) ---
             function loadLastInputValues() {
                 inputIds.forEach(id => {
                     if (savableInputs[id]) {
@@ -958,7 +924,6 @@
 
             // --- Event Listeners Setup ---
             function setupEventListeners() {
-                // Input fields
                 inputIds.forEach(id => {
                     if (savableInputs[id]) {
                         savableInputs[id].addEventListener('input', () => {
@@ -968,21 +933,12 @@
                     }
                 });
 
-                // Dark Mode
                 if (darkModeToggle) darkModeToggle.addEventListener('change', toggleDarkMode);
-
-                // Weight Mode (NEW)
                 if (weightModeToggle) weightModeToggle.addEventListener('change', toggleWeightMode);
-
-                // Reset
                 if (resetBtn) resetBtn.addEventListener('click', resetForm);
-
-                // Recipe Management
                 if (saveRecipeBtn) saveRecipeBtn.addEventListener('click', saveCurrentRecipe);
                 if (loadRecipeBtn) loadRecipeBtn.addEventListener('click', loadSelectedRecipe);
                 if (deleteRecipeBtn) deleteRecipeBtn.addEventListener('click', deleteSelectedRecipe);
-
-                // Scaling
                 if (scaleByFactorBtn) scaleByFactorBtn.addEventListener('click', () => scaleRecipe('factor'));
                 if (scaleToTotalBtn) scaleToTotalBtn.addEventListener('click', () => scaleRecipe('total'));
                 if (scaleToFlourBtn) scaleToFlourBtn.addEventListener('click', () => scaleRecipe('flour'));
@@ -990,11 +946,11 @@
 
             // --- Initialization ---
             applyDarkModePreference();
-            applyWeightModePreference(); // NEW: Apply weight mode preference
+            applyWeightModePreference();
             populateRecipeDropdown();
-            loadLastInputValues(); // Load last entered values AFTER applying modes and populating dropdowns
+            loadLastInputValues();
             setupEventListeners();
-            calculateWeights(); // Perform initial calculation based on loaded state and mode
+            calculateWeights();
 
         });
         // --- JavaScript Ends ---
