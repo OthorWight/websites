@@ -516,7 +516,45 @@
                     }
                 }
             }
-            function shuffleDeck() { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } }
+            //function shuffleDeck() { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } }
+            function shuffleDeck() {
+                if (typeof deck === 'undefined' || !Array.isArray(deck)) {
+                    console.error("ShuffleDeck Error: A global array variable named 'deck' must exist to be shuffled.");
+                    return;
+                }
+                let tempDeck = [...deck]; 
+                const numShuffles = 7;
+                for (let i = 0; i < numShuffles; i++) {
+                    //console.log(`current deck: ${tempDeck.map(c => c.id).join(', ')}`);
+                    const midPoint = Math.floor(tempDeck.length / 2);
+                    const splitVariance = Math.floor(Math.random() * 11) - 5; // Random integer from -5 to 5
+                    let splitPoint = midPoint + splitVariance;
+                    splitPoint = Math.max(10, Math.min(tempDeck.length - 10, splitPoint));
+                    let half1 = tempDeck.slice(0, splitPoint);
+                    let half2 = tempDeck.slice(splitPoint);
+                    let leftHand, rightHand;
+                    if (Math.random() < 0.5) {
+                        [leftHand, rightHand] = [half1, half2];
+                    } else {
+                        [leftHand, rightHand] = [half2, half1];
+                    }
+                    const shuffledThisPass = [];
+                    while (leftHand.length > 0 || rightHand.length > 0) {
+                        if (leftHand.length > 0) {
+                            const dropCount = Math.min(leftHand.length, Math.floor(Math.random() * 3) + 1);
+                            shuffledThisPass.push(...leftHand.splice(0, dropCount));
+                        }
+                        if (rightHand.length > 0) {
+                            const dropCount = Math.min(rightHand.length, Math.floor(Math.random() * 3) + 1);
+                            shuffledThisPass.push(...rightHand.splice(0, dropCount));
+                        }
+                    }
+                    tempDeck = shuffledThisPass;
+                }
+                deck.length = 0;
+                deck.push(...tempDeck);
+            }
+
 
             function dealGame(forReplay = false) {
                 // Cancel any pending animation frames or timeouts
