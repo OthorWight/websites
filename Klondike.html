@@ -693,6 +693,18 @@
             // --- Rendering Functions ---
             function renderGame() { renderStock(); renderWaste(); renderFoundations(); renderTableau(); if (!isReplaying) checkWinCondition(); }
             function renderPile(pileEl, cardArray, applyOffsetFn) {
+                // Auto-draw from stock if waste is empty
+                if (pileEl.id === 'waste' && cardArray.length === 0 && stock.length > 0 && !draggedCards && !isReplaying) {
+                    const card = stock.pop();
+                    if(card) {
+                        card.faceUp = true;
+                        waste.push(card);
+                        recordMove({ type: 'stock_to_waste', cardData: { ...card, element: null } });
+                        renderStock();
+                        renderWaste();
+                        return;
+                    }
+                }
                 pileEl.classList.toggle('empty', cardArray.length === 0);
                 const currentCardElements = new Set(cardArray.map(c => c.element));
                 const elementsToRemove = [];
