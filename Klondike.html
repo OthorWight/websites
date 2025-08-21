@@ -37,6 +37,7 @@
         #game-board {
             position: relative;
             width: 100%;
+            min-height: 880px;
             max-width: 900px;
             margin: 15px auto;
             border: 2px solid #112211;
@@ -149,7 +150,7 @@
         }
 
         .card.face-down .card-inner {
-            transform: rotateY(180deg);
+            transform: rotateY(-180deg);
         }
 
         .card-front,
@@ -184,7 +185,7 @@
                 radial-gradient(circle at 75% 75%, rgba(255,255,255,0.1), rgba(255,255,255,0) 50%);
             background-size: 20px 20px;
             border: 1px solid #112233;
-            transform: rotateY(180deg);
+            transform: rotateY(-180deg);
         }
 
         .card:not(.face-down):hover .card-front {
