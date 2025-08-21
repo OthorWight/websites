@@ -48,6 +48,7 @@
             box-shadow: 
                 inset 0 0 15px rgba(0,0,0,0.5), /* Inner shadow for depth */
                 0 10px 30px rgba(0,0,0,0.4);   /* Outer shadow for lift */
+            overflow: hidden; /* Contain bouncing cards */
         }
 
         /* --- Layout Rules --- */
@@ -419,6 +420,10 @@
             let isReplaying = false;
             let replayTimeout = null;
             
+            // --- Win Animation State ---
+            let winAnimationId = null;
+            let bouncingCards = [];
+            
             // Animation Cancel State
             let currentAnimationFrame = null;
 
@@ -564,7 +569,7 @@
                     const targetX = targetRect.left - gameBoardRect.left;
                     let targetYOffset = 0;
                     if (targetInfo.type === 'tableau') {
-                         targetInfo.pile.forEach(tc => targetYOffset += (tc.faceUp ? cardVerticalOffset : cardFaceDownOffset));
+                        targetInfo.pile.forEach(tc => targetYOffset += (tc.faceUp ? cardVerticalOffset : cardFaceDownOffset));
                     }
                     const targetY = (targetRect.top - gameBoardRect.top) + targetYOffset;
 
@@ -602,13 +607,13 @@
 
                         if (cardRemoved) {
                             targetInfo.pile.push(card);
-                             recordMove({
-                                type: 'auto_cards_moved',
-                                movedCardData: cardDataForHistory,
-                                originalSource: { id: sourceInfo.element.id, type: sourceInfo.type, pileIndex: sourceInfo.index, startIndexInPile: autoMoveSourceStartIndex },
-                                originalTarget: { id: targetInfo.element.id, type: targetInfo.type, pileIndex: targetInfo.index },
-                                cardFlippedDownInSource: revealedAndFlippedId
-                            });
+                                recordMove({
+                                    type: 'auto_cards_moved',
+                                    movedCardData: cardDataForHistory,
+                                    originalSource: { id: sourceInfo.element.id, type: sourceInfo.type, pileIndex: sourceInfo.index, startIndexInPile: autoMoveSourceStartIndex },
+                                    originalTarget: { id: targetInfo.element.id, type: targetInfo.type, pileIndex: targetInfo.index },
+                                    cardFlippedDownInSource: revealedAndFlippedId
+                                });
                             renderGame();
                             setTimeout(() => performAutoMovePass(onPassComplete), 50);
                         } else {
@@ -691,6 +696,13 @@
             }
 
             function dealGame(forReplay = false) {
+                // Stop any running win animation
+                if (winAnimationId) {
+                    cancelAnimationFrame(winAnimationId);
+                    winAnimationId = null;
+                    bouncingCards = [];
+                }
+
                 // Clear any running animations or timeouts
                 if (currentAnimationFrame) cancelAnimationFrame(currentAnimationFrame);
                 if (replayTimeout) clearTimeout(replayTimeout);
@@ -818,10 +830,81 @@
             function checkWinCondition() {
                 const won = foundations.every(pile => pile.length === 13);
                 if (won && !isReplaying) {
-                    winMessageEl.classList.add('visible');
+                    startWinAnimation();
                 }
                 return won;
             }
+
+            // --- WIN ANIMATION FUNCTIONS ---
+            function startWinAnimation() {
+                isReplaying = true; // Use this flag to prevent other interactions
+                winMessageEl.classList.add('visible');
+                autoMoveButton.disabled = true;
+                undoButton.disabled = true;
+                newGameButton.disabled = false; // Explicitly enable the new game button
+
+                const allCards = foundations.flat().filter(c => c && c.element);
+                const gameBoardRect = gameBoardEl.getBoundingClientRect();
+                bouncingCards = [];
+
+                allCards.forEach(card => {
+                    const cardEl = card.element;
+                    const currentRect = cardEl.getBoundingClientRect();
+                    const initialX = currentRect.left - gameBoardRect.left;
+                    const initialY = currentRect.top - gameBoardRect.top;
+
+                    gameBoardEl.appendChild(cardEl);
+                    cardEl.style.position = 'absolute';
+                    cardEl.style.left = '0px';
+                    cardEl.style.top = '0px';
+                    cardEl.style.transform = `translate(${initialX}px, ${initialY}px)`;
+                    cardEl.style.zIndex = 2500 + Math.floor(Math.random() * 52);
+
+                    const speed = 1 + Math.random();
+                    const angle = Math.random() * 2 * Math.PI;
+
+                    bouncingCards.push({
+                        element: cardEl,
+                        x: initialX, y: initialY,
+                        dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
+                        rot: Math.random() * 360, dRot: (Math.random() - 0.5) * 2
+                    });
+                });
+
+                if (winAnimationId) cancelAnimationFrame(winAnimationId);
+                winAnimationLoop();
+            }
+
+            function winAnimationLoop() {
+                if (!isReplaying) {
+                    cancelAnimationFrame(winAnimationId);
+                    winAnimationId = null;
+                    return;
+                }
+
+                const boardWidth = gameBoardEl.clientWidth;
+                const boardHeight = gameBoardEl.clientHeight;
+
+                bouncingCards.forEach(card => {
+                    const cardWidth = card.element.offsetWidth;
+                    const cardHeight = card.element.offsetHeight;
+
+                    card.x += card.dx;
+                    card.y += card.dy;
+                    card.rot += card.dRot;
+
+                    if (card.x <= 0) { card.x = 0; card.dx *= -1; }
+                    else if (card.x + cardWidth >= boardWidth) { card.x = boardWidth - cardWidth; card.dx *= -1; }
+
+                    if (card.y <= 0) { card.y = 0; card.dy *= -1; }
+                    else if (card.y + cardHeight >= boardHeight) { card.y = boardHeight - cardHeight; card.dy *= -1; }
+
+                    card.element.style.transform = `translate(${card.x}px, ${card.y}px) rotate(${card.rot}deg)`;
+                });
+
+                winAnimationId = requestAnimationFrame(winAnimationLoop);
+            }
+            // --- END WIN ANIMATION FUNCTIONS ---
 
             function handleStockClick() {
                 if (draggedCards || isReplaying) return;
