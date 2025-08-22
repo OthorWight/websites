@@ -110,18 +110,21 @@
         /* Foundation placeholders with suit symbols */
         .foundation.empty::after {
             position: absolute;
-            top: 50%;
+            top: 48%;
             left: 50%;
             transform: translate(-50%, -50%);
             font-family: 'Merriweather', serif;
-            font-size: 50px;
+            font-size: 70px;
             color: rgba(255, 255, 255, 0.1);
             pointer-events: none;
+            text-align: center;
+            letter-spacing: 0px;
+            line-height: 0.8;
         }
-        #foundation-0.empty::after { content: '♥'; }
-        #foundation-1.empty::after { content: '♦'; }
-        #foundation-2.empty::after { content: '♣'; }
-        #foundation-3.empty::after { content: '♠'; }
+        #foundation-0.empty::after,
+        #foundation-1.empty::after,
+        #foundation-2.empty::after,
+        #foundation-3.empty::after { content: '♥♠\A♣♦'; }
 
         #stock.pile.empty::before {
             content: '♻️';
