@@ -846,31 +846,44 @@
                 undoButton.disabled = true;
                 newGameButton.disabled = false; // Explicitly enable the new game button
 
-                const allCards = foundations.flat().filter(c => c && c.element);
                 const gameBoardRect = gameBoardEl.getBoundingClientRect();
                 bouncingCards = [];
 
-                allCards.forEach(card => {
-                    const cardEl = card.element;
-                    const currentRect = cardEl.getBoundingClientRect();
-                    const initialX = currentRect.left - gameBoardRect.left;
-                    const initialY = currentRect.top - gameBoardRect.top;
+                // Get the screen positions of the foundation piles once.
+                const foundationRects = Array.from(foundationPileEls).map(el => el.getBoundingClientRect());
 
-                    gameBoardEl.appendChild(cardEl);
-                    cardEl.style.position = 'absolute';
-                    cardEl.style.left = '0px';
-                    cardEl.style.top = '0px';
-                    cardEl.style.transform = `translate(${initialX}px, ${initialY}px)`;
-                    cardEl.style.zIndex = 2500 + Math.floor(Math.random() * 52);
+                // Iterate through the foundation data arrays.
+                foundations.forEach((pile, pileIndex) => {
+                    const pileRect = foundationRects[pileIndex];
+                    if (!pileRect) return;
 
-                    const speed = 1 + Math.random();
-                    const angle = Math.random() * 2 * Math.PI;
+                    // Calculate the starting position for all cards in this pile, relative to the game board.
+                    const initialX = pileRect.left - gameBoardRect.left;
+                    const initialY = pileRect.top - gameBoardRect.top;
 
-                    bouncingCards.push({
-                        element: cardEl,
-                        x: initialX, y: initialY,
-                        dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
-                        rot: Math.random() * 360, dRot: (Math.random() - 0.5) * 2
+                    // Now iterate through the actual cards in the pile data.
+                    pile.forEach(card => {
+                        const cardEl = card.element;
+                        if (!cardEl) return;
+
+                        // Ensure the card element is a direct child of the game board for animation.
+                        gameBoardEl.appendChild(cardEl);
+                        cardEl.style.position = 'absolute';
+                        cardEl.style.left = '0px';
+                        cardEl.style.top = '0px';
+                        // Use the calculated pile position to set the card's starting transform.
+                        cardEl.style.transform = `translate(${initialX}px, ${initialY}px)`;
+                        cardEl.style.zIndex = 2500 + Math.floor(Math.random() * 52);
+
+                        const speed = 1 + Math.random() * 1.5;
+                        const angle = Math.random() * 2 * Math.PI;
+
+                        bouncingCards.push({
+                            element: cardEl,
+                            x: initialX, y: initialY, // Start the animation from this position.
+                            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
+                            rot: Math.random() * 360, dRot: (Math.random() - 0.5) * 2
+                        });
                     });
                 });
 
