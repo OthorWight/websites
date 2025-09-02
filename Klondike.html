@@ -884,6 +884,27 @@
                             dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
                             rot: Math.random() * 360, dRot: (Math.random() - 0.5) * 2
                         });
+                        const clonedEl = cardEl.cloneNode(true); // Create a copy of the card element
+                        gameBoardEl.appendChild(clonedEl);       // Add the copy to the game board
+
+                        // Apply the same initial styling to the clone
+                        clonedEl.style.position = 'absolute';
+                        clonedEl.style.left = '0px';
+                        clonedEl.style.top = '0px';
+                        clonedEl.style.transform = `translate(${initialX}px, ${initialY}px)`;
+                        clonedEl.style.zIndex = 2500 + Math.floor(Math.random() * 52); // Different z-index
+
+                        // Give the clone its own random speed and direction
+                        const speed2 = 1 + Math.random() * 1.5;
+                        const angle2 = Math.random() * 2 * Math.PI;
+
+                        // Push a new object for the cloned card into the animation array
+                        bouncingCards.push({
+                            element: clonedEl,
+                            x: initialX, y: initialY,
+                            dx: Math.cos(angle2) * speed2, dy: Math.sin(angle2) * speed2,
+                            rot: Math.random() * 360, dRot: (Math.random() - 0.5) * 2
+                        });
                     });
                 });
 
