@@ -290,6 +290,45 @@
             font-weight: 400;
         }
 
+        /* --- Sparkle/Hint Animation --- */
+        @keyframes fallingsparkle {
+        0% {
+            transform: translateY(-20px) rotate(0deg);
+            opacity: 0;
+        }
+        20% {
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(160px) rotate(360deg);
+            opacity: 0;
+        }
+        }
+
+        .card.hint-sparkle::before,
+        .card.hint-sparkle::after {
+        content: '✨';
+        position: absolute;
+        font-size: 16px;
+        color: #FFD700;
+        text-shadow: 0 0 5px #fff;
+        animation: fallingsparkle 2.5s linear infinite;
+        z-index: 1;
+        pointer-events: none;
+        }
+
+        .card.hint-sparkle::before {
+        top: 0;
+        left: 25%;
+        animation-delay: 0s;
+        }
+
+        .card.hint-sparkle::after {
+        top: 0;
+        left: 65%;
+        animation-delay: 1.2s;
+        }
+
         /* --- Media Queries for Responsiveness --- */
         @media (max-width: 850px) {
             :root {
@@ -350,6 +389,10 @@
         <button id="new-game">New Game</button>
         <button id="undo-button" disabled>Undo</button>
         <button id="auto-move-button">Auto Move</button>
+        <label style="display: flex; align-items: center; gap: 5px;">
+            <input type="checkbox" id="show-hints-checkbox">
+            Show Hints
+        </label>
     </div>
 
     <div id="game-board">
@@ -407,6 +450,7 @@
             const winMessageEl = document.getElementById('win-message');
             const autoMoveButton = document.getElementById('auto-move-button');
             const undoButton = document.getElementById('undo-button');
+            const showHintsCheckbox = document.getElementById('show-hints-checkbox');
             
             // Drag State
             let draggedCards = null;
@@ -417,11 +461,10 @@
             let cardVerticalOffset = 35;
             let cardFaceDownOffset = 12;
 
-            // Undo/Replay State
+            // Undo State
             let moveHistory = [];
-            let initialGameState = null;
-            let isReplaying = false;
-            let replayTimeout = null;
+            let isWinAnimationActive = false;
+            let showHints = false;
             
             // --- Win Animation State ---
             let winAnimationId = null;
@@ -538,7 +581,7 @@
             }
 
             function performAutoMovePass(onPassComplete) {
-                if (draggedCards || isReplaying) {
+                if (draggedCards || isWinAnimationActive) {
                     onPassComplete(false);
                     return;
                 }
@@ -658,12 +701,12 @@
             }
 
             function startAutoMoveSequence() {
-                if (draggedCards || isReplaying) return;
+                if (draggedCards || isWinAnimationActive) return;
                 newGameButton.disabled = true;
                 autoMoveButton.disabled = true;
                 undoButton.disabled = true;
                 performAutoMovePass(() => {
-                    if (!isReplaying) {
+                    if (!isWinAnimationActive) {
                        newGameButton.disabled = false;
                        autoMoveButton.disabled = false;
                        undoButton.disabled = moveHistory.length === 0;
@@ -698,7 +741,7 @@
                 }
             }
 
-            function dealGame(forReplay = false) {
+            function dealGame() {
                 // Stop any running win animation
                 if (winAnimationId) {
                     cancelAnimationFrame(winAnimationId);
@@ -708,14 +751,11 @@
 
                 // Clear any running animations or timeouts
                 if (currentAnimationFrame) cancelAnimationFrame(currentAnimationFrame);
-                if (replayTimeout) clearTimeout(replayTimeout);
                 winMessageEl.classList.remove('visible');
-                isReplaying = false;
+                isWinAnimationActive = false;
                 
-                if (!forReplay) {
-                    createDeck();
-                    shuffleDeck();
-                }
+                createDeck();
+                shuffleDeck();
 
                 stock = [];
                 waste = [];
@@ -723,38 +763,21 @@
                 tableau = Array.from({ length: 7 }, () => []);
                 gameBoardEl.querySelectorAll('.card').forEach(cardEl => cardEl.remove());
 
-                if (forReplay && initialGameState) {
-                    stock = initialGameState.stock.map(cd => createCard(cd.suit, cd.rank));
-                    tableau = initialGameState.tableau.map(tPileData =>
-                        tPileData.map(cd => {
-                            const card = createCard(cd.suit, cd.rank);
-                            card.faceUp = cd.faceUp;
-                            return card;
-                        })
-                    );
-                } else {
-                    let currentDeck = [...deck];
-                    for (let i = 0; i < 7; i++) {
-                        for (let j = 0; j <= i; j++) {
-                            const card = currentDeck.pop();
-                            if (card) {
-                                card.faceUp = (j === i);
-                                tableau[i].push(card);
-                            }
+                let currentDeck = [...deck];
+                for (let i = 0; i < 7; i++) {
+                    for (let j = 0; j <= i; j++) {
+                        const card = currentDeck.pop();
+                        if (card) {
+                            card.faceUp = (j === i);
+                            tableau[i].push(card);
                         }
                     }
-                    stock = currentDeck;
-                    
-                    if (!forReplay) {
-                        initialGameState = {
-                            stock: stock.map(c => ({ suit: c.suit, rank: c.rank })),
-                            tableau: tableau.map(tPile =>
-                                tPile.map(c => ({ suit: c.suit, rank: c.rank, faceUp: c.faceUp }))
-                            )
-                        };
-                        moveHistory = [];
-                    }
                 }
+                stock = currentDeck;
+                
+                moveHistory = [];
+                showHintsCheckbox.checked = false;
+                showHints = false;
 
                 renderGame();
                 undoButton.disabled = moveHistory.length === 0;
@@ -832,15 +855,81 @@
 
             function checkWinCondition() {
                 const won = foundations.every(pile => pile.length === 13);
-                if (won && !isReplaying) {
+                if (won && !isWinAnimationActive) {
                     startWinAnimation();
                 }
                 return won;
             }
 
+            // --- HINT FUNCTIONS ---
+            function findValidMoves() {
+                const validMoves = [];
+                const wasteCard = waste.length > 0 ? waste[waste.length - 1] : null;
+                if (wasteCard) {
+                    const sourceInfo = { type: 'waste', pile: waste, element: wastePileEl };
+                    for (let i = 0; i < foundations.length; i++) {
+                        const targetInfo = { type: 'foundation', pile: foundations[i], index: i, element: foundationPileEls[i] };
+                        if (isValidMove(wasteCard, sourceInfo, targetInfo)) {
+                            validMoves.push(wasteCard);
+                        }
+                    }
+                    for (let i = 0; i < tableau.length; i++) {
+                        const targetInfo = { type: 'tableau', pile: tableau[i], index: i, element: tableauPileEls[i] };
+                        if (isValidMove(wasteCard, sourceInfo, targetInfo)) {
+                            validMoves.push(wasteCard);
+                        }
+                    }
+                }
+
+                for (let i = 0; i < tableau.length; i++) {
+                    const sourcePile = tableau[i];
+                    // Iterate through all face-up cards in the pile
+                    for (let j = 0; j < sourcePile.length; j++) {
+                        const card = sourcePile[j];
+                        if (card.faceUp) {
+                            const sourceInfo = { type: 'tableau', pile: sourcePile, index: i, element: tableauPileEls[i] };
+
+                            // Check move to foundation (only if it's the top card)
+                            if (j === sourcePile.length - 1) {
+                                for (let f = 0; f < foundations.length; f++) {
+                                    const targetInfo = { type: 'foundation', pile: foundations[f], index: f, element: foundationPileEls[f] };
+                                    if (isValidMove(card, sourceInfo, targetInfo)) {
+                                        validMoves.push(card);
+                                    }
+                                }
+                            }
+
+                            // Check move to other tableau piles
+                            for (let t = 0; t < tableau.length; t++) {
+                                if (i === t) continue; // Don't check moving to the same pile
+                                const targetInfo = { type: 'tableau', pile: tableau[t], index: t, element: tableauPileEls[t] };
+                                if (isValidMove(card, sourceInfo, targetInfo)) {
+                                    validMoves.push(card);
+                                }
+                            }
+                        }
+                    }
+                }
+                return [...new Set(validMoves)];
+            }
+
+            function updateHintSparkles() {
+                const allCards = deck.map(c => c.element);
+                allCards.forEach(el => el.classList.remove('hint-sparkle'));
+
+                if (!showHints || isWinAnimationActive) return;
+
+                const moves = findValidMoves();
+                moves.forEach(card => {
+                    if (card.element) {
+                        card.element.classList.add('hint-sparkle');
+                    }
+                });
+            }
+
             // --- WIN ANIMATION FUNCTIONS ---
             function startWinAnimation() {
-                isReplaying = true; // Use this flag to prevent other interactions
+                isWinAnimationActive = true; // Use this flag to prevent other interactions
                 winMessageEl.classList.add('visible');
                 autoMoveButton.disabled = true;
                 undoButton.disabled = true;
@@ -913,7 +1002,7 @@
             }
 
             function winAnimationLoop() {
-                if (!isReplaying) {
+                if (!isWinAnimationActive) {
                     cancelAnimationFrame(winAnimationId);
                     winAnimationId = null;
                     return;
@@ -944,7 +1033,7 @@
             // --- END WIN ANIMATION FUNCTIONS ---
 
             function handleStockClick() {
-                if (draggedCards || isReplaying) return;
+                if (draggedCards || isWinAnimationActive) return;
                 
                 let move = null;
                 if (stock.length > 0) {
@@ -967,8 +1056,7 @@
                 }
                 
                 if (move) recordMove(move);
-                renderStock();
-                renderWaste();
+                renderGame();
             }
 
             // --- Rendering Functions ---
@@ -977,7 +1065,10 @@
                 renderWaste();
                 renderFoundations();
                 renderTableau();
-                if (!isReplaying) checkWinCondition();
+                if (!isWinAnimationActive) {
+                    checkWinCondition();
+                    updateHintSparkles();
+                }
             }
 
             function renderPile(pileEl, cardArray, applyOffsetFn) {
@@ -1066,14 +1157,18 @@
 
             // --- Event Handlers ---
             stockPileEl.addEventListener('click', handleStockClick);
-            newGameButton.addEventListener('click', () => dealGame(false));
+            newGameButton.addEventListener('click', () => dealGame());
             autoMoveButton.addEventListener('click', startAutoMoveSequence);
             undoButton.addEventListener('click', undoLastMove);
             window.addEventListener('resize', updateCSSVariableOffsets);
+            showHintsCheckbox.addEventListener('change', () => {
+                showHints = showHintsCheckbox.checked;
+                updateHintSparkles();
+            });
 
             // --- Drag and Drop Functions ---
             function onCardMouseDown(event) {
-                if (draggedCards || isReplaying || event.button !== 0) return; // Only main mouse button
+                if (draggedCards || isWinAnimationActive || event.button !== 0) return; // Only main mouse button
                 
                 const cardElement = event.target.closest('.card');
                 if (!cardElement || cardElement.classList.contains('face-down')) return;
@@ -1227,7 +1322,7 @@
 
             // --- Undo Functions ---
             function recordMove(moveDetails) {
-                if (isReplaying) return;
+                if (isWinAnimationActive) return;
                 moveHistory.push(JSON.parse(JSON.stringify(moveDetails)));
                 undoButton.disabled = false;
             }
@@ -1250,7 +1345,7 @@
             }
 
             function undoLastMove() {
-                if (moveHistory.length === 0 || isReplaying) return;
+                if (moveHistory.length === 0 || isWinAnimationActive) return;
                 
                 const lastMove = moveHistory.pop();
                 
@@ -1307,7 +1402,7 @@
 
             // --- Initial Game Start ---
             updateCSSVariableOffsets();
-            dealGame(false);
+            dealGame();
         });
     </script>
 </body>
