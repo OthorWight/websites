@@ -19,8 +19,9 @@
         }
         canvas {
             border: 1px solid #444;
-            background-color: #0a0a0a; /* Slightly lighter than body for definition */
-            display: block; /* Prevent extra space below canvas */
+            background-color: #0a0a0a;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);
+            display: block;
         }
         #controls-info {
             position: absolute;
@@ -28,6 +29,8 @@
             left: 10px;
             font-size: 12px;
             color: #888;
+            z-index: 10;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -44,161 +47,163 @@
         // --- Game Configuration ---
         const GAME_WIDTH = 800;
         const GAME_HEIGHT = 600;
+        
+        // Player
         const PLAYER_WIDTH = 50;
         const PLAYER_HEIGHT = 20;
         const PLAYER_SPEED = 7;
         const PLAYER_COLOR = '#00ffcc'; // Cyan
-        const BULLET_WIDTH = 5;
-        const BULLET_HEIGHT = 15;
-        const BULLET_SPEED = 8;
-        const PLAYER_BULLET_COLOR = '#ff00ff'; // Magenta
-        const INVADER_BULLET_COLOR = '#ffff00'; // Yellow
-        const INVADER_ROWS = 5;
-        const INVADER_COLS = 11;
-        const INVADER_WIDTH = 35;
-        const INVADER_HEIGHT = 25;
-        const INVADER_PADDING = 15;
-        const INVADER_OFFSET_TOP = 50;
-        const INVADER_OFFSET_LEFT = 60;
-        const INVADER_COLORS = ['#ff4d4d', '#ff944d', '#ffff4d', '#94ff4d', '#4dff4d']; // Red to Green gradient
-        const INITIAL_INVADER_SPEED = 1;
-        const INVADER_DROP_AMOUNT = 15;
-        const INVADER_SHOOT_INTERVAL_MIN = 800; // ms
-        const INVADER_SHOOT_INTERVAL_MAX = 2500; // ms
-        const PARTICLE_COUNT = 15;
-        const PARTICLE_LIFE = 40; // frames
-        const PARTICLE_SPEED = 3;
-        const STAR_COUNT = 150;
         const PLAYER_LIVES = 3;
         const PLAYER_SHOOT_COOLDOWN = 300; // ms
-        const BARRIER_BLOCK_SIZE = 10; // Size of each small block in a barrier
-        const BARRIER_COLOR = '#50fa7b'; // Limish Green (Dracula theme color)
-        const BARRIER_DAMAGE_COLOR_1 = '#f1fa8c'; // Yellowish
-        const BARRIER_DAMAGE_COLOR_2 = '#ffb86c'; // Orangish
-        const BARRIER_HEALTH = 4; // How many hits a block can take
-        const NUM_BARRIERS = 4;   // How many barriers to create
-        const BARRIER_Y_POSITION = GAME_HEIGHT - PLAYER_HEIGHT - 90; // Y position
+        
+        // Bullets
+        const BULLET_WIDTH = 4;
+        const BULLET_HEIGHT = 12;
+        const BULLET_SPEED = 9;
+        const PLAYER_BULLET_COLOR = '#ff79c6'; // Dracula Pink
+        const INVADER_BULLET_COLOR = '#f1fa8c'; // Dracula Yellow
+        
+        // Invaders
+        const INVADER_ROWS = 5;
+        const INVADER_COLS = 11;
+        const INVADER_WIDTH = 30;
+        const INVADER_HEIGHT = 20;
+        const INVADER_PADDING = 15;
+        const INVADER_OFFSET_TOP = 60;
+        const INVADER_OFFSET_LEFT = 70;
+        const INVADER_COLORS = ['#ff5555', '#ffb86c', '#f1fa8c', '#50fa7b', '#8be9fd']; 
+        const INITIAL_INVADER_SPEED = 1.5;
+        const INVADER_DROP_AMOUNT = 20;
+        const INVADER_SHOOT_INTERVAL_MIN = 800; 
+        const INVADER_SHOOT_INTERVAL_MAX = 2500;
+        const INVADER_ANIMATION_SPEED = 250; // ms per frame
+        
+        // Environment
+        const PARTICLE_COUNT = 12;
+        const PARTICLE_LIFE = 30; 
+        const PARTICLE_SPEED = 3;
+        const STAR_COUNT = 120;
+        
+        // Barriers
+        const BARRIER_BLOCK_SIZE = 8; 
+        const BARRIER_COLOR = '#bd93f9'; // Dracula Purple
+        const BARRIER_DAMAGE_COLOR_1 = '#6272a4'; // Faded Blue/Grey
+        const BARRIER_DAMAGE_COLOR_2 = '#44475a'; // Dark Grey
+        const BARRIER_HEALTH = 4; 
+        const NUM_BARRIERS = 4;   
+        const BARRIER_Y_POSITION = GAME_HEIGHT - PLAYER_HEIGHT - 100; 
+
+        // --- Bitmaps ---
         const PLAYER_SHIP_SHAPE = [
-            [0,1,0,0,1,1,0,0,1,0], // .#..##..#. (Top of cannon barrel)
-            [0,1,0,1,1,1,1,0,1,0], // .#.####.#. (Main cannon barrel / body)
-            [0,1,1,1,0,0,1,1,1,0], // .###..###. (Widest part of the ship base)
-            [1,1,1,1,1,1,1,1,1,1]  // ########## (Full base)
+            [0,1,0,0,1,1,0,0,1,0],
+            [0,1,0,1,1,1,1,0,1,0],
+            [0,1,1,1,0,0,1,1,1,0],
+            [1,1,1,1,1,1,1,1,1,1] 
         ];
+
         const BARRIER_SHAPE = [
-            [0,0,1,1,1,0,0],
-            [0,1,1,1,1,1,0],
-            [1,1,1,1,1,1,1],
-            [1,1,1,1,1,1,1],
-            [1,1,0,0,0,1,1],
-            [1,1,0,0,0,1,1]
-        ];
-        // SHAPE_A: classic "Crab" type (inspired by image row 1, col 1)
-        const INVADER_SHAPE_A = [
-            [0,0,1,1,0,0,1,1,0,0],
-            [1,0,0,1,1,1,1,0,0,1],
-            [1,0,1,1,1,1,1,1,0,1],
-            [1,1,1,0,1,1,0,1,1,1],
-            [0,1,1,1,1,1,1,1,1,0],
-            [0,0,1,1,1,1,1,1,0,0],
-            [0,0,1,0,0,0,0,1,0,0],
-            [0,1,1,0,0,0,0,1,1,0]
+            [0,0,1,1,1,1,0,0],
+            [0,1,1,1,1,1,1,0],
+            [1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1],
+            [1,1,1,0,0,1,1,1],
+            [1,1,1,0,0,1,1,1]
         ];
 
-//            const INVADER_SHAPE_A_2 = [
-//            [0,1,1,1,0,0,1,1,1,0],
-//            [0,0,0,1,1,1,1,0,0,0],
-//            [0,0,1,1,1,1,1,1,0,0],
-//            [1,1,1,0,1,1,0,1,1,1],
-//            [1,1,1,1,1,1,1,1,1,1],
-//            [1,0,1,1,1,1,1,1,0,1],
-//            [1,0,1,0,0,0,0,1,0,1],
-//            [0,0,1,1,0,0,1,1,0,0]
-//        ];
+        // Invader shapes now include two frames for animation
+        // Array Structure: [Shape0_Frame0, Shape0_Frame1, Shape1_Frame0, Shape1_Frame1...]
+        const INVADER_SHAPES = [
+            // --- TYPE 1 (Crab) ---
+            [ // Frame 0
+                [0,0,1,0,0,0,0,1,0,0],
+                [0,0,0,1,1,1,1,0,0,0],
+                [0,0,1,1,1,1,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,0,1,0,0,1,0,0,0],
+                [0,0,1,0,0,0,0,1,0,0],
+                [0,1,0,0,0,0,0,0,1,0]
+            ],
+            [ // Frame 1
+                [0,0,1,0,0,0,0,1,0,0],
+                [0,0,0,1,1,1,1,0,0,0],
+                [0,0,1,1,1,1,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,0,1,0,0,1,0,0,0],
+                [0,0,1,0,0,0,0,1,0,0],
+                [0,0,0,1,0,0,1,0,0,0] // Legs in
+            ],
+            
+            // --- TYPE 2 (Squid) ---
+            [ // Frame 0
+                [0,0,0,1,1,1,1,0,0,0],
+                [0,0,1,1,1,1,1,1,0,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,0,1,0,0,1,0,0,0],
+                [0,0,1,0,0,0,0,1,0,0],
+                [0,1,0,0,0,0,0,0,1,0]
+            ],
+            [ // Frame 1
+                [0,0,0,1,1,1,1,0,0,0],
+                [0,0,1,1,1,1,1,1,0,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,0,1,0,0,1,0,0,0],
+                [0,1,0,0,0,0,0,0,1,0], // Arms splay
+                [1,0,0,0,0,0,0,0,0,1]
+            ],
 
-        // SHAPE_B: Classic "Squid" type (inspired by image row 2, col 1)
-        // Original pixel art is typically 8 pixels wide. Centered in 10.
-        const INVADER_SHAPE_B = [
-            [0,0,0,0,1,1,0,0,0,0], // ____##____
-            [0,0,0,1,1,1,1,0,0,0], // ___####___
-            [0,0,1,1,1,1,1,1,0,0], // __######__
-            [0,1,1,0,1,1,0,1,1,0], // _##_##_##_
-            [0,1,1,1,1,1,1,1,1,0], // _#########_
-            [0,0,0,1,1,1,1,0,0,0], // ___####___ (narrower base)
-            [0,0,1,1,0,0,1,1,0,0], // __##__##__ (tentacles spread)
-            [0,1,1,0,0,0,0,1,1,0]  // _##____##_
+             // --- TYPE 3 (Octopus) ---
+            [ // Frame 0
+                [0,0,0,0,1,1,0,0,0,0],
+                [0,0,0,1,1,1,1,0,0,0],
+                [0,0,1,1,1,1,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,0,1,0,0,1,0,0,0],
+                [0,0,1,0,0,0,0,1,0,0],
+                [0,1,0,0,0,0,0,0,1,0]
+            ],
+            [ // Frame 1
+                [0,0,0,0,1,1,0,0,0,0],
+                [0,0,0,1,1,1,1,0,0,0],
+                [0,0,1,1,1,1,1,1,0,0],
+                [0,1,1,0,1,1,0,1,1,0],
+                [0,1,1,1,1,1,1,1,1,0],
+                [0,0,1,1,0,0,1,1,0,0], // Legs wiggle
+                [1,1,0,0,0,0,0,0,1,1],
+                [0,0,0,0,0,0,0,0,0,0]
+            ]
         ];
 
-        // SHAPE_C: Classic "Octopus" type (inspired by image row 3, col 3)
-        // Original pixel art is often wider, this version is based on an 8-pixel wide source. Centered in 10.
-        const INVADER_SHAPE_C = [
-            [0,0,0,1,1,1,1,0,0,0], // ___####___ (top)
-            [0,0,1,1,1,1,1,1,0,0], // __######__
-            [0,1,1,1,1,1,1,1,1,0], // _#########_ (widest part)
-            [0,1,1,0,1,1,0,1,1,0], // _##_##_##_ (body detail)
-            [0,1,1,1,1,1,1,1,1,0], // _#########_ (base of body)
-            [0,0,1,1,0,0,1,1,0,0], // __##__##__ (top of legs)
-            [0,1,1,0,1,1,0,1,1,0], // _##_##_##_ (middle of legs)
-            [0,0,0,1,1,1,1,0,0,0]  // ___####___ (bottom of legs/feet)
-        ];
-
-        // SHAPE_D: Small, compact invader (inspired by image row 1, col 5)
-        // Original pixel art is ~6px wide and 5px tall. Padded and centered.
-        const INVADER_SHAPE_D = [
-            [0,0,0,0,0,0,0,0,0,0], // Padding
-            [0,0,0,1,1,1,1,0,0,0], //   ####
-            [0,0,1,1,1,1,1,1,0,0], //  ######
-            [0,0,1,1,0,0,1,1,0,0], //  ##  ##
-            [0,0,1,1,1,1,1,1,0,0], //  ######
-            [0,0,0,1,1,1,1,0,0,0], //   ####
-            [0,0,0,0,0,0,0,0,0,0], // Padding
-            [0,0,0,0,0,0,0,0,0,0]  // Padding
-        ];
-
-        // SHAPE_E: Leggy invader with distinct head (inspired by image row 4, col 2)
-        // Original pixel art is ~8px wide and 8px tall. Centered.
-        const INVADER_SHAPE_E = [
-            [0,0,0,1,1,1,1,0,0,0], //   #### (Head)
-            [0,0,1,1,0,0,1,1,0,0], //  ##  ## (Neck/Eyes)
-            [0,1,1,1,1,1,1,1,1,0], // ######### (Body top)
-            [0,0,1,1,0,0,1,1,0,0], //  ##  ## (Body middle)
-            [0,0,1,1,0,0,1,1,0,0], //  ##  ## (Body bottom)
-            [0,1,1,0,1,1,0,1,1,0], // ## ## ## (Leg connection)
-            [0,1,1,0,0,0,0,1,1,0], // ##    ## (Legs)
-            [0,1,1,0,0,0,0,1,1,0]  // ##    ## (Feet)
-        ];
-
-        // You can then create an array of all shapes for easier use:
-        const ALL_INVADER_SHAPES = [
-            INVADER_SHAPE_A,
-            INVADER_SHAPE_B,
-            INVADER_SHAPE_C,
-            INVADER_SHAPE_D,
-            INVADER_SHAPE_E
-        ];
-
-        // --- Game State ---
+        // --- Game State Variables ---
         let player;
         let playerBullets = [];
         let invaderBullets = [];
         let invaders = [];
         let particles = [];
         let stars = [];
+        let barriers = []; 
         let score = 0;
         let lives = PLAYER_LIVES;
         let invaderSpeed = INITIAL_INVADER_SPEED;
-        let invaderDirection = 1; // 1 for right, -1 for left
-        let invaderMoveTimer = 0;
-        let invaderMovesPerRow = 0; // Track moves to trigger drop
-        let timeToNextInvaderShot = getRandomInvaderShootTime();
+        let invaderDirection = 1; // 1 = right, -1 = left
+        let timeToNextInvaderShot = 0;
         let lastPlayerShotTime = 0;
-        let gameOver = false;
-        let gameWon = false;
-        let gameStarted = false;
-        let barriers = []; // Holds all individual barrier blocks
-        let keys = {}; // Keep track of pressed keys
+        let keys = {}; 
         
+        // Invader Animation
+        let currentInvaderFrame = 0; // 0 or 1
+        let lastInvaderFrameChange = 0;
+        
+        // States: 'START', 'PLAYING', 'GAMEOVER', 'WIN'
+        let gameState = 'START'; 
 
-        // --- Classes and Functions ---
+        // --- Classes ---
 
         class GameObject {
             constructor(x, y, width, height, color) {
@@ -214,30 +219,25 @@
                 context.fillRect(this.x, this.y, this.width, this.height);
             }
 
-            // Basic AABB collision detection
             collidesWith(other) {
                 return this.x < other.x + other.width &&
-                    this.x + this.width > other.x &&
-                    this.y < other.y + other.height &&
-                    this.y + this.height > other.y;
+                       this.x + this.width > other.x &&
+                       this.y < other.y + other.height &&
+                       this.y + this.height > other.y;
             }
         }
 
         class Player extends GameObject {
-            constructor(x, y, width, height, color, speed) {
-                super(x, y, width, height, color);
-                this.speed = speed;
+            constructor(x, y) {
+                super(x, y, PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_COLOR);
+                this.speed = PLAYER_SPEED;
             }
 
             update() {
-                if (keys['ArrowLeft'] || keys['a']) {
-                    this.x -= this.speed;
-                }
-                if (keys['ArrowRight'] || keys['d']) {
-                    this.x += this.speed;
-                }
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) this.x -= this.speed;
+                if (keys['ArrowRight'] || keys['d'] || keys['D']) this.x += this.speed;
 
-                // Keep player within bounds
+                // Clamp to screen
                 if (this.x < 0) this.x = 0;
                 if (this.x + this.width > GAME_WIDTH) this.x = GAME_WIDTH - this.width;
             }
@@ -245,33 +245,53 @@
             shoot() {
                 const now = Date.now();
                 if (now - lastPlayerShotTime > PLAYER_SHOOT_COOLDOWN) {
-                    const barrelTipOffsetFactor = 0.4; // Adjust this to change where the bullet spawns
                     const bulletX = this.x + this.width / 2 - BULLET_WIDTH / 2;
-                    const bulletY = this.y - BULLET_HEIGHT + (this.height * barrelTipOffsetFactor); // Spawn above the player
-                    playerBullets.push(new Bullet(bulletX, bulletY, BULLET_WIDTH, BULLET_HEIGHT, PLAYER_BULLET_COLOR, -BULLET_SPEED)); // Negative speed = up
+                    const bulletY = this.y; 
+                    playerBullets.push(new Bullet(bulletX, bulletY, BULLET_WIDTH, BULLET_HEIGHT, PLAYER_BULLET_COLOR, -BULLET_SPEED)); 
                     lastPlayerShotTime = now;
                 }
             }
 
             draw(context) {
-            const shapeGridCols = PLAYER_SHIP_SHAPE[0].length; // Should be 10
-            const shapeGridRows = PLAYER_SHIP_SHAPE.length;    // Should be 4
+                const rows = PLAYER_SHIP_SHAPE.length;
+                const cols = PLAYER_SHIP_SHAPE[0].length;
+                const blockSizeX = this.width / cols;
+                const blockSizeY = this.height / rows;
+                
+                context.fillStyle = this.color;
+                for(let r=0; r<rows; r++){
+                    for(let c=0; c<cols; c++){
+                        if(PLAYER_SHIP_SHAPE[r][c] === 1){
+                            context.fillRect(this.x + c*blockSizeX, this.y + r*blockSizeY, blockSizeX, blockSizeY);
+                        }
+                    }
+                }
+            }
+        }
 
-            // Calculate the size of each rendered "pixel block" of the ship
-            const blockRenderWidth = this.width / shapeGridCols;
-            const blockRenderHeight = this.height / shapeGridRows;
+        class Invader extends GameObject {
+            constructor(x, y, color, points, shapeIndex) { 
+                super(x, y, INVADER_WIDTH, INVADER_HEIGHT, color);
+                this.points = points;
+                // shapeIndex 0 = Crab, 1 = Squid, 2 = Octopus
+                this.baseShapeIndex = shapeIndex; 
+            }
 
-            context.fillStyle = this.color; // Use the player's main color
+            draw(context) {
+                // Multiply by 2 to jump to the correct pair, add current frame (0 or 1)
+                const shapeIdx = (this.baseShapeIndex * 2) + currentInvaderFrame;
+                const currentShape = INVADER_SHAPES[shapeIdx] || INVADER_SHAPES[0];
+                
+                const rows = currentShape.length;
+                const cols = currentShape[0].length;
+                const blockSizeX = this.width / cols;
+                const blockSizeY = this.height / rows;
 
-                for (let r_idx = 0; r_idx < shapeGridRows; r_idx++) {
-                    for (let c_idx = 0; c_idx < shapeGridCols; c_idx++) {
-                        if (PLAYER_SHIP_SHAPE[r_idx][c_idx] === 1) {
-                            context.fillRect(
-                                this.x + c_idx * blockRenderWidth,
-                                this.y + r_idx * blockRenderHeight,
-                                blockRenderWidth,
-                                blockRenderHeight
-                            );
+                context.fillStyle = this.color;
+                for(let r=0; r<rows; r++){
+                    for(let c=0; c<cols; c++){
+                        if(currentShape[r][c] === 1){
+                            context.fillRect(this.x + c*blockSizeX, this.y + r*blockSizeY, blockSizeX, blockSizeY);
                         }
                     }
                 }
@@ -279,622 +299,449 @@
         }
 
         class Bullet extends GameObject {
-            constructor(x, y, width, height, color, speed) {
-                super(x, y, width, height, color);
+            constructor(x, y, w, h, color, speed) {
+                super(x, y, w, h, color);
                 this.speed = speed;
-                this.trail = []; // For fancy trail effect
-                this.maxTrailLength = 5;
+                this.trail = [];
             }
 
             update() {
-                // Add current position to trail
-                this.trail.push({ x: this.x, y: this.y });
-                if (this.trail.length > this.maxTrailLength) {
-                    this.trail.shift(); // Remove oldest point
-                }
+                this.trail.push({x: this.x, y: this.y});
+                if (this.trail.length > 5) this.trail.shift();
                 this.y += this.speed;
             }
 
             draw(context) {
-                // Draw trail first (semi-transparent)
-                context.globalAlpha = 0.5;
-                for (let i = 0; i < this.trail.length; i++) {
-                    const pos = this.trail[i];
-                    const trailSizeFactor = (i + 1) / this.maxTrailLength; // Smaller trail further back
-                    context.fillStyle = this.color;
-                    context.fillRect(
-                        pos.x + (this.width - this.width * trailSizeFactor) / 2, // Center smaller rect
-                        pos.y,
-                        this.width * trailSizeFactor,
-                        this.height * trailSizeFactor
-                    );
-                }
-                context.globalAlpha = 1.0; // Reset alpha
-
-                // Draw main bullet
+                context.globalAlpha = 0.4;
+                this.trail.forEach((pos, i) => {
+                   context.fillStyle = this.color;
+                   const scale = (i+1)/5;
+                   context.fillRect(pos.x + (this.width - this.width*scale)/2, pos.y, this.width*scale, this.height);
+                });
+                context.globalAlpha = 1.0;
                 super.draw(context);
             }
         }
 
-        class Invader extends GameObject {
-            constructor(x, y, width, height, color, points, shape) {
-                super(x, y, width, height, color);
-                this.points = points; // Score value
-                this.shape = shape; // Shape array
-            }
-            // Invaders don't have individual update logic, grid handles movement
-            draw(context) {
-                const blockRenderWidth = this.width / 10; // Each block is 10% of the invader width
-                const blockRenderHeight = this.height / 8; // Each block is 8% of the invader height
-                context.fillStyle = this.color;
-
-                for (let r_idx = 0; r_idx < 8; r_idx++) { // Iterate through shape rows (e.g., 8 rows)
-                    for (let c_idx = 0; c_idx < 10; c_idx++) { // Iterate through shape columns (e.g., 10 columns)
-                        if (this.shape[r_idx][c_idx] === 1) {
-                            context.fillRect(
-                                this.x + c_idx * blockRenderWidth,
-                                this.y + r_idx * blockRenderHeight,
-                                blockRenderWidth,
-                                blockRenderHeight
-                            );
-                            // For a more "blocky" feel with distinct pixels, you might draw slightly smaller blocks
-                            // e.g., blockRenderWidth - 0.5, blockRenderHeight - 0.5, if your block sizes are large enough
-                        }
-                    }
-                }
-            }
-        }
-
-        class Particle extends GameObject {
-            constructor(x, y, size, color, velocity) {
-                super(x, y, size, size, color); // Use size for both width/height
-                this.velocity = velocity;
-                this.life = PARTICLE_LIFE;
-                this.initialAlpha = 0.8 + Math.random() * 0.2; // Start slightly transparent
-            }
-
-            update() {
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-                this.life--;
-            }
-
-            draw(context) {
-                context.save(); // Save context state
-                context.globalAlpha = Math.max(0, (this.life / PARTICLE_LIFE) * this.initialAlpha); // Fade out
-                context.fillStyle = this.color;
-                context.fillRect(this.x, this.y, this.width, this.height);
-                context.restore(); // Restore context state
-            }
-        }
-
-        class Star {
-            constructor(x, y, radius, color) {
-                this.x = x;
-                this.y = y;
-                this.radius = radius;
-                this.color = color;
-                this.alpha = Math.random() * 0.5 + 0.2; // Random initial brightness
-                this.blinkSpeed = Math.random() * 0.02 + 0.005;
-                this.blinkPhase = Math.random() * Math.PI * 2;
-            }
-
-            draw(context) {
-                // Simple blink effect
-                const blinkFactor = (Math.sin(Date.now() * this.blinkSpeed + this.blinkPhase) + 1) / 2; // 0 to 1
-                context.fillStyle = this.color;
-                context.globalAlpha = this.alpha * (0.5 + blinkFactor * 0.5); // Blink between 50% and 100% alpha
-                context.beginPath();
-                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                context.fill();
-                context.globalAlpha = 1.0; // Reset alpha
-            }
-        }
-
         class BarrierBlock extends GameObject {
-            constructor(x, y, size, initialHealth) {
+            constructor(x, y, size) {
                 super(x, y, size, size, BARRIER_COLOR);
-                this.health = initialHealth;
-                this.maxHealth = initialHealth;
+                this.health = BARRIER_HEALTH;
+                this.maxHealth = BARRIER_HEALTH;
             }
 
             takeDamage() {
                 this.health--;
-                // Update color based on health percentage
-                const healthPercent = this.health / this.maxHealth;
-                if (this.health <= 0) {
-                    // No color change needed, it will be removed
-                } else if (healthPercent <= 0.50) { // < 50% health
-                    this.color = BARRIER_DAMAGE_COLOR_2;
-                } else if (healthPercent <= 0.75) { // < 75% health
-                    this.color = BARRIER_DAMAGE_COLOR_1;
-                } else {
-                    this.color = BARRIER_COLOR; // Reset if somehow health increased (though it shouldn't)
+                const ratio = this.health / this.maxHealth;
+                if (this.health > 0) {
+                    if (ratio <= 0.5) this.color = BARRIER_DAMAGE_COLOR_2;
+                    else if (ratio <= 0.75) this.color = BARRIER_DAMAGE_COLOR_1;
                 }
-                return this.health <= 0; // Return true if destroyed
+                return this.health <= 0;
+            }
+        }
+
+        class Particle extends GameObject {
+            constructor(x, y, color) {
+                super(x, y, Math.random()*3+2, Math.random()*3+2, color);
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * PARTICLE_SPEED;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = PARTICLE_LIFE;
             }
 
-            // Override draw to only draw if alive (optional, filter handles removal)
-            // draw(context) {
-            //    if (this.health > 0) {
-            //       super.draw(context);
-            //    }
-            // }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+            }
+
+            draw(context) {
+                context.globalAlpha = this.life / PARTICLE_LIFE;
+                context.fillStyle = this.color;
+                context.fillRect(this.x, this.y, this.width, this.height);
+                context.globalAlpha = 1.0;
+            }
+        }
+
+        class Star {
+            constructor() {
+                this.x = Math.random() * GAME_WIDTH;
+                this.y = Math.random() * GAME_HEIGHT;
+                this.size = Math.random() * 2;
+                this.blinkSpeed = Math.random() * 0.05 + 0.01;
+                this.alpha = Math.random();
+            }
+
+            draw(ctx) {
+                this.alpha += this.blinkSpeed;
+                if(this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
+                
+                let displayAlpha = Math.max(0.2, Math.min(1, Math.abs(this.alpha)));
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${displayAlpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        // --- Initialization Functions ---
+
+        function initGame() {
+            resizeCanvas();
+            createStars();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resetGame(levelUp = false) {
+            if (!levelUp) {
+                score = 0;
+                lives = PLAYER_LIVES;
+                invaderSpeed = INITIAL_INVADER_SPEED;
+                createBarriers();
+            } else {
+                invaderSpeed *= 1.15; 
+            }
+
+            playerBullets = [];
+            invaderBullets = [];
+            particles = [];
+            
+            invaderDirection = 1;
+            timeToNextInvaderShot = getRandomInvaderShootTime();
+            
+            createInvaderGrid();
+            
+            player = new Player(GAME_WIDTH / 2 - PLAYER_WIDTH / 2, GAME_HEIGHT - PLAYER_HEIGHT - 30);
+            gameState = 'PLAYING';
         }
 
         function createInvaderGrid() {
             invaders = [];
             for (let r = 0; r < INVADER_ROWS; r++) {
                 for (let c = 0; c < INVADER_COLS; c++) {
-                    const invaderX = INVADER_OFFSET_LEFT + c * (INVADER_WIDTH + INVADER_PADDING);
-                    const invaderY = INVADER_OFFSET_TOP + r * (INVADER_HEIGHT + INVADER_PADDING);
-                    const shape = ALL_INVADER_SHAPES[r % ALL_INVADER_SHAPES.length];
-                    const color = INVADER_COLORS[r % INVADER_COLORS.length];
-                    const points = (INVADER_ROWS - r) * 10; // More points for lower rows (harder)
-                    invaders.push(new Invader(invaderX, invaderY, INVADER_WIDTH, INVADER_HEIGHT, color, points, shape));
+                    const x = INVADER_OFFSET_LEFT + c * (INVADER_WIDTH + INVADER_PADDING);
+                    const y = INVADER_OFFSET_TOP + r * (INVADER_HEIGHT + INVADER_PADDING);
+                    
+                    // 0 = Crab (Top), 1 = Squid (Middle), 2 = Octopus (Bottom)
+                    let shapeTypeIndex;
+                    if (r === 0) shapeTypeIndex = 0; 
+                    else if (r <= 2) shapeTypeIndex = 1; 
+                    else shapeTypeIndex = 2; 
+
+                    const points = (INVADER_ROWS - r) * 10; 
+                    invaders.push(new Invader(x, y, INVADER_COLORS[r % INVADER_COLORS.length], points, shapeTypeIndex));
+                }
+            }
+        }
+
+        function createBarriers() {
+            barriers = [];
+            const shapeRows = BARRIER_SHAPE.length;
+            const shapeCols = BARRIER_SHAPE[0].length;
+            const barrierRealWidth = shapeCols * BARRIER_BLOCK_SIZE;
+            
+            const totalWidth = (NUM_BARRIERS * barrierRealWidth);
+            const remainingSpace = GAME_WIDTH - totalWidth;
+            const gap = remainingSpace / (NUM_BARRIERS + 1);
+
+            for(let b=0; b<NUM_BARRIERS; b++) {
+                const startX = gap + (b * (barrierRealWidth + gap));
+                for(let r=0; r<shapeRows; r++){
+                    for(let c=0; c<shapeCols; c++){
+                        if(BARRIER_SHAPE[r][c] === 1){
+                            barriers.push(new BarrierBlock(
+                                startX + c*BARRIER_BLOCK_SIZE,
+                                BARRIER_Y_POSITION + r*BARRIER_BLOCK_SIZE,
+                                BARRIER_BLOCK_SIZE
+                            ));
+                        }
+                    }
                 }
             }
         }
 
         function createStars() {
             stars = [];
-            for (let i = 0; i < STAR_COUNT; i++) {
-                const x = Math.random() * GAME_WIDTH;
-                const y = Math.random() * GAME_HEIGHT;
-                const radius = Math.random() * 1.5 + 0.5;
-                const brightness = Math.random() * 155 + 100; // Brighter stars
-                const color = `rgb(${brightness}, ${brightness}, ${brightness})`;
-                stars.push(new Star(x, y, radius, color));
-            }
+            for(let i=0; i<STAR_COUNT; i++) stars.push(new Star());
         }
 
         function createExplosion(x, y, color) {
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * PARTICLE_SPEED + 1;
-                const velocity = {
-                    x: Math.cos(angle) * speed,
-                    y: Math.sin(angle) * speed
-                };
-                const size = Math.random() * 4 + 2;
-                particles.push(new Particle(x, y, size, color, velocity));
-            }
-        }
-
-        function createBarriers() {
-            barriers = []; // Clear existing barriers
-            const barrierShapeWidth = BARRIER_SHAPE[0].length;
-            const barrierWidthPixels = barrierShapeWidth * BARRIER_BLOCK_SIZE;
-            // Calculate spacing to center the barriers
-            const totalBarrierSpan = NUM_BARRIERS * barrierWidthPixels;
-            const totalSpacing = GAME_WIDTH - totalBarrierSpan;
-            const spacing = totalSpacing / (NUM_BARRIERS + 1); // Space between edges and barriers, and between barriers
-
-            let currentX = spacing; // Start position for the first barrier
-
-            for (let i = 0; i < NUM_BARRIERS; i++) {
-                for (let r = 0; r < BARRIER_SHAPE.length; r++) {
-                    for (let c = 0; c < barrierShapeWidth; c++) {
-                        if (BARRIER_SHAPE[r][c] === 1) {
-                            const blockX = currentX + c * BARRIER_BLOCK_SIZE;
-                            const blockY = BARRIER_Y_POSITION + r * BARRIER_BLOCK_SIZE;
-                            barriers.push(new BarrierBlock(blockX, blockY, BARRIER_BLOCK_SIZE, BARRIER_HEALTH));
-                        }
-                    }
-                }
-                currentX += barrierWidthPixels + spacing; // Move to the start position of the next barrier
-            }
-        }
-
-        function updateInvaders(deltaTime) {
-            invaderMoveTimer += invaderSpeed * deltaTime / 16; // Adjust timer based on speed and frame time
-
-            if (invaderMoveTimer >= 1) { // Move approx every frame (scaled by speed)
-                invaderMoveTimer = 0; // Reset timer
-                let hitEdge = false;
-                for (const invader of invaders) {
-                    invader.x += invaderSpeed * invaderDirection;
-                    if (invader.x <= 0 || invader.x + invader.width >= GAME_WIDTH) {
-                        hitEdge = true;
-                    }
-                    // Check if invaders reached player level
-                    if (invader.y + invader.height >= player.y) {
-                        gameOver = true;
-                        return; // Stop further updates this frame
-                    }
-                }
-
-                if (hitEdge) {
-                    invaderDirection *= -1; // Reverse direction
-                    // Move all invaders down and increase speed
-                    for (const invader of invaders) {
-                        invader.y += INVADER_DROP_AMOUNT;
-                        // Also nudge them horizontally to prevent getting stuck exactly at edge
-                        invader.x += invaderSpeed * invaderDirection * 2;
-                    }
-                    // Increase speed slightly each time they drop
-                    invaderSpeed *= 1.05;
-                }
-            }
-
-            // Invader Shooting Logic
-            timeToNextInvaderShot -= deltaTime;
-            if (timeToNextInvaderShot <= 0) {
-                const firingInvaders = invaders.filter(inv => {
-                    // Only allow invaders who don't have another invader directly below them to shoot
-                    return !invaders.some(other =>
-                        other !== inv &&
-                        Math.abs(other.x - inv.x) < inv.width / 2 && // Roughly same column
-                        other.y > inv.y // Below the current invader
-                    );
-                });
-
-                if (firingInvaders.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * firingInvaders.length);
-                    const shooter = firingInvaders[randomIndex];
-                    const bulletX = shooter.x + shooter.width / 2 - BULLET_WIDTH / 2;
-                    const bulletY = shooter.y + shooter.height;
-                    invaderBullets.push(new Bullet(bulletX, bulletY, BULLET_WIDTH, BULLET_HEIGHT * 0.8, INVADER_BULLET_COLOR, BULLET_SPEED * 0.8)); // Invader bullets slightly slower/smaller
-                }
-                timeToNextInvaderShot = getRandomInvaderShootTime();
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                particles.push(new Particle(x, y, color));
             }
         }
 
         function getRandomInvaderShootTime() {
-            // Make shooting more frequent as fewer invaders remain
-            const baseInterval = INVADER_SHOOT_INTERVAL_MIN + Math.random() * (INVADER_SHOOT_INTERVAL_MAX - INVADER_SHOOT_INTERVAL_MIN);
-            const invaderCountFactor = Math.max(0.3, invaders.length / (INVADER_ROWS * INVADER_COLS)); // Scale down interval, minimum 10%
-            return baseInterval * invaderCountFactor;
+            const factor = Math.max(0.2, invaders.length / (INVADER_ROWS * INVADER_COLS));
+            return (INVADER_SHOOT_INTERVAL_MIN + Math.random() * (INVADER_SHOOT_INTERVAL_MAX - INVADER_SHOOT_INTERVAL_MIN)) * factor;
+        }
+
+        // --- Game Logic Functions ---
+
+        function updateInvaders(dt) {
+            let hitEdge = false;
+            
+            // Move Horizontal
+            for(const inv of invaders) {
+                inv.x += invaderSpeed * invaderDirection;
+                if(inv.x <= 0 || inv.x + inv.width >= GAME_WIDTH) {
+                    hitEdge = true;
+                }
+                if(inv.y + inv.height >= player.y) {
+                    gameState = 'GAMEOVER';
+                }
+            }
+
+            // Drop and Reverse if edge hit
+            if(hitEdge) {
+                invaderDirection *= -1;
+                for(const inv of invaders) {
+                    inv.x += invaderSpeed * invaderDirection; 
+                    inv.y += INVADER_DROP_AMOUNT;
+                }
+                invaderSpeed *= 1.02;
+            }
+
+            // Shooting
+            timeToNextInvaderShot -= dt;
+            if(timeToNextInvaderShot <= 0) {
+                const shooters = invaders.filter(inv => {
+                   return !invaders.some(other => 
+                       other !== inv && 
+                       Math.abs(other.x - inv.x) < inv.width/2 && 
+                       other.y > inv.y
+                   );
+                });
+
+                if(shooters.length > 0) {
+                    const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+                    invaderBullets.push(new Bullet(
+                        shooter.x + shooter.width/2 - BULLET_WIDTH/2,
+                        shooter.y + shooter.height,
+                        BULLET_WIDTH, BULLET_HEIGHT,
+                        INVADER_BULLET_COLOR,
+                        BULLET_SPEED * 0.6
+                    ));
+                }
+                timeToNextInvaderShot = getRandomInvaderShootTime();
+            }
         }
 
         function checkCollisions() {
-            // --- Player Bullets ---
-            playerBullets = playerBullets.filter(bullet => {
-                let bulletRemoved = false;
+            // Player Bullets
+            for (let i = playerBullets.length - 1; i >= 0; i--) {
+                const b = playerBullets[i];
+                let hit = false;
 
-                // 1. Check player bullets vs Barriers
-                barriers = barriers.filter(block => {
-                    if (!bulletRemoved && block.health > 0 && bullet.collidesWith(block)) {
-                        bulletRemoved = true; // Mark bullet for removal
-                        if (block.takeDamage()) {
-                            createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color); // Optional small explosion
-                            return false; // Remove barrier block
+                // vs Barriers
+                for (let j = barriers.length - 1; j >= 0; j--) {
+                    if (b.collidesWith(barriers[j])) {
+                        createExplosion(barriers[j].x, barriers[j].y, barriers[j].color);
+                        if(barriers[j].takeDamage()) {
+                            barriers.splice(j, 1);
                         }
-                        return true;
-                    }
-                    return true;
-                });
-
-                // 2. Check player bullets vs Invaders (only if not removed by barrier)
-                if (!bulletRemoved) {
-                    invaders = invaders.filter(invader => {
-                        if (bullet.collidesWith(invader)) {
-                            bulletRemoved = true;
-                            score += invader.points;
-                            createExplosion(invader.x + invader.width / 2, invader.y + invader.height / 2, invader.color);
-                            return false;
-                        }
-                        return true;
-                    });
-                }
-
-                // 3. Keep bullet only if it wasn't removed and is still on screen
-                return !bulletRemoved && bullet.y + bullet.height > 0;
-            });
-
-            // --- Invader Bullets ---
-            invaderBullets = invaderBullets.filter(bullet => {
-                let bulletRemoved = false;
-
-                // 1. Check invader bullets vs Barriers
-                barriers = barriers.filter(block => {
-                    if (!bulletRemoved && block.health > 0 && bullet.collidesWith(block)) {
-                        bulletRemoved = true;
-                        if (block.takeDamage()) {
-                            createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color);
-                            return false;
-                        }
-                        return true;
-                    }
-                    return true;
-                });
-
-                // 2. Check invader bullets vs Player (only if player exists and bullet not removed by barrier)
-                if (!bulletRemoved && player && bullet.collidesWith(player)) {
-                    bulletRemoved = true;
-                    lives--;
-                    createExplosion(player.x + player.width / 2, player.y + player.height / 2, player.color);
-                    if (lives <= 0) {
-                        gameOver = true;
-                        player = null;
+                        hit = true;
+                        break; 
                     }
                 }
 
-                // 3. Keep bullet only if it wasn't removed and is still on screen
-                return !bulletRemoved && bullet.y < GAME_HEIGHT;
-            });
+                // vs Invaders
+                if (!hit) {
+                    for (let k = invaders.length - 1; k >= 0; k--) {
+                        if (b.collidesWith(invaders[k])) {
+                            score += invaders[k].points;
+                            createExplosion(invaders[k].x + INVADER_WIDTH/2, invaders[k].y + INVADER_HEIGHT/2, invaders[k].color);
+                            invaders.splice(k, 1);
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
 
-            // --- Invaders vs Player (Landing check) ---
-            if (player) {
-                for (const invader of invaders) {
-                    if (invader.y + invader.height >= player.y) {
-                        gameOver = true;
-                        player = null;
+                if (hit || b.y < 0) {
+                    playerBullets.splice(i, 1);
+                }
+            }
+
+            // Invader Bullets
+            for (let i = invaderBullets.length - 1; i >= 0; i--) {
+                const b = invaderBullets[i];
+                let hit = false;
+
+                // vs Barriers
+                for (let j = barriers.length - 1; j >= 0; j--) {
+                    if (b.collidesWith(barriers[j])) {
+                        createExplosion(barriers[j].x, barriers[j].y, barriers[j].color);
+                        if(barriers[j].takeDamage()) {
+                            barriers.splice(j, 1);
+                        }
+                        hit = true;
                         break;
                     }
                 }
-            }
 
-            // --- Invaders vs Barriers ---
-            // If any invader collides with a barrier block, destroy the block and the invader
-            let newBarriers = [];
-            let newInvaders = [];
-            for (const invader of invaders) {
-                let hitBarrier = false;
-                barriers = barriers.filter(block => {
-                    if (!hitBarrier && block.health > 0 && invader.collidesWith(block)) {
-                        hitBarrier = true;
-                        if (block.takeDamage()) {
-                            createExplosion(block.x + block.width / 2, block.y + block.height / 2, block.color);
-                            return false;
-                        }
-                        return true;
+                // vs Player
+                if (!hit && player && b.collidesWith(player)) {
+                    lives--;
+                    createExplosion(player.x + PLAYER_WIDTH/2, player.y + PLAYER_HEIGHT/2, PLAYER_COLOR);
+                    hit = true;
+                    if(lives <= 0) {
+                        gameState = 'GAMEOVER';
                     }
-                    return true;
-                });
-                if (!hitBarrier) {
-                    newInvaders.push(invader);
-                } else {
-                    createExplosion(invader.x + invader.width / 2, invader.y + invader.height / 2, invader.color);
+                }
+
+                if (hit || b.y > GAME_HEIGHT) {
+                    invaderBullets.splice(i, 1);
                 }
             }
-            invaders = newInvaders;
+
+            // Invaders vs Barriers
+            for (let i = invaders.length - 1; i >= 0; i--) {
+                const inv = invaders[i];
+                let hitBarrier = false;
+                for (let j = barriers.length - 1; j >= 0; j--) {
+                    if (inv.collidesWith(barriers[j])) {
+                        createExplosion(barriers[j].x, barriers[j].y, barriers[j].color);
+                        barriers.splice(j, 1); 
+                        hitBarrier = true;
+                    }
+                }
+                if(hitBarrier) {
+                    createExplosion(inv.x, inv.y, inv.color);
+                }
+            }
         }
 
-        function update(deltaTime) {
-            if (!gameStarted || gameOver || gameWon) return;
+        function update(dt) {
+            if(gameState !== 'PLAYING') return;
 
-            // Player Actions
+            if(player) player.update();
+            
             if (keys[' '] || keys['Spacebar']) {
                 if(player) player.shoot();
             }
-            if(player) player.update();
 
-            // Update Bullets
             playerBullets.forEach(b => b.update());
             invaderBullets.forEach(b => b.update());
-
-            // Update Invaders
-            updateInvaders(deltaTime);
-            if (gameOver) return; // Check again after invader update
-
-            // Update Particles
             particles.forEach(p => p.update());
-            particles = particles.filter(p => p.life > 0); // Remove dead particles
+            particles = particles.filter(p => p.life > 0);
 
-            // Check Collisions
+            // Animation Timer
+            lastInvaderFrameChange += dt;
+            if (lastInvaderFrameChange >= INVADER_ANIMATION_SPEED) {
+                currentInvaderFrame = 1 - currentInvaderFrame; 
+                lastInvaderFrameChange = 0;
+            }
+
+            updateInvaders(dt);
             checkCollisions();
 
-            // Check Win Condition
-            if (invaders.length === 0) {
-                // --- NEW LEVEL: reset invaders, keep score/lives/barriers ---
-                createInvaderGrid();
-                invaderSpeed = INITIAL_INVADER_SPEED * 1.1; // Optionally increase speed for new level
-                invaderDirection = 1;
-                invaderMoveTimer = 0;
-                timeToNextInvaderShot = getRandomInvaderShootTime();
-                // Optionally: createBarriers(); // Uncomment to reset barriers each level
+            if(invaders.length === 0) {
+                resetGame(true); 
             }
         }
 
         function draw() {
-            // Clear canvas (draw background)
-            ctx.fillStyle = '#0a0a0a';
+            // Clear
+            ctx.fillStyle = '#050505';
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-            // Draw Stars
-            stars.forEach(star => star.draw(ctx));
+            stars.forEach(s => s.draw(ctx));
 
-            if (!gameStarted) {
-                drawStartScreen();
-                return;
-            }
-
-            // Draw Game Objects
-            if(player) player.draw(ctx);
+            if(player && gameState !== 'GAMEOVER') player.draw(ctx);
             barriers.forEach(b => b.draw(ctx));
+            invaders.forEach(i => i.draw(ctx));
             playerBullets.forEach(b => b.draw(ctx));
             invaderBullets.forEach(b => b.draw(ctx));
-            invaders.forEach(inv => inv.draw(ctx));
             particles.forEach(p => p.draw(ctx));
 
-            // Draw UI (Score, Lives)
-            drawUI();
-
-            // Draw Game Over / Win Screen
-            if (gameOver) {
-                drawGameOverScreen();
-            } else if (gameWon) {
-                drawWinScreen();
-            }
-        }
-
-        function drawUI() {
-            ctx.fillStyle = '#eee';
-            ctx.font = '20px "Courier New", Courier, monospace';
+            // UI
+            ctx.fillStyle = '#fff';
+            ctx.font = '20px "Courier New"';
             ctx.textAlign = 'left';
-            ctx.fillText(`Score: ${score}`, 20, 30);
+            ctx.fillText(`SCORE: ${score}`, 20, 30);
             ctx.textAlign = 'right';
-            ctx.fillText(`Lives: ${lives}`, GAME_WIDTH - 20, 30);
+            ctx.fillText(`LIVES: ${lives}`, GAME_WIDTH - 20, 30);
 
-            // Draw simple ground line
-            if (player) { // <-- ADD THIS CHECK
-                ctx.strokeStyle = PLAYER_COLOR;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(0, player.y + player.height + 10);
-                ctx.lineTo(GAME_WIDTH, player.y + player.height + 10);
-                ctx.stroke();
+            ctx.strokeStyle = PLAYER_COLOR;
+            ctx.beginPath();
+            ctx.moveTo(0, GAME_HEIGHT - 10);
+            ctx.lineTo(GAME_WIDTH, GAME_HEIGHT - 10);
+            ctx.stroke();
+
+            if (gameState === 'START') {
+                drawOverlay('FANCY BLOCK INVADERS', 'Press ENTER to Start', PLAYER_COLOR);
+            } else if (gameState === 'GAMEOVER') {
+                drawOverlay('GAME OVER', `Final Score: ${score} - Press ENTER`, '#ff5555');
+            } else if (gameState === 'WIN') { 
+                drawOverlay('VICTORY', `Score: ${score} - Press ENTER`, '#50fa7b');
             }
         }
 
-        function drawStartScreen() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Semi-transparent overlay
+        function drawOverlay(title, subtitle, color) {
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
             ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-            ctx.fillStyle = '#00ffcc'; // Use player color
-            ctx.font = 'bold 60px "Courier New", Courier, monospace';
+            
+            ctx.fillStyle = color;
+            ctx.font = 'bold 50px "Courier New"';
             ctx.textAlign = 'center';
-            ctx.fillText('Fancy Block Invaders', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60);
-
+            ctx.fillText(title, GAME_WIDTH/2, GAME_HEIGHT/2 - 20);
+            
             ctx.fillStyle = '#eee';
-            ctx.font = '24px "Courier New", Courier, monospace';
-            ctx.fillText('Press ENTER to Start', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20);
-
-            ctx.font = '16px "Courier New", Courier, monospace';
-            ctx.fillText('Arrow Keys or A/D to Move', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 70);
-            ctx.fillText('Spacebar to Shoot', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 100);
+            ctx.font = '20px "Courier New"';
+            ctx.fillText(subtitle, GAME_WIDTH/2, GAME_HEIGHT/2 + 30);
         }
 
-        function drawGameOverScreen() {
-            ctx.fillStyle = 'rgba(150, 0, 0, 0.7)'; // Red overlay
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-            ctx.fillStyle = '#eee';
-            ctx.font = 'bold 60px "Courier New", Courier, monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30);
-
-            ctx.font = '24px "Courier New", Courier, monospace';
-            ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 30);
-            ctx.fillText('Press ENTER to Restart', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 80);
-        }
-
-        function drawWinScreen() {
-            ctx.fillStyle = 'rgba(0, 150, 0, 0.7)'; // Green overlay
-            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-            ctx.fillStyle = '#eee';
-            ctx.font = 'bold 60px "Courier New", Courier, monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('YOU WIN!', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30);
-
-            ctx.font = '24px "Courier New", Courier, monospace';
-            ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 30);
-            ctx.fillText('Press ENTER to Play Again', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 80);
-        }
-
-        function resetGame() {
-            score = 0;
-            lives = PLAYER_LIVES;
-            playerBullets = [];
-            invaderBullets = [];
-            particles = [];
-            barriers = [];
-            invaderSpeed = INITIAL_INVADER_SPEED;
-            invaderDirection = 1;
-            invaderMoveTimer = 0;
-            timeToNextInvaderShot = getRandomInvaderShootTime();
-            gameOver = false;
-            gameWon = false;
-            gameStarted = true; // Go directly into game on reset
-
-            player = new Player(
-                GAME_WIDTH / 2 - PLAYER_WIDTH / 2,
-                GAME_HEIGHT - PLAYER_HEIGHT - 30, // Position above bottom
-                PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_COLOR, PLAYER_SPEED
-            );
-            createInvaderGrid();
-            createBarriers(); // Create barriers on reset
-            // Stars persist between games unless explicitly recreated
-            // if (stars.length === 0) createStars();
-        }
-
-        // --- Event Listeners ---
-        window.addEventListener('keydown', (e) => {
-            // Always track movement keys if game is potentially playable
-            if (gameStarted && !gameOver && !gameWon) {
-                keys[e.key] = true;
-            }
-
-            // Handle Start/Restart separately
-            if (e.key === 'Enter') {
-                if (!gameStarted) {
-                    // ---- First time starting ----
-                    console.log("Starting game for the first time...");
-                    if (stars.length === 0) { // Ensure stars are created only once
-                    createStars();
-                    }
-                    resetGame(); // This sets gameStarted = true
-                    // No need to call gameLoop here, it's already running via requestAnimationFrame
-                } else if (gameOver || gameWon) {
-                    // ---- Restarting after game over or win ----
-                    console.log("Restarting game...");
-                    resetGame();
-                    // No need to call gameLoop here either
-                }
-            }
-
-            // Handle shooting only when game is active
-            if (gameStarted && !gameOver && !gameWon && (e.key === ' ' || e.key === 'Spacebar')) {
-                if(player) player.shoot();
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            // Only untrack keys relevant to movement/gameplay
-            if (keys.hasOwnProperty(e.key)) { // Check if it's a key we track
-                keys[e.key] = false;
-            }
-        });
-
-        window.addEventListener('keyup', (e) => {
-            keys[e.key] = false;
-        });
-
-        // --- Resize Handling ---
         function resizeCanvas() {
-            // Basic scaling - maintains aspect ratio but might leave gaps
             const aspectRatio = GAME_WIDTH / GAME_HEIGHT;
             let newWidth = window.innerWidth;
             let newHeight = window.innerHeight;
-            const windowRatio = newWidth / newHeight;
-
-            if (windowRatio > aspectRatio) {
+            
+            if (newWidth / newHeight > aspectRatio) {
                 newWidth = newHeight * aspectRatio;
             } else {
                 newHeight = newWidth / aspectRatio;
             }
 
-            // Keep canvas dimensions fixed for game logic, scale via CSS
             canvas.style.width = `${newWidth}px`;
             canvas.style.height = `${newHeight}px`;
-
-            // Set internal resolution
             canvas.width = GAME_WIDTH;
             canvas.height = GAME_HEIGHT;
         }
 
-        // --- Game Loop ---
+        // --- Event Listeners ---
+        window.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if(e.key === 'Enter') {
+                if(gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'WIN') {
+                    resetGame(false);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.key] = false;
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Main Loop ---
         let lastTime = 0;
         function gameLoop(timestamp) {
-            const deltaTime = timestamp - lastTime;
+            const dt = timestamp - lastTime;
             lastTime = timestamp;
 
-            update(deltaTime || 16); // Use deltaTime, fallback for first frame
+            update(dt);
             draw();
 
             requestAnimationFrame(gameLoop);
         }
 
-        // --- Initialization ---
-        resizeCanvas(); // Initial size setup
-        window.addEventListener('resize', resizeCanvas); // Adjust on window resize
-
-        // Don't start the loop until user interaction (or just draw start screen)
-        draw(); // Draw the initial start screen
-        requestAnimationFrame(gameLoop);
-        // gameLoop will be implicitly started by requestAnimationFrame after resetGame
+        // Start
+        initGame();
 
     </script>
 </body>
