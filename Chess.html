@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Vision Practice</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <style>
+        .highlight-attacked { box-shadow: inset 0 0 0 4px rgba(239, 68, 68, 0.9) !important; } 
+        .highlight-protected { box-shadow: inset 0 0 0 4px rgba(34, 197, 94, 0.9) !important; } 
+        .highlight-both { box-shadow: inset 0 0 0 4px rgba(249, 115, 22, 0.9) !important; } 
+        
+        .highlight-empty-attacked::after {
+            content: '';
+            display: block;
+            width: 30%;
+            height: 30%;
+            background-color: rgba(239, 68, 68, 0.6);
+            border-radius: 50%;
+            margin: 35%;
+            pointer-events: none;
+        }
+        
+        #board-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        #board { 
+            width: 100%; 
+            max-width: min(100%, 75vh); 
+            position: relative;
+        }
+
+        [class^="chessboard-"] { position: relative !important; }
+
+        [class^="spare-pieces-"] {
+            position: absolute !important;
+            top: 50% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1vh !important;
+            background-color: #374151 !important; 
+            padding: 8px !important;
+            border-radius: 8px !important;
+            border: 1px solid #4B5563 !important; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+            height: max-content !important;
+            z-index: 20;
+        }
+
+        [class^="chessboard-"] > [class^="spare-pieces-"]:first-child {
+            left: 0 !important;
+            transform: translate(-130%, -50%) !important;
+        }
+
+        [class^="chessboard-"] > [class^="spare-pieces-"]:last-child {
+            right: 0 !important;
+            transform: translate(130%, -50%) !important;
+        }
+
+        [class^="spare-pieces-"] img {
+            width: clamp(32px, 4vw, 60px) !important;
+            height: clamp(32px, 4vw, 60px) !important;
+            margin: 0 !important;
+            display: block !important;
+            cursor: grab !important;
+        }
+        
+        [class^="spare-pieces-"] img:active { cursor: grabbing !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans p-2 sm:p-6 min-h-screen flex items-center justify-center">
+
+    <div class="w-full max-w-[1600px] min-h-[85vh] bg-gray-800 rounded-lg shadow-2xl overflow-hidden flex flex-col lg:flex-row border border-gray-700">
+        
+        <div class="py-10 px-12 sm:px-24 lg:px-32 lg:w-7/12 xl:w-8/12 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-gray-700 relative">
+            <div class="w-full flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold text-white tracking-wide">Chess Vision Practice</h2>
+                <div id="engineStatus" class="text-sm px-3 py-1 rounded bg-yellow-600 text-white font-medium">Loading Engine...</div>
+            </div>
+            <div id="board-wrapper">
+                <div id="board"></div>
+            </div>
+        </div>
+
+        <div class="p-6 lg:p-8 lg:w-5/12 xl:w-4/12 flex flex-col bg-gray-800 overflow-y-auto">
+            
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white">Play vs Bot</h3>
+            <div class="grid grid-cols-2 gap-3 mb-6 text-sm">
+                <select id="botElo" class="col-span-2 bg-gray-700 text-white py-3 px-4 rounded border border-gray-600 focus:outline-none focus:border-blue-500">
+                    <option value="800">Bot Elo: 800 (Beginner)</option>
+                    <option value="1200">Bot Elo: 1200 (Intermediate)</option>
+                    <option value="1500" selected>Bot Elo: 1500 (Club Player)</option>
+                    <option value="2000">Bot Elo: 2000 (Expert)</option>
+                    <option value="2500">Bot Elo: 2500 (Grandmaster)</option>
+                </select>
+                <button id="playWhiteBtn" class="bg-gray-200 hover:bg-white text-gray-900 py-2 px-4 rounded font-bold transition">Play as White</button>
+                <button id="playBlackBtn" class="bg-gray-900 hover:bg-black text-white py-2 px-4 rounded border border-gray-600 font-bold transition">Play as Black</button>
+            </div>
+
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white mt-2">Board Controls</h3>
+            <div class="grid grid-cols-2 gap-3 mb-6 text-sm">
+                <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2 shadow-inner">
+                    <label class="font-medium cursor-pointer flex items-center gap-2 text-white tracking-wide">
+                        <input type="checkbox" id="autoHintToggle" class="w-5 h-5 rounded focus:ring-purple-500 bg-gray-600 border-gray-500 text-purple-600" checked>
+                        Auto-Show Top 5 Moves
+                    </label>
+                </div>
+                <button id="flipBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition">Flip Board</button>
+                <button id="clearBtn" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition">Clear Board</button>
+                <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2">
+                    <label class="font-medium cursor-pointer flex items-center gap-2 text-gray-200">
+                        <input type="checkbox" id="editModeToggle" class="w-5 h-5 rounded focus:ring-blue-500 bg-gray-600 border-gray-500">
+                        Edit Mode (Disables Bot)
+                    </label>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white">Threat Analysis</h3>
+            <div class="bg-gray-700 p-5 rounded border border-gray-600 mb-6 shadow-sm flex-grow">
+                <h4 class="font-semibold text-gray-300 mb-2">Who has the better attack?</h4>
+                <div id="evaluationText" class="text-2xl font-bold text-white mb-4">Calculating...</div>
+                <div id="attackDetails" class="mt-4"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+    <script>
+        let board = null;
+        let game = new Chess();
+        let editMode = false;
+        let autoHint = true;
+        
+        let stockfish = null;
+        let botColor = null; 
+        let engineReady = false;
+        
+        let engineMode = 'idle'; // 'idle', 'botMove', or 'hint'
+        let currentHints = {};
+        let hintTimer = null; // Used to prevent spamming the engine during rapid edits
+
+        const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
+        const pieceNames = { 'p': 'Pawn', 'n': 'Knight', 'b': 'Bishop', 'r': 'Rook', 'q': 'Queen', 'k': 'King' };
+
+        // Initialize Stockfish using a Blob
+        const stockfishUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js';
+        fetch(stockfishUrl)
+            .then(response => response.text())
+            .then(scriptText => {
+                const blob = new Blob([scriptText], {type: 'application/javascript'});
+                const workerUrl = URL.createObjectURL(blob);
+                stockfish = new Worker(workerUrl);
+                
+                stockfish.onmessage = function(event) {
+                    let line = event.data;
+                    
+                    if (line === 'uciok') {
+                        engineReady = true;
+                        document.getElementById('engineStatus').innerText = "Engine Ready";
+                        document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-green-600 text-white font-medium";
+                        requestHints(); // Calculate hints for starting position
+                    }
+
+                    if (engineMode === 'hint' && line.startsWith('info') && line.includes('multipv')) {
+                        let pvMatch = line.match(/multipv (\d+).* pv ([a-h][1-8][a-h][1-8])/);
+                        if (pvMatch) {
+                            currentHints[pvMatch[1]] = pvMatch[2];
+                        }
+                    }
+
+                    if (line.startsWith('bestmove')) {
+                        if (engineMode === 'hint') {
+                            if (autoHint && botColor !== game.turn()) {
+                                let movesToDraw = Object.values(currentHints).slice(0, 5);
+                                drawArrows(movesToDraw);
+                            }
+                            engineMode = 'idle';
+                        } 
+                        else if (engineMode === 'botMove') {
+                            let moveStr = line.split(' ')[1];
+                            if (moveStr && moveStr !== '(none)') {
+                                let fromSq = moveStr.substring(0, 2);
+                                let toSq = moveStr.substring(2, 4);
+                                let promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : 'q';
+                                
+                                game.move({ from: fromSq, to: toSq, promotion: promotion });
+                                board.position(game.fen());
+                                clearArrows();
+                                analyzeBoard();
+                                checkGameOver();
+                            }
+                            engineMode = 'idle';
+                            // Once bot finishes, request hints for the player's turn
+                            requestHints(); 
+                        }
+                    }
+                };
+                stockfish.postMessage('uci'); 
+            })
+            .catch(err => {
+                document.getElementById('engineStatus').innerText = "Engine Load Failed";
+                document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-red-600 text-white font-medium";
+            });
+
+        function triggerBotMove() {
+            if (!stockfish || !engineReady || game.game_over()) return;
+            
+            // Abort any ongoing hint calculation
+            stockfish.postMessage('stop');
+            
+            engineMode = 'botMove';
+            let eloLevel = parseInt(document.getElementById('botElo').value);
+            
+            let skill = 0;
+            let depth = 1; 
+
+            if (eloLevel === 800) { skill = 0; depth = 1; }       
+            else if (eloLevel === 1200) { skill = 3; depth = 3; }
+            else if (eloLevel === 1500) { skill = 7; depth = 5; }
+            else if (eloLevel === 2000) { skill = 15; depth = 10; }
+            else if (eloLevel === 2500) { skill = 20; depth = 15; }
+            
+            stockfish.postMessage('setoption name MultiPV value 1'); 
+            stockfish.postMessage('setoption name Skill Level value ' + skill);
+            stockfish.postMessage('position fen ' + game.fen());
+            stockfish.postMessage('go depth ' + depth); 
+        }
+
+        function requestHints() {
+            clearTimeout(hintTimer);
+            hintTimer = setTimeout(() => {
+                if (!autoHint || !stockfish || !engineReady || game.game_over()) return;
+                
+                // Do not calculate hints if it is the bot's turn to play
+                if (botColor === game.turn() && !editMode) return;
+                
+                stockfish.postMessage('stop'); // Stop any lingering calculations
+                
+                engineMode = 'hint';
+                currentHints = {};
+                
+                stockfish.postMessage('setoption name MultiPV value 5');
+                stockfish.postMessage('setoption name Skill Level value 20'); 
+                stockfish.postMessage('position fen ' + game.fen());
+                stockfish.postMessage('go depth 12'); 
+            }, 100); // 100ms buffer prevents spamming if user is dragging pieces quickly
+        }
+
+        // --- Arrow Drawing Logic ---
+        function drawArrows(moves) {
+            clearArrows(); 
+
+            let svg = document.getElementById('arrowLayer');
+            if (!svg) {
+                svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svg.setAttribute("id", "arrowLayer");
+                svg.style.position = "absolute";
+                svg.style.top = "0";
+                svg.style.left = "0";
+                svg.style.width = "100%";
+                svg.style.height = "100%";
+                svg.style.pointerEvents = "none";
+                svg.style.zIndex = "10";
+
+                let defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+                let marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+                marker.setAttribute("id", "arrowhead");
+                marker.setAttribute("markerWidth", "5");
+                marker.setAttribute("markerHeight", "5");
+                marker.setAttribute("refX", "2.5");
+                marker.setAttribute("refY", "2.5");
+                marker.setAttribute("orient", "auto");
+                
+                let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                polygon.setAttribute("points", "0 0, 5 2.5, 0 5");
+                polygon.setAttribute("fill", "rgba(168, 85, 247, 0.9)"); // Tailwind Purple to match theme
+                
+                marker.appendChild(polygon);
+                defs.appendChild(marker);
+                svg.appendChild(defs);
+                document.getElementById('board').appendChild(svg);
+            }
+
+            let orientation = board.orientation(); 
+
+            moves.forEach(move => {
+                if (!move) return;
+                let fromFile = move.charCodeAt(0) - 97; 
+                let fromRank = 8 - parseInt(move.charAt(1));
+                let toFile = move.charCodeAt(2) - 97;
+                let toRank = 8 - parseInt(move.charAt(3));
+
+                if (orientation === 'black') {
+                    fromFile = 7 - fromFile;
+                    fromRank = 7 - fromRank;
+                    toFile = 7 - toFile;
+                    toRank = 7 - toRank;
+                }
+
+                let x1 = (fromFile + 0.5) * 12.5;
+                let y1 = (fromRank + 0.5) * 12.5;
+                let x2 = (toFile + 0.5) * 12.5;
+                let y2 = (toRank + 0.5) * 12.5;
+
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                let len = Math.sqrt(dx*dx + dy*dy);
+                if (len > 0) {
+                    x2 = x2 - (dx/len) * 3; 
+                    y2 = y2 - (dy/len) * 3;
+                }
+
+                let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1 + "%");
+                line.setAttribute("y1", y1 + "%");
+                line.setAttribute("x2", x2 + "%");
+                line.setAttribute("y2", y2 + "%");
+                line.setAttribute("stroke", "rgba(168, 85, 247, 0.8)"); // Tailwind Purple
+                line.setAttribute("stroke-width", "1.5%");
+                line.setAttribute("marker-end", "url(#arrowhead)");
+                line.setAttribute("stroke-linecap", "round");
+                svg.appendChild(line);
+            });
+        }
+
+        function clearArrows() {
+            let svg = document.getElementById('arrowLayer');
+            if (svg) {
+                let lines = svg.querySelectorAll('line');
+                lines.forEach(l => l.remove());
+            }
+        }
+
+        // --- Board Configuration ---
+        const config = {
+            draggable: true,
+            position: 'start',
+            dropOffBoard: 'trash',
+            sparePieces: true,
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd
+        };
+        board = Chessboard('board', config);
+
+        $(window).resize(() => {
+            board.resize();
+            setTimeout(analyzeBoard, 50); 
+            clearArrows(); 
+            requestHints(); // Redraw arrows accurately after resize
+        });
+
+        function onDragStart(source, piece, position, orientation) {
+            if (editMode) {
+                clearArrows(); // Clear immediately on pickup
+                return true; 
+            }
+            if (game.game_over()) return false;
+            
+            if (botColor === game.turn()) return false;
+
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+            clearArrows(); 
+        }
+
+        function onDrop(source, target, piece, newPos, oldPos, orientation) {
+            clearArrows(); 
+
+            if (editMode) {
+                syncGameWithBoard(newPos);
+                analyzeBoard();
+                requestHints();
+                return;
+            }
+
+            let move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+
+            if (move === null) {
+                requestHints(); // Put arrows back if move was illegal
+                return 'snapback';
+            }
+            
+            analyzeBoard();
+            checkGameOver();
+
+            if (!game.game_over() && botColor === game.turn()) {
+                setTimeout(triggerBotMove, 250); 
+            } else {
+                requestHints(); // Calculate hints for the new position if human v human
+            }
+        }
+
+        function onSnapEnd() {
+            if (!editMode) board.position(game.fen());
+        }
+
+        function syncGameWithBoard(posObj) {
+            game.clear();
+            for (let sq in posObj) {
+                let p = posObj[sq];
+                game.put({ type: p.charAt(1).toLowerCase(), color: p.charAt(0) }, sq);
+            }
+        }
+
+        function validateBoard() {
+            let temp = new Chess();
+            return temp.load(game.fen());
+        }
+
+        function checkGameOver() {
+            let evalEl = document.getElementById('evaluationText');
+            if (game.in_checkmate()) {
+                let winner = game.turn() === 'w' ? 'Black' : 'White';
+                evalEl.innerHTML = `<span class='text-green-400'>Checkmate! ${winner} wins.</span>`;
+            } else if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition()) {
+                evalEl.innerHTML = `<span class='text-yellow-400'>Game Over: Draw.</span>`;
+            }
+        }
+
+        // --- Threat Analysis ---
+        function analyzeBoard() {
+            $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked');
+
+            if (game.game_over()) return; 
+
+            let evalEl = document.getElementById('evaluationText');
+            let detailsEl = document.getElementById('attackDetails');
+            
+            if (!validateBoard()) {
+                evalEl.innerHTML = "<span class='text-red-400 text-base'>Analysis paused. Both Kings must be on the board.</span>";
+                detailsEl.innerHTML = "";
+                return;
+            }
+
+            let whiteMoves = getTrueSights('w');
+            let blackMoves = getTrueSights('b');
+            
+            let whiteAttackScore = 0;
+            let blackAttackScore = 0;
+            
+            let whiteHanging = []; 
+            let whiteProtectedAttacked = []; 
+            let blackHanging = []; 
+            let blackProtectedAttacked = []; 
+
+            const squares = ['a8','b8','c8','d8','e8','f8','g8','h8',
+                             'a7','b7','c7','d7','e7','f7','g7','h7',
+                             'a6','b6','c6','d6','e6','f6','g6','h6',
+                             'a5','b5','c5','d5','e5','f5','g5','h5',
+                             'a4','b4','c4','d4','e4','f4','g4','h4',
+                             'a3','b3','c3','d3','e3','f3','g3','h3',
+                             'a2','b2','c2','d2','e2','f2','g2','h2',
+                             'a1','b1','c1','d1','e1','f1','g1','h1'];
+
+            let visualOrientation = board.orientation() === 'white' ? 'w' : 'b';
+            let enemyMoves = visualOrientation === 'w' ? blackMoves : whiteMoves;
+
+            squares.forEach(sq => {
+                let piece = game.get(sq);
+                let sqEl = $('#board .square-' + sq);
+                
+                if (piece) {
+                    let isProtected = false;
+                    let isAttacked = false;
+
+                    if (piece.color === 'w') {
+                        isAttacked = blackMoves.includes(sq);
+                        isProtected = isProtectedBy(sq, 'w');
+                        if (isAttacked && piece.type !== 'k') {
+                            let text = `${pieceNames[piece.type]} on ${sq} (${pieceValues[piece.type]} pts)`;
+                            if (!isProtected) {
+                                blackAttackScore += pieceValues[piece.type];
+                                blackHanging.push(text);
+                            } else {
+                                blackProtectedAttacked.push(text);
+                            }
+                        }
+                    } else {
+                        isAttacked = whiteMoves.includes(sq);
+                        isProtected = isProtectedBy(sq, 'b');
+                        if (isAttacked && piece.type !== 'k') {
+                            let text = `${pieceNames[piece.type]} on ${sq} (${pieceValues[piece.type]} pts)`;
+                            if (!isProtected) {
+                                whiteAttackScore += pieceValues[piece.type];
+                                whiteHanging.push(text);
+                            } else {
+                                whiteProtectedAttacked.push(text);
+                            }
+                        }
+                    }
+
+                    if (isAttacked && isProtected) {
+                        sqEl.addClass('highlight-both');
+                    } else if (isAttacked) {
+                        sqEl.addClass('highlight-attacked');
+                    } else if (isProtected) {
+                        sqEl.addClass('highlight-protected');
+                    }
+                } else {
+                    if (enemyMoves.includes(sq)) {
+                        sqEl.addClass('highlight-empty-attacked');
+                    }
+                }
+            });
+
+            let diff = whiteAttackScore - blackAttackScore;
+            if (diff > 0) evalEl.innerHTML = `White has the better attack (+${diff} pts)`;
+            else if (diff < 0) evalEl.innerHTML = `Black has the better attack (+${Math.abs(diff)} pts)`;
+            else evalEl.innerHTML = "Attacks are roughly equal";
+
+            let detailHtml = `<div class="grid grid-cols-1 gap-6 border-t border-gray-600 pt-5 mt-2">`;
+            
+            detailHtml += `<div><strong class="text-white border-b border-gray-600 pb-1 block mb-3 text-lg">White is attacking:</strong>`;
+            detailHtml += `<div class="text-xs text-red-400 mt-2 uppercase font-bold tracking-wider">Unprotected (Hanging)</div>`;
+            detailHtml += `<ul class="list-disc pl-5 text-gray-300 text-sm mt-1 space-y-1">`;
+            if (whiteHanging.length === 0) detailHtml += `<li class="text-gray-500 list-none -ml-5">None</li>`;
+            else whiteHanging.forEach(p => detailHtml += `<li>${p}</li>`);
+            detailHtml += `</ul>`;
+            detailHtml += `<div class="text-xs text-orange-400 mt-4 uppercase font-bold tracking-wider">Protected</div>`;
+            detailHtml += `<ul class="list-disc pl-5 text-gray-300 text-sm mt-1 space-y-1">`;
+            if (whiteProtectedAttacked.length === 0) detailHtml += `<li class="text-gray-500 list-none -ml-5">None</li>`;
+            else whiteProtectedAttacked.forEach(p => detailHtml += `<li>${p}</li>`);
+            detailHtml += `</ul></div>`;
+
+            detailHtml += `<div><strong class="text-white border-b border-gray-600 pb-1 block mb-3 text-lg">Black is attacking:</strong>`;
+            detailHtml += `<div class="text-xs text-red-400 mt-2 uppercase font-bold tracking-wider">Unprotected (Hanging)</div>`;
+            detailHtml += `<ul class="list-disc pl-5 text-gray-300 text-sm mt-1 space-y-1">`;
+            if (blackHanging.length === 0) detailHtml += `<li class="text-gray-500 list-none -ml-5">None</li>`;
+            else blackHanging.forEach(p => detailHtml += `<li>${p}</li>`);
+            detailHtml += `</ul>`;
+            detailHtml += `<div class="text-xs text-orange-400 mt-4 uppercase font-bold tracking-wider">Protected</div>`;
+            detailHtml += `<ul class="list-disc pl-5 text-gray-300 text-sm mt-1 space-y-1">`;
+            if (blackProtectedAttacked.length === 0) detailHtml += `<li class="text-gray-500 list-none -ml-5">None</li>`;
+            else blackProtectedAttacked.forEach(p => detailHtml += `<li>${p}</li>`);
+            detailHtml += `</ul></div></div>`;
+
+            detailsEl.innerHTML = detailHtml;
+        }
+
+        function getTrueSights(color) {
+            let fen = game.fen();
+            let tokens = fen.split(' ');
+            tokens[1] = color;
+            tokens[3] = '-'; 
+            
+            let temp = new Chess();
+            let sights = [];
+
+            if (temp.load(tokens.join(' '))) {
+                let moves = temp.moves({verbose: true});
+                moves.forEach(m => {
+                    if (m.piece !== 'p') sights.push(m.to);
+                });
+
+                const files = 'abcdefgh';
+                for (let r = 1; r <= 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        let sq = files[c] + r;
+                        let piece = temp.get(sq);
+                        if (piece && piece.color === color && piece.type === 'p') {
+                            let direction = (color === 'w') ? 1 : -1;
+                            let targetRank = r + direction;
+                            if (targetRank >= 1 && targetRank <= 8) {
+                                if (c > 0) sights.push(files[c - 1] + targetRank);
+                                if (c < 7) sights.push(files[c + 1] + targetRank);
+                            }
+                        }
+                    }
+                }
+            }
+            return [...new Set(sights)]; 
+        }
+
+        function isProtectedBy(square, color) {
+            let piece = game.get(square);
+            if (piece && piece.type === 'k') return false; 
+
+            let enemyColor = color === 'w' ? 'b' : 'w';
+            let tempGame = new Chess(game.fen());
+            
+            tempGame.put({ type: 'p', color: enemyColor }, square);
+            
+            let tokens = tempGame.fen().split(' ');
+            tokens[1] = color; 
+            tokens[3] = '-'; 
+
+            let temp2 = new Chess();
+            if (temp2.load(tokens.join(' '))) {
+                return temp2.moves({ verbose: true }).some(m => m.to === square);
+            }
+            return false;
+        }
+
+        // --- Listeners ---
+
+        $('#autoHintToggle').on('change', function() {
+            autoHint = this.checked;
+            if (autoHint) {
+                requestHints();
+            } else {
+                clearArrows();
+            }
+        });
+
+        $('#playWhiteBtn').on('click', () => {
+            game.reset();
+            board.position('start');
+            board.orientation('white');
+            botColor = 'b'; 
+            editMode = false;
+            $('#editModeToggle').prop('checked', false);
+            analyzeBoard();
+            requestHints();
+        });
+
+        $('#playBlackBtn').on('click', () => {
+            game.reset();
+            board.position('start');
+            board.orientation('black');
+            botColor = 'w'; 
+            editMode = false;
+            $('#editModeToggle').prop('checked', false);
+            analyzeBoard();
+            clearArrows();
+            triggerBotMove(); 
+        });
+
+        $('#flipBtn').on('click', () => {
+            board.flip();
+            analyzeBoard(); 
+            requestHints();
+        });
+
+        $('#clearBtn').on('click', () => {
+            game.clear();
+            board.clear();
+            botColor = null; 
+            analyzeBoard();
+            requestHints();
+        });
+
+        $('#editModeToggle').on('change', function() {
+            editMode = this.checked;
+            botColor = null; 
+            if (!editMode) {
+                if (!validateBoard()) {
+                    alert("Invalid board state for standard play (Kings are missing). Resetting board.");
+                    game.reset();
+                    board.position('start');
+                }
+            }
+            analyzeBoard();
+            requestHints();
+        });
+
+        analyzeBoard();
+    </script>
+</body>
+</html>
