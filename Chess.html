@@ -73,48 +73,65 @@
         }
         
         [class^="spare-pieces-"] img:active { cursor: grabbing !important; }
+
+        /* Custom scrollbar for notation */
+        #moveHistory::-webkit-scrollbar { width: 6px; }
+        #moveHistory::-webkit-scrollbar-track { background: #374151; border-radius: 4px; }
+        #moveHistory::-webkit-scrollbar-thumb { background: #6B7280; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200 font-sans p-2 sm:p-6 min-h-screen flex items-center justify-center">
+<body class="bg-gray-900 text-gray-200 font-sans p-2 sm:p-6 min-h-screen flex items-center justify-center overflow-hidden">
 
-    <div class="w-full max-w-[1600px] min-h-[85vh] bg-gray-800 rounded-lg shadow-2xl overflow-hidden flex flex-col lg:flex-row border border-gray-700">
+    <div class="w-full max-w-[1800px] h-[85vh] bg-gray-800 rounded-lg shadow-2xl flex flex-col lg:flex-row border border-gray-700">
         
-        <div class="py-10 px-12 sm:px-24 lg:px-32 lg:w-7/12 xl:w-8/12 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-gray-700 relative">
-            <div class="w-full flex justify-between items-center mb-6">
+        <div class="p-6 lg:p-8 lg:w-3/12 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-700 bg-gray-800 h-64 lg:h-full">
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Match History</h3>
+            <div class="flex flex-row flex-1 gap-4 overflow-hidden min-h-0">
+                <div class="w-6 bg-gray-700 rounded-full overflow-hidden flex flex-col justify-end border border-gray-600 relative shrink-0 shadow-inner">
+                    <div id="evalBarBlack" class="w-full bg-gray-900 transition-all duration-300 absolute top-0" style="height: 50%;"></div>
+                    <div id="evalBarWhite" class="w-full bg-gray-200 transition-all duration-300 absolute bottom-0" style="height: 50%;"></div>
+                </div>
+                <div id="moveHistory" class="flex-grow bg-gray-700 rounded-lg p-3 overflow-y-auto text-sm shadow-inner border border-gray-600 content-start">
+                    </div>
+            </div>
+        </div>
+
+        <div class="py-10 px-12 sm:px-24 lg:px-20 lg:w-6/12 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-gray-700 relative bg-gray-800">
+            <div class="w-full flex justify-between items-center mb-6 max-w-[75vh]">
                 <h2 class="text-3xl font-bold text-white tracking-wide">Chess Vision Practice</h2>
-                <div id="engineStatus" class="text-sm px-3 py-1 rounded bg-yellow-600 text-white font-medium">Loading Engine...</div>
+                <div id="engineStatus" class="text-sm px-3 py-1 rounded bg-yellow-600 text-white font-medium shadow-md">Loading Engine...</div>
             </div>
             <div id="board-wrapper">
                 <div id="board"></div>
             </div>
         </div>
 
-        <div class="p-6 lg:p-8 lg:w-5/12 xl:w-4/12 flex flex-col bg-gray-800 overflow-y-auto">
+        <div class="p-6 lg:p-8 lg:w-3/12 flex flex-col bg-gray-800 overflow-y-auto h-full">
             
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white">Play vs Bot</h3>
-            <div class="grid grid-cols-2 gap-3 mb-6 text-sm">
-                <select id="botElo" class="col-span-2 bg-gray-700 text-white py-3 px-4 rounded border border-gray-600 focus:outline-none focus:border-blue-500">
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Play vs Bot</h3>
+            <div class="grid grid-cols-2 gap-3 mb-6 text-sm shrink-0">
+                <select id="botElo" class="col-span-2 bg-gray-700 text-white py-3 px-4 rounded border border-gray-600 focus:outline-none focus:border-purple-500 transition">
                     <option value="800">Bot Elo: 800 (Beginner)</option>
                     <option value="1200">Bot Elo: 1200 (Intermediate)</option>
                     <option value="1500" selected>Bot Elo: 1500 (Club Player)</option>
                     <option value="2000">Bot Elo: 2000 (Expert)</option>
                     <option value="2500">Bot Elo: 2500 (Grandmaster)</option>
                 </select>
-                <button id="playWhiteBtn" class="bg-gray-200 hover:bg-white text-gray-900 py-2 px-4 rounded font-bold transition">Play as White</button>
-                <button id="playBlackBtn" class="bg-gray-900 hover:bg-black text-white py-2 px-4 rounded border border-gray-600 font-bold transition">Play as Black</button>
+                <button id="playWhiteBtn" class="bg-gray-200 hover:bg-white text-gray-900 py-2 px-4 rounded font-bold transition shadow">Play White</button>
+                <button id="playBlackBtn" class="bg-gray-900 hover:bg-black text-white py-2 px-4 rounded border border-gray-600 font-bold transition shadow">Play Black</button>
             </div>
 
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white mt-2">Board Controls</h3>
-            <div class="grid grid-cols-2 gap-3 mb-6 text-sm">
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white mt-2 shrink-0">Board Controls</h3>
+            <div class="grid grid-cols-2 gap-3 mb-6 text-sm shrink-0">
                 <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2 shadow-inner">
                     <label class="font-medium cursor-pointer flex items-center gap-2 text-white tracking-wide">
                         <input type="checkbox" id="autoHintToggle" class="w-5 h-5 rounded focus:ring-purple-500 bg-gray-600 border-gray-500 text-purple-600" checked>
                         Auto-Show Top 5 Moves
                     </label>
                 </div>
-                <button id="flipBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition">Flip Board</button>
-                <button id="clearBtn" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition">Clear Board</button>
-                <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2">
+                <button id="flipBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition shadow">Flip Board</button>
+                <button id="clearBtn" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition shadow">Clear Board</button>
+                <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2 shadow-inner">
                     <label class="font-medium cursor-pointer flex items-center gap-2 text-gray-200">
                         <input type="checkbox" id="editModeToggle" class="w-5 h-5 rounded focus:ring-blue-500 bg-gray-600 border-gray-500">
                         Edit Mode (Disables Bot)
@@ -122,10 +139,10 @@
                 </div>
             </div>
 
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white">Threat Analysis</h3>
-            <div class="bg-gray-700 p-5 rounded border border-gray-600 mb-6 shadow-sm flex-grow">
-                <h4 class="font-semibold text-gray-300 mb-2">Who has the better attack?</h4>
-                <div id="evaluationText" class="text-2xl font-bold text-white mb-4">Calculating...</div>
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Threat Analysis</h3>
+            <div class="bg-gray-700 p-5 rounded border border-gray-600 mb-6 shadow-sm flex-grow overflow-y-auto">
+                <h4 class="font-semibold text-gray-300 mb-2">Immediate Material Threats</h4>
+                <div id="evaluationText" class="text-lg font-bold text-white mb-4">Calculating...</div>
                 <div id="attackDetails" class="mt-4"></div>
             </div>
 
@@ -145,14 +162,14 @@
         let botColor = null; 
         let engineReady = false;
         
-        let engineMode = 'idle'; // 'idle', 'botMove', or 'hint'
+        let engineMode = 'idle'; 
         let currentHints = {};
-        let hintTimer = null; // Used to prevent spamming the engine during rapid edits
+        let hintTimer = null; 
 
         const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
         const pieceNames = { 'p': 'Pawn', 'n': 'Knight', 'b': 'Bishop', 'r': 'Rook', 'q': 'Queen', 'k': 'King' };
 
-        // Initialize Stockfish using a Blob
+        // Initialize Engine
         const stockfishUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js';
         fetch(stockfishUrl)
             .then(response => response.text())
@@ -167,8 +184,30 @@
                     if (line === 'uciok') {
                         engineReady = true;
                         document.getElementById('engineStatus').innerText = "Engine Ready";
-                        document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-green-600 text-white font-medium";
-                        requestHints(); // Calculate hints for starting position
+                        document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-green-600 text-white font-medium shadow-md";
+                        requestHints(); 
+                    }
+
+                    // --- Live Eval Bar Processing ---
+                    if (line.startsWith('info') && line.includes('score')) {
+                        // Only read the score from the primary line (multipv 1) to avoid flickering
+                        if (!line.includes('multipv') || line.includes('multipv 1')) {
+                            let cpMatch = line.match(/score cp (-?\d+)/);
+                            let mateMatch = line.match(/score mate (-?\d+)/);
+                            
+                            // Stockfish calculates from the perspective of the side whose turn it is
+                            let turnMultiplier = game.turn() === 'w' ? 1 : -1;
+                            
+                            let evalScore = 0;
+                            if (mateMatch) {
+                                // Forced mate is treated as an extreme score advantage
+                                let mateIn = parseInt(mateMatch[1]);
+                                evalScore = mateIn > 0 ? 10000 * turnMultiplier : -10000 * turnMultiplier;
+                            } else if (cpMatch) {
+                                evalScore = parseInt(cpMatch[1]) * turnMultiplier;
+                            }
+                            updateEvalBar(evalScore);
+                        }
                     }
 
                     if (engineMode === 'hint' && line.startsWith('info') && line.includes('multipv')) {
@@ -195,12 +234,12 @@
                                 
                                 game.move({ from: fromSq, to: toSq, promotion: promotion });
                                 board.position(game.fen());
+                                updateNotation();
                                 clearArrows();
                                 analyzeBoard();
                                 checkGameOver();
                             }
                             engineMode = 'idle';
-                            // Once bot finishes, request hints for the player's turn
                             requestHints(); 
                         }
                     }
@@ -209,13 +248,25 @@
             })
             .catch(err => {
                 document.getElementById('engineStatus').innerText = "Engine Load Failed";
-                document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-red-600 text-white font-medium";
+                document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-red-600 text-white font-medium shadow-md";
             });
+
+        function updateEvalBar(centipawns) {
+            // Apply the non-linear arctangent curve used by major chess platforms
+            // A scaling factor of 400 makes a +1 pawn advantage push the bar to ~65%
+            // and a +3 piece advantage push the bar to ~91%, before severely flattening out.
+            let whitePercent = 50 + 50 * (2 / Math.PI) * Math.atan(centipawns / 400);
+
+            // Safety clamp to ensure it strictly stays between 0% and 100%
+            whitePercent = Math.max(0, Math.min(100, whitePercent));
+            
+            document.getElementById('evalBarWhite').style.height = whitePercent + '%';
+            document.getElementById('evalBarBlack').style.height = (100 - whitePercent) + '%';
+        }
 
         function triggerBotMove() {
             if (!stockfish || !engineReady || game.game_over()) return;
             
-            // Abort any ongoing hint calculation
             stockfish.postMessage('stop');
             
             engineMode = 'botMove';
@@ -240,12 +291,9 @@
             clearTimeout(hintTimer);
             hintTimer = setTimeout(() => {
                 if (!autoHint || !stockfish || !engineReady || game.game_over()) return;
-                
-                // Do not calculate hints if it is the bot's turn to play
                 if (botColor === game.turn() && !editMode) return;
                 
-                stockfish.postMessage('stop'); // Stop any lingering calculations
-                
+                stockfish.postMessage('stop'); 
                 engineMode = 'hint';
                 currentHints = {};
                 
@@ -253,7 +301,28 @@
                 stockfish.postMessage('setoption name Skill Level value 20'); 
                 stockfish.postMessage('position fen ' + game.fen());
                 stockfish.postMessage('go depth 12'); 
-            }, 100); // 100ms buffer prevents spamming if user is dragging pieces quickly
+            }, 100); 
+        }
+
+        function updateNotation() {
+            let history = game.history();
+            let html = '';
+            for (let i = 0; i < history.length; i += 2) {
+                let moveNum = (i / 2) + 1;
+                let whiteMove = history[i];
+                let blackMove = history[i + 1] ? history[i + 1] : '';
+                html += `<div class="flex hover:bg-gray-600 px-2 py-1.5 rounded transition">
+                            <span class="w-8 text-gray-400">${moveNum}.</span>
+                            <span class="w-16 font-semibold text-white">${whiteMove}</span>
+                            <span class="w-16 font-semibold text-gray-300">${blackMove}</span>
+                         </div>`;
+            }
+            if (history.length === 0 && game.fen() !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+                html = `<div class="text-gray-400 italic px-2">Custom Position</div>`;
+            }
+            let container = document.getElementById('moveHistory');
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
         }
 
         // --- Arrow Drawing Logic ---
@@ -283,7 +352,7 @@
                 
                 let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
                 polygon.setAttribute("points", "0 0, 5 2.5, 0 5");
-                polygon.setAttribute("fill", "rgba(168, 85, 247, 0.9)"); // Tailwind Purple to match theme
+                polygon.setAttribute("fill", "rgba(168, 85, 247, 0.9)"); 
                 
                 marker.appendChild(polygon);
                 defs.appendChild(marker);
@@ -325,7 +394,7 @@
                 line.setAttribute("y1", y1 + "%");
                 line.setAttribute("x2", x2 + "%");
                 line.setAttribute("y2", y2 + "%");
-                line.setAttribute("stroke", "rgba(168, 85, 247, 0.8)"); // Tailwind Purple
+                line.setAttribute("stroke", "rgba(168, 85, 247, 0.8)"); 
                 line.setAttribute("stroke-width", "1.5%");
                 line.setAttribute("marker-end", "url(#arrowhead)");
                 line.setAttribute("stroke-linecap", "round");
@@ -358,12 +427,12 @@
             board.resize();
             setTimeout(analyzeBoard, 50); 
             clearArrows(); 
-            requestHints(); // Redraw arrows accurately after resize
+            requestHints(); 
         });
 
         function onDragStart(source, piece, position, orientation) {
             if (editMode) {
-                clearArrows(); // Clear immediately on pickup
+                clearArrows(); 
                 return true; 
             }
             if (game.game_over()) return false;
@@ -382,6 +451,7 @@
 
             if (editMode) {
                 syncGameWithBoard(newPos);
+                updateNotation();
                 analyzeBoard();
                 requestHints();
                 return;
@@ -394,17 +464,18 @@
             });
 
             if (move === null) {
-                requestHints(); // Put arrows back if move was illegal
+                requestHints(); 
                 return 'snapback';
             }
             
+            updateNotation();
             analyzeBoard();
             checkGameOver();
 
             if (!game.game_over() && botColor === game.turn()) {
                 setTimeout(triggerBotMove, 250); 
             } else {
-                requestHints(); // Calculate hints for the new position if human v human
+                requestHints(); 
             }
         }
 
@@ -426,16 +497,31 @@
         }
 
         function checkGameOver() {
-            let evalEl = document.getElementById('evaluationText');
             if (game.in_checkmate()) {
                 let winner = game.turn() === 'w' ? 'Black' : 'White';
-                evalEl.innerHTML = `<span class='text-green-400'>Checkmate! ${winner} wins.</span>`;
+                document.getElementById('engineStatus').innerHTML = `Checkmate! ${winner} Wins!`;
+                document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-green-500 text-white font-medium shadow-md";
+                
+                // Force eval bar to maximum limits
+                if(winner === 'White') {
+                    document.getElementById('evalBarWhite').style.height = '100%';
+                    document.getElementById('evalBarBlack').style.height = '0%';
+                } else {
+                    document.getElementById('evalBarWhite').style.height = '0%';
+                    document.getElementById('evalBarBlack').style.height = '100%';
+                }
             } else if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition()) {
-                evalEl.innerHTML = `<span class='text-yellow-400'>Game Over: Draw.</span>`;
+                document.getElementById('engineStatus').innerHTML = `Game Drawn`;
+                document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-yellow-500 text-white font-medium shadow-md";
+                document.getElementById('evalBarWhite').style.height = '50%';
+                document.getElementById('evalBarBlack').style.height = '50%';
+            } else {
+                document.getElementById('engineStatus').innerText = "Engine Ready";
+                document.getElementById('engineStatus').className = "text-sm px-3 py-1 rounded bg-green-600 text-white font-medium shadow-md";
             }
         }
 
-        // --- Threat Analysis ---
+        // --- Threat Analysis & Sight Logic ---
         function analyzeBoard() {
             $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked');
 
@@ -447,6 +533,8 @@
             if (!validateBoard()) {
                 evalEl.innerHTML = "<span class='text-red-400 text-base'>Analysis paused. Both Kings must be on the board.</span>";
                 detailsEl.innerHTML = "";
+                document.getElementById('evalBarWhite').style.height = '50%';
+                document.getElementById('evalBarBlack').style.height = '50%';
                 return;
             }
 
@@ -521,11 +609,13 @@
                 }
             });
 
+            // Update Material Score Difference Text
             let diff = whiteAttackScore - blackAttackScore;
-            if (diff > 0) evalEl.innerHTML = `White has the better attack (+${diff} pts)`;
-            else if (diff < 0) evalEl.innerHTML = `Black has the better attack (+${Math.abs(diff)} pts)`;
-            else evalEl.innerHTML = "Attacks are roughly equal";
+            if (diff > 0) evalEl.innerHTML = `White holds a material threat advantage (+${diff} pts)`;
+            else if (diff < 0) evalEl.innerHTML = `Black holds a material threat advantage (+${Math.abs(diff)} pts)`;
+            else evalEl.innerHTML = "Material threats are roughly equal";
 
+            // HTML Lists
             let detailHtml = `<div class="grid grid-cols-1 gap-6 border-t border-gray-600 pt-5 mt-2">`;
             
             detailHtml += `<div><strong class="text-white border-b border-gray-600 pb-1 block mb-3 text-lg">White is attacking:</strong>`;
@@ -555,6 +645,7 @@
             detailsEl.innerHTML = detailHtml;
         }
 
+        // Updated for King mapping
         function getTrueSights(color) {
             let fen = game.fen();
             let tokens = fen.split(' ');
@@ -566,8 +657,11 @@
 
             if (temp.load(tokens.join(' '))) {
                 let moves = temp.moves({verbose: true});
+                
                 moves.forEach(m => {
-                    if (m.piece !== 'p') sights.push(m.to);
+                    if (m.piece !== 'p' && m.piece !== 'k') {
+                        sights.push(m.to);
+                    }
                 });
 
                 const files = 'abcdefgh';
@@ -575,12 +669,26 @@
                     for (let c = 0; c < 8; c++) {
                         let sq = files[c] + r;
                         let piece = temp.get(sq);
-                        if (piece && piece.color === color && piece.type === 'p') {
-                            let direction = (color === 'w') ? 1 : -1;
-                            let targetRank = r + direction;
-                            if (targetRank >= 1 && targetRank <= 8) {
-                                if (c > 0) sights.push(files[c - 1] + targetRank);
-                                if (c < 7) sights.push(files[c + 1] + targetRank);
+                        
+                        if (piece && piece.color === color) {
+                            if (piece.type === 'p') {
+                                let direction = (color === 'w') ? 1 : -1;
+                                let targetRank = r + direction;
+                                if (targetRank >= 1 && targetRank <= 8) {
+                                    if (c > 0) sights.push(files[c - 1] + targetRank);
+                                    if (c < 7) sights.push(files[c + 1] + targetRank);
+                                }
+                            } else if (piece.type === 'k') {
+                                for (let dr = -1; dr <= 1; dr++) {
+                                    for (let dc = -1; dc <= 1; dc++) {
+                                        if (dr === 0 && dc === 0) continue;
+                                        let tr = r + dr;
+                                        let tc = c + dc;
+                                        if (tr >= 1 && tr <= 8 && tc >= 0 && tc <= 7) {
+                                            sights.push(files[tc] + tr);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -589,9 +697,29 @@
             return [...new Set(sights)]; 
         }
 
+        // Updated for King mapping
         function isProtectedBy(square, color) {
             let piece = game.get(square);
             if (piece && piece.type === 'k') return false; 
+
+            let files = 'abcdefgh';
+            let sqFile = files.indexOf(square.charAt(0));
+            let sqRank = parseInt(square.charAt(1));
+
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    let tr = sqRank + dr;
+                    let tc = sqFile + dc;
+                    if (tr >= 1 && tr <= 8 && tc >= 0 && tc <= 7) {
+                        let checkSq = files[tc] + tr;
+                        let p = game.get(checkSq);
+                        if (p && p.type === 'k' && p.color === color) {
+                            return true; 
+                        }
+                    }
+                }
+            }
 
             let enemyColor = color === 'w' ? 'b' : 'w';
             let tempGame = new Chess(game.fen());
@@ -613,11 +741,8 @@
 
         $('#autoHintToggle').on('change', function() {
             autoHint = this.checked;
-            if (autoHint) {
-                requestHints();
-            } else {
-                clearArrows();
-            }
+            if (autoHint) requestHints();
+            else clearArrows();
         });
 
         $('#playWhiteBtn').on('click', () => {
@@ -627,6 +752,7 @@
             botColor = 'b'; 
             editMode = false;
             $('#editModeToggle').prop('checked', false);
+            updateNotation();
             analyzeBoard();
             requestHints();
         });
@@ -638,6 +764,7 @@
             botColor = 'w'; 
             editMode = false;
             $('#editModeToggle').prop('checked', false);
+            updateNotation();
             analyzeBoard();
             clearArrows();
             triggerBotMove(); 
@@ -653,8 +780,11 @@
             game.clear();
             board.clear();
             botColor = null; 
+            updateNotation();
             analyzeBoard();
             requestHints();
+            document.getElementById('evalBarWhite').style.height = '50%';
+            document.getElementById('evalBarBlack').style.height = '50%';
         });
 
         $('#editModeToggle').on('change', function() {
@@ -667,6 +797,7 @@
                     board.position('start');
                 }
             }
+            updateNotation();
             analyzeBoard();
             requestHints();
         });
