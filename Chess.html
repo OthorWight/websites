@@ -128,12 +128,18 @@
                         Auto-Show Top 5 Moves
                     </label>
                 </div>
-                <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2 shadow-inner">
+                
+                <div class="flex items-center justify-between bg-gray-700 rounded p-2 border border-gray-600 col-span-2 shadow-inner">
                     <label class="font-medium cursor-pointer flex items-center gap-2 text-gray-200">
                         <input type="checkbox" id="editModeToggle" class="w-5 h-5 rounded focus:ring-blue-500 bg-gray-600 border-gray-500">
-                        Edit Mode (Disables Bot)
+                        Edit Mode
                     </label>
+                    <select id="turnSelect" disabled class="bg-gray-800 text-white py-1 px-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                        <option value="w">White to Move</option>
+                        <option value="b">Black to Move</option>
+                    </select>
                 </div>
+
                 <button id="flipBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition shadow col-span-2">Flip Board</button>
                 <button id="resetBtn" class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded transition shadow">Reset to Start</button>
                 <button id="clearBtn" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition shadow">Clear Board</button>
@@ -165,10 +171,29 @@
         let engineMode = 'idle'; 
         let currentHints = {};
         let hintTimer = null; 
-        let currentEvalScore = 0; // Tracks the most recent centipawn evaluation
+        let currentEvalScore = 0; 
 
         const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
         const pieceNames = { 'p': 'Pawn', 'n': 'Knight', 'b': 'Bishop', 'r': 'Rook', 'q': 'Queen', 'k': 'King' };
+
+        // Helper to get FEN respecting Edit Mode turn selections safely
+        function getCurrentFen() {
+            if (!editMode) return game.fen();
+            
+            let tokens = game.fen().split(' ');
+            tokens[1] = $('#turnSelect').val() || 'w';
+            
+            // Clear castling and en passant rights during Edit Mode to prevent engine rejection
+            tokens[2] = '-';
+            tokens[3] = '-';
+            return tokens.join(' ');
+        }
+
+        function updateTurnDropdown() {
+            if (!editMode) {
+                $('#turnSelect').val(game.turn());
+            }
+        }
 
         // Initialize Engine
         const stockfishUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js';
@@ -195,7 +220,9 @@
                             let cpMatch = line.match(/score cp (-?\d+)/);
                             let mateMatch = line.match(/score mate (-?\d+)/);
                             
-                            let turnMultiplier = game.turn() === 'w' ? 1 : -1;
+                            // Adjust multiplier to reflect who is actually playing
+                            let currentTurn = editMode ? $('#turnSelect').val() : game.turn();
+                            let turnMultiplier = currentTurn === 'w' ? 1 : -1;
                             
                             let evalScore = 0;
                             if (mateMatch) {
@@ -216,8 +243,10 @@
                     }
 
                     if (line.startsWith('bestmove')) {
+                        let currentTurn = editMode ? $('#turnSelect').val() : game.turn();
+                        
                         if (engineMode === 'hint') {
-                            if (autoHint && botColor !== game.turn()) {
+                            if (autoHint && botColor !== currentTurn) {
                                 let movesToDraw = Object.values(currentHints).slice(0, 5);
                                 drawArrows(movesToDraw);
                             }
@@ -232,6 +261,7 @@
                                 
                                 game.move({ from: fromSq, to: toSq, promotion: promotion });
                                 board.position(game.fen());
+                                updateTurnDropdown();
                                 updateNotation();
                                 clearArrows();
                                 analyzeBoard();
@@ -294,7 +324,7 @@
             
             stockfish.postMessage('setoption name MultiPV value 1'); 
             stockfish.postMessage('setoption name Skill Level value ' + skill);
-            stockfish.postMessage('position fen ' + game.fen());
+            stockfish.postMessage('position fen ' + getCurrentFen());
             stockfish.postMessage('go depth ' + depth); 
         }
 
@@ -302,7 +332,9 @@
             clearTimeout(hintTimer);
             hintTimer = setTimeout(() => {
                 if (!autoHint || !stockfish || !engineReady || game.game_over()) return;
-                if (botColor === game.turn() && !editMode) return;
+                
+                let currentTurn = editMode ? $('#turnSelect').val() : game.turn();
+                if (botColor === currentTurn && !editMode) return;
                 
                 stockfish.postMessage('stop'); 
                 engineMode = 'hint';
@@ -310,7 +342,7 @@
                 
                 stockfish.postMessage('setoption name MultiPV value 5');
                 stockfish.postMessage('setoption name Skill Level value 20'); 
-                stockfish.postMessage('position fen ' + game.fen());
+                stockfish.postMessage('position fen ' + getCurrentFen());
                 stockfish.postMessage('go depth 12'); 
             }, 100); 
         }
@@ -462,7 +494,6 @@
 
             if (editMode) {
                 syncGameWithBoard(newPos);
-                updateNotation();
                 analyzeBoard();
                 requestHints();
                 return;
@@ -479,6 +510,7 @@
                 return 'snapback';
             }
             
+            updateTurnDropdown();
             updateNotation();
             analyzeBoard();
             checkGameOver();
@@ -504,7 +536,7 @@
 
         function validateBoard() {
             let temp = new Chess();
-            return temp.load(game.fen());
+            return temp.load(getCurrentFen());
         }
 
         function checkGameOver() {
@@ -619,13 +651,11 @@
                 }
             });
 
-            // Update Material Score Difference Text
             let diff = whiteAttackScore - blackAttackScore;
             if (diff > 0) evalEl.innerHTML = `White holds a material threat advantage (+${diff} pts)`;
             else if (diff < 0) evalEl.innerHTML = `Black holds a material threat advantage (+${Math.abs(diff)} pts)`;
             else evalEl.innerHTML = "Material threats are roughly equal";
 
-            // HTML Lists
             let detailHtml = `<div class="grid grid-cols-1 gap-6 border-t border-gray-600 pt-5 mt-2">`;
             
             detailHtml += `<div><strong class="text-white border-b border-gray-600 pb-1 block mb-3 text-lg">White is attacking:</strong>`;
@@ -656,7 +686,7 @@
         }
 
         function getTrueSights(color) {
-            let fen = game.fen();
+            let fen = getCurrentFen();
             let tokens = fen.split(' ');
             tokens[1] = color;
             tokens[3] = '-'; 
@@ -730,7 +760,7 @@
             }
 
             let enemyColor = color === 'w' ? 'b' : 'w';
-            let tempGame = new Chess(game.fen());
+            let tempGame = new Chess(getCurrentFen());
             
             tempGame.put({ type: 'p', color: enemyColor }, square);
             
@@ -747,22 +777,34 @@
 
         // --- Listeners ---
 
+        $('#turnSelect').on('change', function() {
+            if (editMode) {
+                analyzeBoard();
+                requestHints();
+            }
+        });
+
         $('#startBotBtn').on('click', () => {
             if (!validateBoard()) {
                 alert("Invalid board state. Both Kings must be present to start the bot.");
                 return;
             }
-            editMode = false;
-            $('#editModeToggle').prop('checked', false);
             
-            // Bot plays whatever color is currently on top of the visual board
+            // If starting straight from edit mode, inject the custom FEN officially before turning edit mode off
+            if (editMode) {
+                let finalFen = getCurrentFen();
+                game.load(finalFen);
+                editMode = false;
+                $('#editModeToggle').prop('checked', false);
+                $('#turnSelect').prop('disabled', true);
+            }
+            
             botColor = board.orientation() === 'white' ? 'b' : 'w';
             
             updateNotation();
             analyzeBoard();
             clearArrows();
             
-            // If it happens to be the bot's turn in the current custom position, trigger it immediately
             if (!game.game_over() && botColor === game.turn()) {
                 triggerBotMove();
             } else {
@@ -778,9 +820,8 @@
 
         $('#flipBtn').on('click', () => {
             board.flip();
-            updateEvalBar(currentEvalScore); // Flip eval bar immediately
+            updateEvalBar(currentEvalScore); 
             
-            // If the bot is active, it smoothly switches sides to keep playing the top color
             if (botColor !== null) {
                 botColor = board.orientation() === 'white' ? 'b' : 'w';
                 if (!game.game_over() && botColor === game.turn()) {
@@ -796,6 +837,7 @@
             game.reset();
             board.position('start');
             botColor = null; 
+            updateTurnDropdown();
             updateNotation();
             analyzeBoard();
             requestHints();
@@ -806,6 +848,7 @@
             game.clear();
             board.clear();
             botColor = null; 
+            updateTurnDropdown();
             updateNotation();
             analyzeBoard();
             requestHints();
@@ -813,13 +856,19 @@
         });
 
         $('#editModeToggle').on('change', function() {
+            let isTurningOff = !this.checked && editMode;
             editMode = this.checked;
             botColor = null; 
-            if (!editMode) {
-                if (!validateBoard()) {
-                    alert("Invalid board state for standard play (Kings are missing). Resetting board.");
+            
+            $('#turnSelect').prop('disabled', !editMode);
+
+            if (isTurningOff) {
+                let finalFen = getCurrentFen();
+                if (!game.load(finalFen)) {
+                    alert("Invalid board state for standard play. Resetting board.");
                     game.reset();
                     board.position('start');
+                    updateTurnDropdown();
                 }
             }
             updateNotation();
