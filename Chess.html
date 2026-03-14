@@ -228,6 +228,30 @@
         const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
         const pieceNames = { 'p': 'Pawn', 'n': 'Knight', 'b': 'Bishop', 'r': 'Rook', 'q': 'Queen', 'k': 'King' };
 
+        const sounds = {
+            move: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-self.mp3'),
+            capture: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/capture.mp3'),
+            castle: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/castle.mp3'),
+            promote: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/promote.mp3'),
+            check: new Audio('https://images.chesscomfiles.com/chess-themes/sounds/_MP3_/default/move-check.mp3')
+        };
+
+        function playSound(move) {
+            if (!move) return;
+            try {
+                let sound = sounds.move;
+                if (move.san && (move.san.includes('+') || move.san.includes('#'))) sound = sounds.check;
+                else if (move.promotion) sound = sounds.promote;
+                else if (move.captured) sound = sounds.capture;
+                else if (move.san && move.san.includes('O-O')) sound = sounds.castle;
+                
+                sound.currentTime = 0;
+                sound.play().catch(() => {});
+            } catch (e) {
+                // Ignore audio playback errors (e.g. browser interaction policies)
+            }
+        }
+
         // Helper to get FEN respecting Edit Mode turn selections safely
         function getCurrentFen() {
             if (!editMode) return game.fen();
@@ -337,6 +361,8 @@
                                 }
 
                                 let move = game.move({ from: fromSq, to: toSq, promotion: promotion });
+                                
+                                playSound(move);
 
                                 // Add new state to history
                                 fullHistory.push({ fen: game.fen(), move: move });
@@ -417,9 +443,11 @@
             currentMoveIndex = index;
             isViewingHistory = (currentMoveIndex < fullHistory.length - 1);
 
-            const { fen } = fullHistory[index];
+            const { fen, move } = fullHistory[index];
             board.position(fen);
             game.load(fen); // Keep the game object in sync
+            
+            if (move) playSound(move);
 
             if (!isViewingHistory) {
                  checkGameOver(); // Re-run game over check for the latest position
@@ -743,6 +771,8 @@
 
             let move = game.move(moveObj);
             
+            playSound(move);
+            
             // Add new state to history
             fullHistory.push({ fen: game.fen(), move: move });
             currentMoveIndex = fullHistory.length - 1;
@@ -779,6 +809,7 @@
                             pendingPromotion = null;
 
                             if (move) {
+                                playSound(move);
                                 fullHistory.push({ fen: game.fen(), move: move });
                                 currentMoveIndex = fullHistory.length - 1;
                                 isViewingHistory = false;
