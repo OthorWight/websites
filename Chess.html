@@ -11,6 +11,11 @@
         .highlight-attacked { box-shadow: inset 0 0 0 4px rgba(239, 68, 68, 0.9) !important; } 
         .highlight-protected { box-shadow: inset 0 0 0 4px rgba(34, 197, 94, 0.9) !important; } 
         .highlight-both { box-shadow: inset 0 0 0 4px rgba(249, 115, 22, 0.9) !important; } 
+
+        .highlight-last-move { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4) !important; }
+        .highlight-last-move.highlight-attacked { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4), inset 0 0 0 4px rgba(239, 68, 68, 0.9) !important; }
+        .highlight-last-move.highlight-protected { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4), inset 0 0 0 4px rgba(34, 197, 94, 0.9) !important; }
+        .highlight-last-move.highlight-both { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4), inset 0 0 0 4px rgba(249, 115, 22, 0.9) !important; }
         
         .highlight-empty-attacked::after {
             content: '';
@@ -74,6 +79,21 @@
         
         [class^="spare-pieces-"] img:active { cursor: grabbing !important; }
 
+        /* Promotion Highlights */
+        #board.promotion-pending[data-promotion-color="w"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="wQ"],
+        #board.promotion-pending[data-promotion-color="w"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="wR"],
+        #board.promotion-pending[data-promotion-color="w"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="wB"],
+        #board.promotion-pending[data-promotion-color="w"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="wN"],
+        #board.promotion-pending[data-promotion-color="b"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="bQ"],
+        #board.promotion-pending[data-promotion-color="b"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="bR"],
+        #board.promotion-pending[data-promotion-color="b"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="bB"],
+        #board.promotion-pending[data-promotion-color="b"] [class^="chessboard-"] > [class^="spare-pieces-"] img[data-piece="bN"] {
+            background-color: rgba(168, 85, 247, 0.4) !important;
+            box-shadow: 0 0 10px 4px rgba(168, 85, 247, 0.8) !important;
+            border-radius: 50%;
+            cursor: pointer !important;
+        }
+
         /* Custom scrollbar for notation */
         #moveHistory::-webkit-scrollbar { width: 6px; }
         #moveHistory::-webkit-scrollbar-track { background: #374151; border-radius: 4px; }
@@ -85,7 +105,13 @@
     <div class="w-full max-w-[1800px] h-[85vh] bg-gray-800 rounded-lg shadow-2xl flex flex-col lg:flex-row border border-gray-700">
         
         <div class="p-6 lg:p-8 lg:w-3/12 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-700 bg-gray-800 h-64 lg:h-full">
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Match History</h3>
+            <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2 shrink-0">
+                <h3 class="text-xl font-semibold text-white">Match History</h3>
+                <div class="flex items-center gap-2">
+                    <select id="timelineSelect" class="hidden bg-gray-700 text-white py-1 px-2 rounded border border-gray-600 text-xs focus:outline-none focus:border-purple-500"></select>
+                    <button id="exportPgnBtn" class="bg-gray-700 hover:bg-gray-600 text-white py-1 px-2 rounded border border-gray-600 text-xs focus:outline-none focus:border-purple-500 transition">Export PGN</button>
+                </div>
+            </div>
             <div class="flex flex-row flex-1 gap-4 overflow-hidden min-h-0">
                 <div class="w-6 bg-gray-700 rounded-full overflow-hidden flex flex-col border border-gray-600 relative shrink-0 shadow-inner">
                     <div id="evalBarBlack" class="w-full bg-gray-900 transition-all duration-300 absolute" style="height: 50%; top: 0;"></div>
@@ -143,6 +169,10 @@
                 <button id="flipBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition shadow col-span-2">Flip Board</button>
                 <button id="resetBtn" class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded transition shadow">Reset to Start</button>
                 <button id="clearBtn" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition shadow">Clear Board</button>
+                
+                <div class="col-span-2 text-center text-xs text-gray-400 mt-1 italic">
+                    Tip: When a pawn reaches the end, click a highlighted spare piece to promote.
+                </div>
             </div>
 
             <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Threat Analysis</h3>
@@ -155,12 +185,33 @@
         </div>
     </div>
 
+    <!-- PGN Modal -->
+    <div id="pgnModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center">
+        <div class="bg-gray-800 border border-gray-700 p-6 rounded-lg shadow-2xl w-11/12 max-w-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-white tracking-wide">Export Game Notation (PGN)</h3>
+                <button id="closePgnIconBtn" class="text-gray-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+            </div>
+            <textarea id="pgnTextarea" class="w-full h-64 bg-gray-900 text-gray-300 p-4 rounded border border-gray-600 font-mono text-sm mb-5 focus:outline-none focus:border-purple-500 resize-none" readonly></textarea>
+            <div class="flex justify-end gap-3">
+                <button id="closePgnBtn" class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded transition shadow">Close</button>
+                <button id="copyPgnBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition shadow">Copy to Clipboard</button>
+                <button id="downloadPgnBtn" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded transition shadow">Download .pgn</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
     <script>
         let board = null;
         let game = new Chess();
+        let allTimelines = [{ name: "Main Line", history: [{ fen: game.fen(), move: null }] }];
+        let currentTimelineIndex = 0;
+        let fullHistory = allTimelines[0].history;
+        let currentMoveIndex = 0;
+        let isViewingHistory = false;
         let editMode = false;
         let autoHint = true;
         
@@ -172,6 +223,7 @@
         let currentHints = {};
         let hintTimer = null; 
         let currentEvalScore = 0; 
+        let pendingPromotion = null;
 
         const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
         const pieceNames = { 'p': 'Pawn', 'n': 'Knight', 'b': 'Bishop', 'r': 'Rook', 'q': 'Queen', 'k': 'King' };
@@ -225,13 +277,27 @@
                             let turnMultiplier = currentTurn === 'w' ? 1 : -1;
                             
                             let evalScore = 0;
+                            let scoreText = '';
                             if (mateMatch) {
                                 let mateIn = parseInt(mateMatch[1]);
                                 evalScore = mateIn > 0 ? 10000 * turnMultiplier : -10000 * turnMultiplier;
+                                let whiteMate = mateIn * turnMultiplier;
+                                scoreText = whiteMate > 0 ? `M${whiteMate}` : `-M${Math.abs(whiteMate)}`;
                             } else if (cpMatch) {
                                 evalScore = parseInt(cpMatch[1]) * turnMultiplier;
+                                scoreText = (evalScore > 0 ? '+' : '') + (evalScore / 100).toFixed(2);
+                                if (evalScore === 0) scoreText = "0.00";
                             }
                             updateEvalBar(evalScore);
+                            
+                            if (fullHistory[currentMoveIndex]) {
+                                fullHistory[currentMoveIndex].scoreText = scoreText;
+                                if (currentMoveIndex > 0) {
+                                    let moveNum = Math.floor((currentMoveIndex - 1) / 2) + 1;
+                                    let scoreEl = document.getElementById(`score-row-${moveNum}`);
+                                    if (scoreEl) scoreEl.innerText = scoreText;
+                                }
+                            }
                         }
                     }
 
@@ -259,7 +325,24 @@
                                 let toSq = moveStr.substring(2, 4);
                                 let promotion = moveStr.length > 4 ? moveStr.substring(4, 5) : 'q';
                                 
-                                game.move({ from: fromSq, to: toSq, promotion: promotion });
+                                // If we were viewing history, truncate the future
+                                if (isViewingHistory) {
+                                    game.load(fullHistory[currentMoveIndex].fen);
+                                    let newTimelineName = "Variation " + allTimelines.length;
+                                    let branchedHistory = fullHistory.slice(0, currentMoveIndex + 1);
+                                    allTimelines.push({ name: newTimelineName, history: branchedHistory });
+                                    currentTimelineIndex = allTimelines.length - 1;
+                                    fullHistory = allTimelines[currentTimelineIndex].history;
+                                    updateTimelineDropdown();
+                                }
+
+                                let move = game.move({ from: fromSq, to: toSq, promotion: promotion });
+
+                                // Add new state to history
+                                fullHistory.push({ fen: game.fen(), move: move });
+                                currentMoveIndex = fullHistory.length - 1;
+                                isViewingHistory = false;
+
                                 board.position(game.fen());
                                 updateTurnDropdown();
                                 updateNotation();
@@ -328,13 +411,45 @@
             stockfish.postMessage('go depth ' + depth); 
         }
 
-        function requestHints() {
+        function showHistoryState(index) {
+            if (index < 0 || index >= fullHistory.length) return;
+
+            currentMoveIndex = index;
+            isViewingHistory = (currentMoveIndex < fullHistory.length - 1);
+
+            const { fen } = fullHistory[index];
+            board.position(fen);
+            game.load(fen); // Keep the game object in sync
+
+            if (!isViewingHistory) {
+                 checkGameOver(); // Re-run game over check for the latest position
+            }
+
+            // Update notation to reflect the new state and apply highlights
+            updateNotation();
+
+            // Always clear arrows and highlights when jumping in history
+            clearArrows();
+            analyzeBoard(); 
+            
+            // Request hints for the historical position
+            let tempGame = new Chess(fen);
+            if (!tempGame.game_over()) {
+                 requestHints(fen);
+            }
+        }
+
+        function requestHints(customFen = null) {
             clearTimeout(hintTimer);
             hintTimer = setTimeout(() => {
-                if (!autoHint || !stockfish || !engineReady || game.game_over()) return;
+                if (!autoHint || !stockfish || !engineReady) return;
                 
-                let currentTurn = editMode ? $('#turnSelect').val() : game.turn();
-                if (botColor === currentTurn && !editMode) return;
+                const fenForHint = customFen || getCurrentFen();
+                const tempGame = new Chess(fenForHint);
+                if (tempGame.game_over()) return;
+
+                // Don't show hints if it's the bot's turn in a live game
+                if (!customFen && !editMode && botColor === tempGame.turn()) return;
                 
                 stockfish.postMessage('stop'); 
                 engineMode = 'hint';
@@ -342,31 +457,88 @@
                 
                 stockfish.postMessage('setoption name MultiPV value 5');
                 stockfish.postMessage('setoption name Skill Level value 20'); 
-                stockfish.postMessage('position fen ' + getCurrentFen());
+                stockfish.postMessage('position fen ' + fenForHint);
                 stockfish.postMessage('go depth 12'); 
             }, 100); 
         }
 
         function updateNotation() {
-            let history = game.history();
             let html = '';
-            for (let i = 0; i < history.length; i += 2) {
-                let moveNum = (i / 2) + 1;
-                let whiteMove = history[i];
-                let blackMove = history[i + 1] ? history[i + 1] : '';
-                html += `<div class="flex hover:bg-gray-600 px-2 py-1.5 rounded transition">
-                            <span class="w-8 text-gray-400">${moveNum}.</span>
-                            <span class="w-16 font-semibold text-white">${whiteMove}</span>
-                            <span class="w-16 font-semibold text-gray-300">${blackMove}</span>
+            // Build notation from fullHistory to preserve it when loading earlier states
+            for (let i = 1; i < fullHistory.length; i += 2) {
+                let moveNum = Math.floor(i / 2) + 1;
+                let whiteMove = fullHistory[i].move ? fullHistory[i].move.san : '';
+                let blackMove = (fullHistory[i + 1] && fullHistory[i + 1].move) ? fullHistory[i + 1].move.san : '';
+
+                const whiteMoveHistIndex = i;
+                const blackMoveHistIndex = i + 1;
+                
+                let whiteBg = (whiteMoveHistIndex === currentMoveIndex) ? 'bg-purple-800' : 'hover:bg-gray-600';
+                let blackBg = (blackMoveHistIndex === currentMoveIndex) ? 'bg-purple-800' : (blackMove ? 'hover:bg-gray-600' : '');
+
+                let activeIndexInRow = (currentMoveIndex === whiteMoveHistIndex || currentMoveIndex === blackMoveHistIndex) ? currentMoveIndex : (blackMove ? blackMoveHistIndex : whiteMoveHistIndex);
+                let rowScoreText = fullHistory[activeIndexInRow] ? (fullHistory[activeIndexInRow].scoreText || '') : '';
+
+                html += `<div class="flex items-center">
+                            <span class="w-8 text-gray-400 shrink-0">${moveNum}.</span>
+                            <span class="w-20 font-semibold text-white rounded transition px-2 py-0.5 cursor-pointer ${whiteBg}" data-move-index="${whiteMoveHistIndex}">${whiteMove}</span>
+                            <span class="w-20 font-semibold text-gray-300 rounded transition px-2 py-0.5 ${blackMove ? 'cursor-pointer ' + blackBg : ''}" data-move-index="${blackMoveHistIndex}">${blackMove}</span>
+                            <span class="w-12 ml-auto text-xs font-mono text-gray-400 text-right shrink-0" id="score-row-${moveNum}">${rowScoreText}</span>
                          </div>`;
             }
-            if (history.length === 0 && game.fen() !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+            if (fullHistory.length === 1 && fullHistory[0].fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
                 html = `<div class="text-gray-400 italic px-2">Custom Position</div>`;
             }
             let container = document.getElementById('moveHistory');
             container.innerHTML = html;
-            container.scrollTop = container.scrollHeight;
+            
+            // Add click listeners
+            $('#moveHistory span[data-move-index]').on('click', function() {
+                const index = parseInt($(this).data('move-index'));
+                if (!isNaN(index)) {
+                   showHistoryState(index);
+                }
+            });
+
+            // Auto-scroll to the current move
+            const activeMove = container.querySelector('.bg-purple-800');
+            if (activeMove) {
+                activeMove.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else if (!isViewingHistory) { // only scroll to bottom if we are at the latest move
+                container.scrollTop = container.scrollHeight;
+            }
         }
+
+        function updateTimelineDropdown() {
+            let select = $('#timelineSelect');
+            if (allTimelines.length > 1) {
+                select.removeClass('hidden');
+                select.empty();
+                allTimelines.forEach((tl, idx) => {
+                    select.append(`<option value="${idx}" ${idx === currentTimelineIndex ? 'selected' : ''}>${tl.name}</option>`);
+                });
+            } else {
+                select.addClass('hidden');
+            }
+        }
+        
+        $('#timelineSelect').on('change', function() {
+            currentTimelineIndex = parseInt($(this).val());
+            fullHistory = allTimelines[currentTimelineIndex].history;
+            currentMoveIndex = fullHistory.length - 1;
+            isViewingHistory = false;
+            
+            let fen = fullHistory[currentMoveIndex].fen;
+            game.load(fen);
+            board.position(fen);
+            
+            updateTurnDropdown();
+            updateNotation();
+            clearArrows();
+            analyzeBoard();
+            checkGameOver();
+            requestHints();
+        });
 
         // --- Arrow Drawing Logic ---
         function drawArrows(moves) {
@@ -466,6 +638,30 @@
         };
         board = Chessboard('board', config);
 
+        $('#board').on('wheel', function(event) {
+            if (pendingPromotion) return;
+            event.preventDefault();
+            if (event.originalEvent.deltaY < 0) {
+                // Scroll Up - Go back in history
+                showHistoryState(currentMoveIndex - 1);
+            } else {
+                // Scroll Down - Go forward in history
+                showHistoryState(currentMoveIndex + 1);
+            }
+        });
+
+        $(document).on('keydown', function(event) {
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') return;
+            if (pendingPromotion) return;
+            if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+                event.preventDefault();
+                showHistoryState(currentMoveIndex - 1);
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+                event.preventDefault();
+                showHistoryState(currentMoveIndex + 1);
+            }
+        });
+
         $(window).resize(() => {
             board.resize();
             setTimeout(analyzeBoard, 50); 
@@ -494,22 +690,64 @@
 
             if (editMode) {
                 syncGameWithBoard(newPos);
+                // When in edit mode, we don't want to pollute the main game history
+                allTimelines = [{ name: "Main Line", history: [{ fen: getCurrentFen(), move: null }] }];
+                currentTimelineIndex = 0;
+                fullHistory = allTimelines[0].history;
+                currentMoveIndex = 0;
+                isViewingHistory = false;
+                updateTimelineDropdown();
+                updateNotation();
                 analyzeBoard();
                 requestHints();
                 return;
             }
 
-            let move = game.move({
-                from: source,
-                to: target,
-                promotion: 'q'
-            });
+            // Test if the move is valid before officially committing to it or truncating history
+            let isPromotion = false;
+            let moveObj = { from: source, to: target, promotion: 'q' };
+            
+            if (piece.charAt(1).toLowerCase() === 'p') {
+                if ((piece.charAt(0) === 'w' && target.charAt(1) === '8') ||
+                    (piece.charAt(0) === 'b' && target.charAt(1) === '1')) {
+                    isPromotion = true;
+                }
+            }
 
-            if (move === null) {
+            let testFen = isViewingHistory ? fullHistory[currentMoveIndex].fen : game.fen();
+            let tempGame = new Chess(testFen);
+            let testMove = tempGame.move(moveObj);
+
+            if (testMove === null) {
                 requestHints(); 
                 return 'snapback';
             }
             
+            // Valid move! Now safely truncate history if we were reviewing the past
+            if (isViewingHistory) {
+                game.load(fullHistory[currentMoveIndex].fen);
+                let newTimelineName = "Variation " + allTimelines.length;
+                let branchedHistory = fullHistory.slice(0, currentMoveIndex + 1);
+                allTimelines.push({ name: newTimelineName, history: branchedHistory });
+                currentTimelineIndex = allTimelines.length - 1;
+                fullHistory = allTimelines[currentTimelineIndex].history;
+                updateTimelineDropdown();
+            }
+
+            // Pause the move logic to wait for the user to pick a spare piece
+            if (isPromotion) {
+                pendingPromotion = { source: source, target: target, color: piece.charAt(0) };
+                $('#board').addClass('promotion-pending').attr('data-promotion-color', piece.charAt(0));
+                return; 
+            }
+
+            let move = game.move(moveObj);
+            
+            // Add new state to history
+            fullHistory.push({ fen: game.fen(), move: move });
+            currentMoveIndex = fullHistory.length - 1;
+            isViewingHistory = false;
+
             updateTurnDropdown();
             updateNotation();
             analyzeBoard();
@@ -522,8 +760,57 @@
             }
         }
 
+        // Handle piece selection during promotion or cancelation if clicked elsewhere
+        $(document).on('mousedown', function(e) {
+            if (pendingPromotion) {
+                let sparePieceImg = $(e.target).closest('[class^="spare-pieces-"] img');
+                if (sparePieceImg.length) {
+                    let piece = sparePieceImg.attr('data-piece');
+                    if (piece && piece.charAt(0) === pendingPromotion.color) {
+                        let type = piece.charAt(1).toLowerCase();
+                        if (['q', 'r', 'b', 'n'].includes(type)) {
+                            let move = game.move({
+                                from: pendingPromotion.source,
+                                to: pendingPromotion.target,
+                                promotion: type
+                            });
+
+                            $('#board').removeClass('promotion-pending').removeAttr('data-promotion-color');
+                            pendingPromotion = null;
+
+                            if (move) {
+                                fullHistory.push({ fen: game.fen(), move: move });
+                                currentMoveIndex = fullHistory.length - 1;
+                                isViewingHistory = false;
+
+                                board.position(game.fen());
+                                updateTurnDropdown();
+                                updateNotation();
+                                analyzeBoard();
+                                checkGameOver();
+
+                                if (!game.game_over() && botColor === game.turn()) {
+                                    setTimeout(triggerBotMove, 250); 
+                                } else {
+                                    requestHints(); 
+                                }
+                            } else {
+                                board.position(game.fen());
+                            }
+                            return;
+                        }
+                    }
+                }
+                
+                // If clicked anywhere besides a valid spare piece, cancel the promotion
+                $('#board').removeClass('promotion-pending').removeAttr('data-promotion-color');
+                pendingPromotion = null;
+                board.position(game.fen());
+            }
+        });
+
         function onSnapEnd() {
-            if (!editMode) board.position(game.fen());
+            if (!editMode && !pendingPromotion) board.position(game.fen());
         }
 
         function syncGameWithBoard(posObj) {
@@ -563,22 +850,36 @@
             }
         }
 
+        function highlightLastMove() {
+            $('#board .square-55d63').removeClass('highlight-last-move');
+            if (currentMoveIndex > 0 && fullHistory[currentMoveIndex].move) {
+                let move = fullHistory[currentMoveIndex].move;
+                $('#board .square-' + move.from).addClass('highlight-last-move');
+                $('#board .square-' + move.to).addClass('highlight-last-move');
+            }
+        }
+
         // --- Threat Analysis & Sight Logic ---
         function analyzeBoard() {
-            $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked');
+            highlightLastMove();
 
             if (game.game_over()) return; 
-
-            let evalEl = document.getElementById('evaluationText');
-            let detailsEl = document.getElementById('attackDetails');
             
             if (!validateBoard()) {
+                $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked highlight-last-move');
+                let evalEl = document.getElementById('evaluationText');
+                let detailsEl = document.getElementById('attackDetails');
                 evalEl.innerHTML = "<span class='text-red-400 text-base'>Analysis paused. Both Kings must be on the board.</span>";
                 detailsEl.innerHTML = "";
                 document.getElementById('evalBarWhite').style.height = '50%';
                 document.getElementById('evalBarBlack').style.height = '50%';
                 return;
             }
+
+            $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked');
+
+            let evalEl = document.getElementById('evaluationText');
+            let detailsEl = document.getElementById('attackDetails');
 
             let whiteMoves = getTrueSights('w');
             let blackMoves = getTrueSights('b');
@@ -797,6 +1098,14 @@
                 editMode = false;
                 $('#editModeToggle').prop('checked', false);
                 $('#turnSelect').prop('disabled', true);
+                
+                // Reset history since we are starting from a new custom position
+                allTimelines = [{ name: "Main Line", history: [{ fen: finalFen, move: null }] }];
+                currentTimelineIndex = 0;
+                fullHistory = allTimelines[0].history;
+                currentMoveIndex = 0;
+                isViewingHistory = false;
+                updateTimelineDropdown();
             }
             
             botColor = board.orientation() === 'white' ? 'b' : 'w';
@@ -837,6 +1146,12 @@
             game.reset();
             board.position('start');
             botColor = null; 
+            isViewingHistory = false;
+            allTimelines = [{ name: "Main Line", history: [{ fen: game.fen(), move: null }] }];
+            currentTimelineIndex = 0;
+            fullHistory = allTimelines[0].history;
+            currentMoveIndex = 0;
+            updateTimelineDropdown();
             updateTurnDropdown();
             updateNotation();
             analyzeBoard();
@@ -848,6 +1163,12 @@
             game.clear();
             board.clear();
             botColor = null; 
+            isViewingHistory = false;
+            allTimelines = [{ name: "Main Line", history: [{ fen: game.fen(), move: null }] }];
+            currentTimelineIndex = 0;
+            fullHistory = allTimelines[0].history;
+            currentMoveIndex = 0;
+            updateTimelineDropdown();
             updateTurnDropdown();
             updateNotation();
             analyzeBoard();
@@ -868,12 +1189,82 @@
                     alert("Invalid board state for standard play. Resetting board.");
                     game.reset();
                     board.position('start');
-                    updateTurnDropdown();
                 }
             }
-            updateNotation();
+            
+            // Reset history when entering/leaving edit mode
+            allTimelines = [{ name: "Main Line", history: [{ fen: getCurrentFen(), move: null }] }];
+            currentTimelineIndex = 0;
+            fullHistory = allTimelines[0].history;
+            currentMoveIndex = 0;
+            isViewingHistory = false;
+            updateTimelineDropdown();
+            
             analyzeBoard();
             requestHints();
+            updateNotation();
+        });
+
+        // --- PGN Export Logic ---
+        function generatePGN() {
+            let tempGame = new Chess();
+            
+            // Handle custom starting positions
+            if (fullHistory[0].fen !== 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
+                tempGame.load(fullHistory[0].fen);
+                tempGame.header('SetUp', '1');
+                tempGame.header('FEN', fullHistory[0].fen);
+            }
+            
+            tempGame.header('Event', allTimelines[currentTimelineIndex].name);
+            tempGame.header('Site', 'Chess Vision Practice');
+            tempGame.header('Date', new Date().toISOString().split('T')[0].replace(/-/g, '.'));
+            tempGame.header('White', 'Player');
+            tempGame.header('Black', botColor !== null ? `Bot (${$('#botElo').val()} Elo)` : 'Player');
+            
+            // Replay the full current timeline to build the PGN
+            for (let i = 1; i < fullHistory.length; i++) {
+                if (fullHistory[i].move) {
+                    tempGame.move(fullHistory[i].move);
+                }
+            }
+            
+            return tempGame.pgn();
+        }
+
+        $('#exportPgnBtn').on('click', () => {
+            $('#pgnTextarea').val(generatePGN());
+            $('#pgnModal').removeClass('hidden');
+        });
+
+        $('#closePgnBtn, #closePgnIconBtn').on('click', () => {
+            $('#pgnModal').addClass('hidden');
+        });
+
+        $('#copyPgnBtn').on('click', function() {
+            let $btn = $(this);
+            navigator.clipboard.writeText($('#pgnTextarea').val()).then(() => {
+                let originalText = $btn.text();
+                $btn.text('Copied!');
+                $btn.removeClass('bg-blue-600 hover:bg-blue-700').addClass('bg-green-600 hover:bg-green-700');
+                setTimeout(() => {
+                    $btn.text(originalText);
+                    $btn.removeClass('bg-green-600 hover:bg-green-700').addClass('bg-blue-600 hover:bg-blue-700');
+                }, 2000);
+            });
+        });
+
+        $('#downloadPgnBtn').on('click', () => {
+            let pgn = $('#pgnTextarea').val();
+            let blob = new Blob([pgn], { type: 'text/plain' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = `chess_practice_${new Date().toISOString().split('T')[0]}.pgn`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
 
         analyzeBoard();
