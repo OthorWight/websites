@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Vision Practice</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     <style>
         .highlight-attacked { box-shadow: inset 0 0 0 4px rgba(239, 68, 68, 0.9) !important; } 
@@ -13,9 +12,9 @@
         .highlight-both { box-shadow: inset 0 0 0 4px rgba(249, 115, 22, 0.9) !important; } 
 
         .highlight-last-move { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4) !important; }
-        .highlight-last-move.highlight-attacked { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4), inset 0 0 0 4px rgba(239, 68, 68, 0.9) !important; }
-        .highlight-last-move.highlight-protected { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4), inset 0 0 0 4px rgba(34, 197, 94, 0.9) !important; }
-        .highlight-last-move.highlight-both { box-shadow: inset 0 0 0 100px rgba(234, 179, 8, 0.4), inset 0 0 0 4px rgba(249, 115, 22, 0.9) !important; }
+        .highlight-last-move.highlight-attacked { box-shadow: inset 0 0 0 4px rgba(239, 68, 68, 0.9), inset 0 0 0 100px rgba(234, 179, 8, 0.4) !important; }
+        .highlight-last-move.highlight-protected { box-shadow: inset 0 0 0 4px rgba(34, 197, 94, 0.9), inset 0 0 0 100px rgba(234, 179, 8, 0.4) !important; }
+        .highlight-last-move.highlight-both { box-shadow: inset 0 0 0 4px rgba(249, 115, 22, 0.9), inset 0 0 0 100px rgba(234, 179, 8, 0.4) !important; }
         
         .highlight-empty-attacked::after {
             content: '';
@@ -175,11 +174,17 @@
                 </div>
             </div>
 
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Threat Analysis</h3>
-            <div class="bg-gray-700 p-5 rounded border border-gray-600 mb-6 shadow-sm flex-grow overflow-y-auto">
-                <h4 class="font-semibold text-gray-300 mb-2">Immediate Material Threats</h4>
-                <div id="evaluationText" class="text-lg font-bold text-white mb-4">Calculating...</div>
-                <div id="attackDetails" class="mt-4"></div>
+            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Engine Analysis</h3>
+            <div class="flex flex-col gap-4 flex-grow overflow-y-auto min-h-0 mb-6">
+                <div id="moveFeedbackBox" class="bg-gray-700 p-4 rounded border border-gray-600 shadow-sm hidden shrink-0">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Move Quality</div>
+                    <div id="moveFeedbackText" class="text-xl font-bold flex items-center gap-2"></div>
+                </div>
+                <div class="bg-gray-700 p-4 rounded border border-gray-600 shadow-sm shrink-0">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Material Threats</div>
+                    <div id="evaluationText" class="text-base font-bold text-white mb-2">Calculating...</div>
+                    <div id="attackDetails" class="mt-2 text-sm"></div>
+                </div>
             </div>
 
         </div>
@@ -201,6 +206,7 @@
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
@@ -214,6 +220,7 @@
         let isViewingHistory = false;
         let editMode = false;
         let autoHint = true;
+        let resizeTimer = null;
         
         let stockfish = null;
         let botColor = null; 
@@ -257,7 +264,7 @@
             if (!editMode) return game.fen();
             
             let tokens = game.fen().split(' ');
-            tokens[1] = $('#turnSelect').val() || 'w';
+            tokens[1] = document.getElementById('turnSelect').value || 'w';
             
             // Clear castling and en passant rights during Edit Mode to prevent engine rejection
             tokens[2] = '-';
@@ -267,7 +274,7 @@
 
         function updateTurnDropdown() {
             if (!editMode) {
-                $('#turnSelect').val(game.turn());
+                document.getElementById('turnSelect').value = game.turn();
             }
         }
 
@@ -297,7 +304,7 @@
                             let mateMatch = line.match(/score mate (-?\d+)/);
                             
                             // Adjust multiplier to reflect who is actually playing
-                            let currentTurn = editMode ? $('#turnSelect').val() : game.turn();
+                            let currentTurn = editMode ? document.getElementById('turnSelect').value : game.turn();
                             let turnMultiplier = currentTurn === 'w' ? 1 : -1;
                             
                             let evalScore = 0;
@@ -305,6 +312,8 @@
                             if (mateMatch) {
                                 let mateIn = parseInt(mateMatch[1]);
                                 evalScore = mateIn > 0 ? 10000 * turnMultiplier : -10000 * turnMultiplier;
+                                if (evalScore > 0) evalScore -= Math.abs(mateIn) * 10;
+                                else evalScore += Math.abs(mateIn) * 10;
                                 let whiteMate = mateIn * turnMultiplier;
                                 scoreText = whiteMate > 0 ? `M${whiteMate}` : `-M${Math.abs(whiteMate)}`;
                             } else if (cpMatch) {
@@ -316,11 +325,41 @@
                             
                             if (fullHistory[currentMoveIndex]) {
                                 fullHistory[currentMoveIndex].scoreText = scoreText;
+                                fullHistory[currentMoveIndex].evalScore = evalScore;
+                                
+                                if (currentMoveIndex > 0 && fullHistory[currentMoveIndex - 1].evalScore !== undefined) {
+                                    let prevScore = fullHistory[currentMoveIndex - 1].evalScore;
+                                    let moveColor = fullHistory[currentMoveIndex].move.color;
+                                    
+                                    // Calculate Centipawn Loss (CPL) for the player who just moved
+                                    let cpl = (evalScore - prevScore) * (moveColor === 'w' ? -1 : 1);
+                                    
+                                    let classification = '';
+                                    let classColor = '';
+                                    if (cpl <= 20) { classification = '!!'; classColor = 'text-green-400'; }
+                                    else if (cpl <= 50) { classification = '!'; classColor = 'text-blue-400'; }
+                                    else if (cpl <= 100) { classification = '+'; classColor = 'text-gray-300'; }
+                                    else if (cpl <= 250) { classification = '-'; classColor = 'text-yellow-400'; }
+                                    else if (cpl <= 400) { classification = '?'; classColor = 'text-orange-400'; }
+                                    else { classification = '??'; classColor = 'text-red-500'; }
+                                    
+                                    fullHistory[currentMoveIndex].classification = classification;
+                                    fullHistory[currentMoveIndex].classColor = classColor;
+                                    
+                                    let moveClassEl = document.getElementById(`move-class-${currentMoveIndex}`);
+                                    if (moveClassEl) {
+                                        moveClassEl.className = `${classColor} text-xs font-bold`;
+                                        moveClassEl.innerText = classification;
+                                    }
+                                }
+                                
                                 if (currentMoveIndex > 0) {
                                     let moveNum = Math.floor((currentMoveIndex - 1) / 2) + 1;
                                     let scoreEl = document.getElementById(`score-row-${moveNum}`);
                                     if (scoreEl) scoreEl.innerText = scoreText;
                                 }
+                                
+                                updateMoveFeedback();
                             }
                         }
                     }
@@ -333,7 +372,7 @@
                     }
 
                     if (line.startsWith('bestmove')) {
-                        let currentTurn = editMode ? $('#turnSelect').val() : game.turn();
+                        let currentTurn = editMode ? document.getElementById('turnSelect').value : game.turn();
                         
                         if (engineMode === 'hint') {
                             if (autoHint && botColor !== currentTurn) {
@@ -411,6 +450,27 @@
                 whiteBar.style.bottom = 'auto';
                 blackBar.style.bottom = '0';
                 blackBar.style.top = 'auto';
+            }
+        }
+
+        function updateMoveFeedback() {
+            let feedbackBox = document.getElementById('moveFeedbackBox');
+            let feedbackText = document.getElementById('moveFeedbackText');
+            
+            if (currentMoveIndex > 0 && fullHistory[currentMoveIndex].classification) {
+                feedbackBox.classList.remove('hidden');
+                let cls = fullHistory[currentMoveIndex].classification;
+                let color = fullHistory[currentMoveIndex].classColor;
+                
+                let labels = {
+                    '!!': 'Best Move', '!': 'Excellent', '+': 'Good',
+                    '-': 'Inaccuracy', '?': 'Mistake', '??': 'Blunder'
+                };
+                let label = labels[cls] || 'Unknown';
+                
+                feedbackText.innerHTML = `<span class="${color}">${label} ${cls}</span>`;
+            } else {
+                feedbackBox.classList.add('hidden');
             }
         }
 
@@ -507,10 +567,19 @@
                 let activeIndexInRow = (currentMoveIndex === whiteMoveHistIndex || currentMoveIndex === blackMoveHistIndex) ? currentMoveIndex : (blackMove ? blackMoveHistIndex : whiteMoveHistIndex);
                 let rowScoreText = fullHistory[activeIndexInRow] ? (fullHistory[activeIndexInRow].scoreText || '') : '';
 
+                let wClass = fullHistory[whiteMoveHistIndex].classification || '';
+                let wColor = fullHistory[whiteMoveHistIndex].classColor || '';
+                let bClass = blackMoveHistIndex < fullHistory.length ? (fullHistory[blackMoveHistIndex].classification || '') : '';
+                let bColor = blackMoveHistIndex < fullHistory.length ? (fullHistory[blackMoveHistIndex].classColor || '') : '';
+
                 html += `<div class="flex items-center">
                             <span class="w-8 text-gray-400 shrink-0">${moveNum}.</span>
-                            <span class="w-20 font-semibold text-white rounded transition px-2 py-0.5 cursor-pointer ${whiteBg}" data-move-index="${whiteMoveHistIndex}">${whiteMove}</span>
-                            <span class="w-20 font-semibold text-gray-300 rounded transition px-2 py-0.5 ${blackMove ? 'cursor-pointer ' + blackBg : ''}" data-move-index="${blackMoveHistIndex}">${blackMove}</span>
+                            <span class="w-24 font-semibold text-white rounded transition px-2 py-0.5 cursor-pointer flex justify-between items-center ${whiteBg}" data-move-index="${whiteMoveHistIndex}">
+                                <span>${whiteMove}</span><span id="move-class-${whiteMoveHistIndex}" class="${wColor} text-xs font-bold">${wClass}</span>
+                            </span>
+                            <span class="w-24 font-semibold text-gray-300 rounded transition px-2 py-0.5 flex justify-between items-center ${blackMove ? 'cursor-pointer ' + blackBg : ''}" data-move-index="${blackMoveHistIndex}">
+                                <span>${blackMove}</span><span id="move-class-${blackMoveHistIndex}" class="${bColor} text-xs font-bold">${bClass}</span>
+                            </span>
                             <span class="w-12 ml-auto text-xs font-mono text-gray-400 text-right shrink-0" id="score-row-${moveNum}">${rowScoreText}</span>
                          </div>`;
             }
@@ -521,11 +590,11 @@
             container.innerHTML = html;
             
             // Add click listeners
-            $('#moveHistory span[data-move-index]').on('click', function() {
-                const index = parseInt($(this).data('move-index'));
-                if (!isNaN(index)) {
-                   showHistoryState(index);
-                }
+            container.querySelectorAll('span[data-move-index]').forEach(span => {
+                span.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.moveIndex);
+                    if (!isNaN(index)) showHistoryState(index);
+                });
             });
 
             // Auto-scroll to the current move
@@ -535,23 +604,25 @@
             } else if (!isViewingHistory) { // only scroll to bottom if we are at the latest move
                 container.scrollTop = container.scrollHeight;
             }
+            
+            updateMoveFeedback();
         }
 
         function updateTimelineDropdown() {
-            let select = $('#timelineSelect');
+            let select = document.getElementById('timelineSelect');
             if (allTimelines.length > 1) {
-                select.removeClass('hidden');
-                select.empty();
+                select.classList.remove('hidden');
+                select.innerHTML = '';
                 allTimelines.forEach((tl, idx) => {
-                    select.append(`<option value="${idx}" ${idx === currentTimelineIndex ? 'selected' : ''}>${tl.name}</option>`);
+                    select.insertAdjacentHTML('beforeend', `<option value="${idx}" ${idx === currentTimelineIndex ? 'selected' : ''}>${tl.name}</option>`);
                 });
             } else {
-                select.addClass('hidden');
+                select.classList.add('hidden');
             }
         }
         
-        $('#timelineSelect').on('change', function() {
-            currentTimelineIndex = parseInt($(this).val());
+        document.getElementById('timelineSelect').addEventListener('change', function() {
+            currentTimelineIndex = parseInt(this.value);
             fullHistory = allTimelines[currentTimelineIndex].history;
             currentMoveIndex = fullHistory.length - 1;
             isViewingHistory = false;
@@ -666,10 +737,10 @@
         };
         board = Chessboard('board', config);
 
-        $('#board').on('wheel', function(event) {
+        document.getElementById('board').addEventListener('wheel', function(event) {
             if (pendingPromotion) return;
             event.preventDefault();
-            if (event.originalEvent.deltaY < 0) {
+            if (event.deltaY < 0) {
                 // Scroll Up - Go back in history
                 showHistoryState(currentMoveIndex - 1);
             } else {
@@ -678,7 +749,7 @@
             }
         });
 
-        $(document).on('keydown', function(event) {
+        document.addEventListener('keydown', function(event) {
             if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') return;
             if (pendingPromotion) return;
             if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
@@ -690,11 +761,14 @@
             }
         });
 
-        $(window).resize(() => {
-            board.resize();
-            setTimeout(analyzeBoard, 50); 
-            clearArrows(); 
-            requestHints(); 
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                board.resize();
+                analyzeBoard(); 
+                clearArrows(); 
+                requestHints(); 
+            }, 150);
         });
 
         function onDragStart(source, piece, position, orientation) {
@@ -765,7 +839,9 @@
             // Pause the move logic to wait for the user to pick a spare piece
             if (isPromotion) {
                 pendingPromotion = { source: source, target: target, color: piece.charAt(0) };
-                $('#board').addClass('promotion-pending').attr('data-promotion-color', piece.charAt(0));
+                let boardEl = document.getElementById('board');
+                boardEl.classList.add('promotion-pending');
+                boardEl.setAttribute('data-promotion-color', piece.charAt(0));
                 return; 
             }
 
@@ -791,11 +867,11 @@
         }
 
         // Handle piece selection during promotion or cancelation if clicked elsewhere
-        $(document).on('mousedown', function(e) {
+        document.addEventListener('mousedown', function(e) {
             if (pendingPromotion) {
-                let sparePieceImg = $(e.target).closest('[class^="spare-pieces-"] img');
-                if (sparePieceImg.length) {
-                    let piece = sparePieceImg.attr('data-piece');
+                let sparePieceImg = e.target.closest('[class^="spare-pieces-"] img');
+                if (sparePieceImg) {
+                    let piece = sparePieceImg.getAttribute('data-piece');
                     if (piece && piece.charAt(0) === pendingPromotion.color) {
                         let type = piece.charAt(1).toLowerCase();
                         if (['q', 'r', 'b', 'n'].includes(type)) {
@@ -805,7 +881,9 @@
                                 promotion: type
                             });
 
-                            $('#board').removeClass('promotion-pending').removeAttr('data-promotion-color');
+                            let boardEl = document.getElementById('board');
+                            boardEl.classList.remove('promotion-pending');
+                            boardEl.removeAttribute('data-promotion-color');
                             pendingPromotion = null;
 
                             if (move) {
@@ -834,7 +912,9 @@
                 }
                 
                 // If clicked anywhere besides a valid spare piece, cancel the promotion
-                $('#board').removeClass('promotion-pending').removeAttr('data-promotion-color');
+                let boardEl = document.getElementById('board');
+                boardEl.classList.remove('promotion-pending');
+                boardEl.removeAttribute('data-promotion-color');
                 pendingPromotion = null;
                 board.position(game.fen());
             }
@@ -882,11 +962,13 @@
         }
 
         function highlightLastMove() {
-            $('#board .square-55d63').removeClass('highlight-last-move');
+            document.querySelectorAll('#board .square-55d63').forEach(el => el.classList.remove('highlight-last-move'));
             if (currentMoveIndex > 0 && fullHistory[currentMoveIndex].move) {
                 let move = fullHistory[currentMoveIndex].move;
-                $('#board .square-' + move.from).addClass('highlight-last-move');
-                $('#board .square-' + move.to).addClass('highlight-last-move');
+                let fromSq = document.querySelector('#board .square-' + move.from);
+                let toSq = document.querySelector('#board .square-' + move.to);
+                if (fromSq) fromSq.classList.add('highlight-last-move');
+                if (toSq) toSq.classList.add('highlight-last-move');
             }
         }
 
@@ -897,7 +979,9 @@
             if (game.game_over()) return; 
             
             if (!validateBoard()) {
-                $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked highlight-last-move');
+                document.querySelectorAll('#board .square-55d63').forEach(el => {
+                    el.classList.remove('highlight-attacked', 'highlight-protected', 'highlight-both', 'highlight-empty-attacked', 'highlight-last-move');
+                });
                 let evalEl = document.getElementById('evaluationText');
                 let detailsEl = document.getElementById('attackDetails');
                 evalEl.innerHTML = "<span class='text-red-400 text-base'>Analysis paused. Both Kings must be on the board.</span>";
@@ -907,7 +991,9 @@
                 return;
             }
 
-            $('#board .square-55d63').removeClass('highlight-attacked highlight-protected highlight-both highlight-empty-attacked');
+            document.querySelectorAll('#board .square-55d63').forEach(el => {
+                el.classList.remove('highlight-attacked', 'highlight-protected', 'highlight-both', 'highlight-empty-attacked');
+            });
 
             let evalEl = document.getElementById('evaluationText');
             let detailsEl = document.getElementById('attackDetails');
@@ -937,7 +1023,7 @@
 
             squares.forEach(sq => {
                 let piece = game.get(sq);
-                let sqEl = $('#board .square-' + sq);
+                let sqEl = document.querySelector('#board .square-' + sq);
                 
                 if (piece) {
                     let isProtected = false;
@@ -970,15 +1056,15 @@
                     }
 
                     if (isAttacked && isProtected) {
-                        sqEl.addClass('highlight-both');
+                        if (sqEl) sqEl.classList.add('highlight-both');
                     } else if (isAttacked) {
-                        sqEl.addClass('highlight-attacked');
+                        if (sqEl) sqEl.classList.add('highlight-attacked');
                     } else if (isProtected) {
-                        sqEl.addClass('highlight-protected');
+                        if (sqEl) sqEl.classList.add('highlight-protected');
                     }
                 } else {
                     if (enemyMoves.includes(sq)) {
-                        sqEl.addClass('highlight-empty-attacked');
+                        if (sqEl) sqEl.classList.add('highlight-empty-attacked');
                     }
                 }
             });
@@ -1017,9 +1103,44 @@
             detailsEl.innerHTML = detailHtml;
         }
 
+        function removeCheckers(tempGame, evaluateColor) {
+            let enemyColor = evaluateColor === 'w' ? 'b' : 'w';
+            let kingSq = null;
+            const files = 'abcdefgh';
+            
+            for (let r = 1; r <= 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    let sq = files[c] + r;
+                    let p = tempGame.get(sq);
+                    if (p && p.type === 'k' && p.color === evaluateColor) {
+                        kingSq = sq;
+                    }
+                }
+            }
+            
+            if (kingSq) {
+                let kFile = kingSq.charAt(0);
+                let kRank = kingSq.charAt(1);
+                
+                for (let r = 1; r <= 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        let sq = files[c] + r;
+                        let p = tempGame.get(sq);
+                        if (p && p.color === enemyColor && p.type !== 'k') {
+                            let isStraight = (sq.charAt(0) === kFile || sq.charAt(1) === kRank);
+                            tempGame.put({ type: isStraight ? 'b' : 'r', color: enemyColor }, sq);
+                        }
+                    }
+                }
+            }
+            return kingSq;
+        }
+
         function getTrueSights(color) {
-            let fen = getCurrentFen();
-            let tokens = fen.split(' ');
+            let tempGame = new Chess(getCurrentFen());
+            removeCheckers(tempGame, color);
+            
+            let tokens = tempGame.fen().split(' ');
             tokens[1] = color;
             tokens[3] = '-'; 
             
@@ -1094,7 +1215,16 @@
             let enemyColor = color === 'w' ? 'b' : 'w';
             let tempGame = new Chess(getCurrentFen());
             
-            tempGame.put({ type: 'p', color: enemyColor }, square);
+            let kingSq = removeCheckers(tempGame, color);
+            
+            if (kingSq) {
+                let kFile = kingSq.charAt(0);
+                let kRank = kingSq.charAt(1);
+                let isStraight = (square.charAt(0) === kFile || square.charAt(1) === kRank);
+                tempGame.put({ type: isStraight ? 'b' : 'r', color: enemyColor }, square);
+            } else {
+                tempGame.put({ type: 'p', color: enemyColor }, square);
+            }
             
             let tokens = tempGame.fen().split(' ');
             tokens[1] = color; 
@@ -1109,14 +1239,14 @@
 
         // --- Listeners ---
 
-        $('#turnSelect').on('change', function() {
+        document.getElementById('turnSelect').addEventListener('change', function() {
             if (editMode) {
                 analyzeBoard();
                 requestHints();
             }
         });
 
-        $('#startBotBtn').on('click', () => {
+        document.getElementById('startBotBtn').addEventListener('click', () => {
             if (!validateBoard()) {
                 alert("Invalid board state. Both Kings must be present to start the bot.");
                 return;
@@ -1127,8 +1257,8 @@
                 let finalFen = getCurrentFen();
                 game.load(finalFen);
                 editMode = false;
-                $('#editModeToggle').prop('checked', false);
-                $('#turnSelect').prop('disabled', true);
+                document.getElementById('editModeToggle').checked = false;
+                document.getElementById('turnSelect').disabled = true;
                 
                 // Reset history since we are starting from a new custom position
                 allTimelines = [{ name: "Main Line", history: [{ fen: finalFen, move: null }] }];
@@ -1152,13 +1282,13 @@
             }
         });
 
-        $('#autoHintToggle').on('change', function() {
+        document.getElementById('autoHintToggle').addEventListener('change', function() {
             autoHint = this.checked;
             if (autoHint) requestHints();
             else clearArrows();
         });
 
-        $('#flipBtn').on('click', () => {
+        document.getElementById('flipBtn').addEventListener('click', () => {
             board.flip();
             updateEvalBar(currentEvalScore); 
             
@@ -1173,7 +1303,7 @@
             requestHints();
         });
 
-        $('#resetBtn').on('click', () => {
+        document.getElementById('resetBtn').addEventListener('click', () => {
             game.reset();
             board.position('start');
             botColor = null; 
@@ -1190,7 +1320,7 @@
             updateEvalBar(0);
         });
 
-        $('#clearBtn').on('click', () => {
+        document.getElementById('clearBtn').addEventListener('click', () => {
             game.clear();
             board.clear();
             botColor = null; 
@@ -1207,12 +1337,12 @@
             updateEvalBar(0);
         });
 
-        $('#editModeToggle').on('change', function() {
+        document.getElementById('editModeToggle').addEventListener('change', function() {
             let isTurningOff = !this.checked && editMode;
             editMode = this.checked;
             botColor = null; 
             
-            $('#turnSelect').prop('disabled', !editMode);
+            document.getElementById('turnSelect').disabled = !editMode;
 
             if (isTurningOff) {
                 let finalFen = getCurrentFen();
@@ -1251,7 +1381,7 @@
             tempGame.header('Site', 'Chess Vision Practice');
             tempGame.header('Date', new Date().toISOString().split('T')[0].replace(/-/g, '.'));
             tempGame.header('White', 'Player');
-            tempGame.header('Black', botColor !== null ? `Bot (${$('#botElo').val()} Elo)` : 'Player');
+            tempGame.header('Black', botColor !== null ? `Bot (${document.getElementById('botElo').value} Elo)` : 'Player');
             
             // Replay the full current timeline to build the PGN
             for (let i = 1; i < fullHistory.length; i++) {
@@ -1263,30 +1393,35 @@
             return tempGame.pgn();
         }
 
-        $('#exportPgnBtn').on('click', () => {
-            $('#pgnTextarea').val(generatePGN());
-            $('#pgnModal').removeClass('hidden');
+        document.getElementById('exportPgnBtn').addEventListener('click', () => {
+            document.getElementById('pgnTextarea').value = generatePGN();
+            document.getElementById('pgnModal').classList.remove('hidden');
         });
 
-        $('#closePgnBtn, #closePgnIconBtn').on('click', () => {
-            $('#pgnModal').addClass('hidden');
+        document.getElementById('closePgnBtn').addEventListener('click', () => {
+            document.getElementById('pgnModal').classList.add('hidden');
+        });
+        document.getElementById('closePgnIconBtn').addEventListener('click', () => {
+            document.getElementById('pgnModal').classList.add('hidden');
         });
 
-        $('#copyPgnBtn').on('click', function() {
-            let $btn = $(this);
-            navigator.clipboard.writeText($('#pgnTextarea').val()).then(() => {
-                let originalText = $btn.text();
-                $btn.text('Copied!');
-                $btn.removeClass('bg-blue-600 hover:bg-blue-700').addClass('bg-green-600 hover:bg-green-700');
+        document.getElementById('copyPgnBtn').addEventListener('click', function() {
+            let btn = this;
+            navigator.clipboard.writeText(document.getElementById('pgnTextarea').value).then(() => {
+                let originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btn.classList.add('bg-green-600', 'hover:bg-green-700');
                 setTimeout(() => {
-                    $btn.text(originalText);
-                    $btn.removeClass('bg-green-600 hover:bg-green-700').addClass('bg-blue-600 hover:bg-blue-700');
+                    btn.textContent = originalText;
+                    btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
                 }, 2000);
             });
         });
 
-        $('#downloadPgnBtn').on('click', () => {
-            let pgn = $('#pgnTextarea').val();
+        document.getElementById('downloadPgnBtn').addEventListener('click', () => {
+            let pgn = document.getElementById('pgnTextarea').value;
             let blob = new Blob([pgn], { type: 'text/plain' });
             let url = URL.createObjectURL(blob);
             let a = document.createElement('a');
