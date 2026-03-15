@@ -291,7 +291,7 @@
                     }
 
                     // --- Live Eval Bar Processing ---
-                    if (line.startsWith('info') && line.includes('score')) {
+                    if (engineMode === 'hint' && line.startsWith('info') && line.includes('score')) {
                         if (!line.includes('multipv') || line.includes('multipv 1')) {
                             let cpMatch = line.match(/score cp (-?\d+)/);
                             let mateMatch = line.match(/score mate (-?\d+)/);
@@ -373,6 +373,10 @@
                                 drawArrows(movesToDraw);
                             }
                             engineMode = 'idle';
+
+                            if (!editMode && botColor === currentTurn && !isViewingHistory) {
+                                triggerBotMove();
+                            }
                         } 
                         else if (engineMode === 'botMove') {
                             let moveStr = line.split(' ')[1];
@@ -523,14 +527,11 @@
         function requestHints(customFen = null) {
             clearTimeout(hintTimer);
             hintTimer = setTimeout(() => {
-                if (!autoHint || !stockfish || !engineReady) return;
+                if (!stockfish || !engineReady) return;
                 
                 const fenForHint = customFen || getCurrentFen();
                 const tempGame = new Chess(fenForHint);
                 if (tempGame.game_over()) return;
-
-                // Don't show hints if it's the bot's turn in a live game
-                if (!customFen && !editMode && botColor === tempGame.turn()) return;
                 
                 stockfish.postMessage('stop'); 
                 engineMode = 'hint';
@@ -852,9 +853,7 @@
             analyzeBoard();
             checkGameOver();
 
-            if (!game.game_over() && botColor === game.turn()) {
-                setTimeout(triggerBotMove, 250); 
-            } else {
+            if (!game.game_over()) {
                 requestHints(); 
             }
         }
@@ -891,9 +890,7 @@
                                 analyzeBoard();
                                 checkGameOver();
 
-                                if (!game.game_over() && botColor === game.turn()) {
-                                    setTimeout(triggerBotMove, 250); 
-                                } else {
+                                if (!game.game_over()) {
                                     requestHints(); 
                                 }
                             } else {
@@ -1268,9 +1265,7 @@
             analyzeBoard();
             clearArrows();
             
-            if (!game.game_over() && botColor === game.turn()) {
-                triggerBotMove();
-            } else {
+            if (!game.game_over()) {
                 requestHints();
             }
         });
@@ -1287,13 +1282,12 @@
             
             if (botColor !== null) {
                 botColor = board.orientation() === 'white' ? 'b' : 'w';
-                if (!game.game_over() && botColor === game.turn()) {
-                    triggerBotMove();
-                }
             }
             
             analyzeBoard(); 
-            requestHints();
+            if (!game.game_over()) {
+                requestHints();
+            }
         });
 
         document.getElementById('resetBtn').addEventListener('click', () => {
