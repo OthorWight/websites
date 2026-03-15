@@ -99,9 +99,9 @@
         #moveHistory::-webkit-scrollbar-thumb { background: #6B7280; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200 font-sans p-2 sm:p-6 min-h-screen flex items-center justify-center overflow-hidden">
+<body class="bg-gray-900 text-gray-200 font-sans p-1 sm:p-2 h-screen flex items-center justify-center overflow-hidden">
 
-    <div class="w-full max-w-[1800px] h-[85vh] bg-gray-800 rounded-lg shadow-2xl flex flex-col lg:flex-row border border-gray-700">
+    <div class="w-full h-full bg-gray-800 rounded-lg shadow-2xl flex flex-col lg:flex-row border border-gray-700">
         
         <div class="p-6 lg:p-8 lg:w-3/12 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-700 bg-gray-800 h-64 lg:h-full">
             <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2 shrink-0">
@@ -112,12 +112,12 @@
                 </div>
             </div>
             <div class="flex flex-row flex-1 gap-4 overflow-hidden min-h-0">
+                <div id="moveHistory" class="flex-grow bg-gray-700 rounded-lg p-3 overflow-y-auto text-sm shadow-inner border border-gray-600 content-start">
+                </div>
                 <div class="w-6 bg-gray-700 rounded-full overflow-hidden flex flex-col border border-gray-600 relative shrink-0 shadow-inner">
                     <div id="evalBarBlack" class="w-full bg-gray-900 transition-all duration-300 absolute" style="height: 50%; top: 0;"></div>
                     <div id="evalBarWhite" class="w-full bg-gray-200 transition-all duration-300 absolute" style="height: 50%; bottom: 0;"></div>
                 </div>
-                <div id="moveHistory" class="flex-grow bg-gray-700 rounded-lg p-3 overflow-y-auto text-sm shadow-inner border border-gray-600 content-start">
-                    </div>
             </div>
         </div>
 
@@ -133,7 +133,6 @@
 
         <div class="p-6 lg:p-8 lg:w-3/12 flex flex-col bg-gray-800 overflow-y-auto h-full">
             
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Play vs Bot</h3>
             <div class="grid grid-cols-1 gap-3 mb-6 text-sm shrink-0">
                 <select id="botElo" class="bg-gray-700 text-white py-3 px-4 rounded border border-gray-600 focus:outline-none focus:border-purple-500 transition">
                     <option value="800">Bot Elo: 800 (Beginner)</option>
@@ -145,7 +144,6 @@
                 <button id="startBotBtn" class="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded font-bold transition shadow tracking-wide">Start Bot (Takes Top Color)</button>
             </div>
 
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white mt-2 shrink-0">Board Controls</h3>
             <div class="grid grid-cols-2 gap-3 mb-6 text-sm shrink-0">
                 <div class="flex items-center justify-center bg-gray-700 rounded p-2 border border-gray-600 col-span-2 shadow-inner">
                     <label class="font-medium cursor-pointer flex items-center gap-2 text-white tracking-wide">
@@ -168,13 +166,8 @@
                 <button id="flipBtn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition shadow col-span-2">Flip Board</button>
                 <button id="resetBtn" class="bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded transition shadow">Reset to Start</button>
                 <button id="clearBtn" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition shadow">Clear Board</button>
-                
-                <div class="col-span-2 text-center text-xs text-gray-400 mt-1 italic">
-                    Tip: When a pawn reaches the end, click a highlighted spare piece to promote.
-                </div>
             </div>
 
-            <h3 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 text-white shrink-0">Engine Analysis</h3>
             <div class="flex flex-col gap-4 flex-grow overflow-y-auto min-h-0 mb-6">
                 <div id="moveFeedbackBox" class="bg-gray-700 p-4 rounded border border-gray-600 shadow-sm hidden shrink-0">
                     <div class="text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Move Quality</div>
