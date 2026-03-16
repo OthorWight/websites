@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Project Poly-Rogue Prototype</title>
+    <style>
+        /* ==========================================================================
+        GAME DESIGN DOCUMENT: PROJECT POLY-ROGUE
+        =============================================================================
+        Overview:
+        A browser-based, turn-based roguelike utilizing crisp, minimalist SVG geometry. 
+        Instant load times, clean modern aesthetic, no ASCII, no complex pixel art.
+
+        1. Visual Style & Interface:
+        - Player: Glowing cyan Triangle.
+        - Enemies: Red/orange polygons (e.g., Red Square for Seekers).
+        - Environment: Minimalist grid lines, solid gray walls.
+        - Context Menus: Right-clicking pauses game, opens dark gray info panel.
+
+        2. Core Game Loop:
+        - Turn-based: Time moves only when the player takes an action.
+        - Explore -> Assess -> Execute -> Advance -> Upgrade.
+
+        3. Mechanics & Controls:
+        - Movement: 8-way directional (orthogonal + diagonal).
+        - Combat: Bump-to-attack destroys basic enemies instantly.
+        - Controls (Mouse): Left-click adjacent tile/enemy to move/attack. 
+          Left-click player to wait. Right-click for Context Menu.
+        - Controls (Keyboard): QWEASDZXC / Numpad for movement. 'I' for inspect (TBD).
+
+        4. Enemy Roster (Prototype includes Sentries):
+        - Sentry (Red Square): Stands still until it spots the player, then chases. 
+          Uses 8-way pathfinding.
+
+        5. Goals:
+        - Survive, clear enemies, reach the warp portal.
+        =============================================================================
+        */
+
+        body {
+            background-color: #111;
+            color: #eee;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #game-wrapper {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        svg#game-board {
+            flex-grow: 1;
+            height: 100%;
+            background-color: #000;
+            border: none;
+            cursor: crosshair;
+        }
+
+        #ui-panel {
+            width: 300px;
+            box-sizing: border-box;
+            background: #222;
+            padding: 20px;
+            border: none;
+            border-left: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 { font-size: 1.2rem; color: cyan; margin-top: 0; }
+        .stat { font-size: 1.1rem; margin-bottom: 10px; }
+        
+        #log {
+            flex-grow: 1;
+            background: #111;
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 0.9rem;
+            color: #aaa;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #context-menu {
+            position: absolute;
+            background: rgba(30, 30, 30, 0.95);
+            border: 1px solid #777;
+            padding: 15px;
+            color: #fff;
+            font-family: sans-serif;
+            font-size: 0.9rem;
+            z-index: 10;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .menu-title { font-weight: bold; margin-bottom: 5px; color: cyan; }
+
+        .section-title {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .equipment-slot, .inventory-slot {
+            background: #111;
+            border: 1px solid #444;
+            padding: 5px;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+            color: #ccc;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .equipment-slot:hover {
+            border-color: cyan;
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .inventory-slot {
+            aspect-ratio: 1 / 1;
+            margin-bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .inventory-slot:hover {
+            border-color: cyan;
+        }
+
+        .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 0.7rem;
+            color: cyan;
+            font-weight: bold;
+            text-shadow: none;
+        }
+        
+        #cm-actions {
+            list-style-type: none;
+            padding: 0;
+            margin: 10px 0 0 0;
+            border-top: 1px solid #555;
+            padding-top: 5px;
+        }
+        #cm-actions li {
+            padding: 5px;
+            cursor: pointer;
+        }
+        #cm-actions li:hover {
+            background: #444;
+            color: cyan;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid #777;
+            padding: 5px 10px;
+            color: #fff;
+            font-family: sans-serif;
+            font-size: 0.85rem;
+            z-index: 100;
+            pointer-events: none;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <svg id="game-board"></svg>
+        <div id="ui-panel">
+            <h1>Project Poly-Rogue</h1>
+            <div class="stat" id="hp-display">HP: 3 / 3</div>
+            <div class="stat" id="floor-display">Floor: 1</div>
+            <div style="margin-bottom: 10px;">
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc;">
+                    <input type="checkbox" id="debug-vision-toggle"> Show Vision (V)
+                </label>
+                <br>
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
+                    <input type="checkbox" id="debug-hearing-toggle"> Show Hearing (H)
+                </label>
+            </div>
+
+            <div class="section-title">Equipment</div>
+            <div id="equipment-list"></div>
+
+            <div class="section-title">Inventory</div>
+            <div id="inventory-grid" class="inventory-grid"></div>
+
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <div id="context-menu" style="display: none;">
+        <div class="menu-title" id="cm-title">Name</div>
+        <div id="cm-desc">Description</div>
+        <ul id="cm-actions"></ul>
+    </div>
+
+    <div id="tooltip" style="display: none;"></div>
+
+<script>
+    const TILE_SIZE = 40;
+    let GRID_W = 15;
+    let GRID_H = 15;
+    
+    const board = document.getElementById('game-board');
+    const logEl = document.getElementById('log');
+    const hpEl = document.getElementById('hp-display');
+    const debugToggleEl = document.getElementById('debug-vision-toggle');
+    const debugHearingToggleEl = document.getElementById('debug-hearing-toggle');
+    const equipmentListEl = document.getElementById('equipment-list');
+    const inventoryGridEl = document.getElementById('inventory-grid');
+    const contextMenu = document.getElementById('context-menu');
+    const cmTitle = document.getElementById('cm-title');
+    const cmDesc = document.getElementById('cm-desc');
+    const cmActions = document.getElementById('cm-actions');
+    const tooltipEl = document.getElementById('tooltip');
+
+    let player = { x: 7, y: 7, hp: 3, maxHp: 3, dx: 0, dy: -1 };
+    let enemies = [];
+    let walls = [];
+    let floorItems = [];
+    let wallSet = new Set();
+    let isAutoRunning = false;
+    let autoRunPath = [];
+    
+    const PLAYER_VISION_RANGE = 7;
+    let debugVision = false;
+    let debugHearing = false;
+    let audibleTiles = new Map();
+    let explored = new Set();
+    let visible = new Set();
+
+    // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
+    let inventory = [
+        { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", count: 5, stackable: true },
+        { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true }
+    ];
+    let equipment = { 
+        head: null, 
+        body: null, 
+        hands: null, 
+        feet: null, 
+        weapon: { name: "Dagger", type: "weapon", icon: "▲", color: "#cccccc", damage: 1 } 
+    };
+    const INVENTORY_CAPACITY = 16;
+    
+    // Direction mapping for QWEASDZXC
+    const keyMap = {
+        'q': {x:-1, y:-1}, 'w': {x:0, y:-1}, 'e': {x:1, y:-1},
+        'a': {x:-1, y:0},  's': {x:0, y:0},  'd': {x:1, y:0},
+        'z': {x:-1, y:1},  'x': {x:0, y:1},  'c': {x:1, y:1}
+    };
+    
+    // Easy to expand list of context menu actions
+    const availableActions = [
+        {
+            name: "Wait",
+            condition: (x, y) => x === player.x && y === player.y,
+            execute: (x, y) => processTurn(0, 0)
+        },
+        {
+            name: "Move",
+            condition: (x, y) => {
+                let dx = Math.abs(x - player.x);
+                let dy = Math.abs(y - player.y);
+                return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0) && !wallSet.has(`${x},${y}`) && !enemies.some(e => e.x === x && e.y === y);
+            },
+            execute: (x, y) => processTurn(x - player.x, y - player.y)
+        },
+        {
+            name: "Melee Attack",
+            condition: (x, y) => {
+                let dx = Math.abs(x - player.x);
+                let dy = Math.abs(y - player.y);
+                return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0) && enemies.some(e => e.x === x && e.y === y && (visible.has(`${e.x},${e.y}`) || debugVision));
+            },
+            execute: (x, y) => processTurn(x - player.x, y - player.y)
+        },
+        {
+            name: "Auto-Walk Here",
+            condition: (x, y) => {
+                let dx = Math.abs(x - player.x);
+                let dy = Math.abs(y - player.y);
+                if (dx <= 1 && dy <= 1) return false; // Too close for auto-run
+                if (wallSet.has(`${x},${y}`)) return false;
+                if (enemies.some(e => e.hasLOS || visible.has(`${e.x},${e.y}`))) return false; // Prevent auto-run if enemies are visible
+                return findPath(player.x, player.y, x, y) !== null; // Make sure we can reach it
+            },
+            execute: (x, y) => {
+                triggerAutoRun(x, y);
+            }
+        }
+    ];
+
+    function init() {
+        resizeBoard();
+        generateLevel();
+        updateLOS();
+        renderUI();
+        drawBoard();
+        logMessage("Floor 1 initialized.");
+        
+        document.addEventListener('keydown', handleInput);
+        board.addEventListener('click', handleMouseClick);
+        board.addEventListener('contextmenu', handleRightClick);
+        document.addEventListener('click', hideContextMenu);
+        debugToggleEl.addEventListener('change', (e) => {
+            debugVision = e.target.checked;
+            logMessage(debugVision ? "Debug vision ON" : "Debug vision OFF");
+            drawBoard();
+        });
+        debugHearingToggleEl.addEventListener('change', (e) => {
+            debugHearing = e.target.checked;
+            logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
+            drawBoard();
+        });
+
+        window.addEventListener('resize', () => {
+            resizeBoard();
+            drawBoard();
+        });
+    }
+
+    function resizeBoard() {
+        const rect = board.getBoundingClientRect();
+        GRID_W = Math.ceil(rect.width / TILE_SIZE) || 15;
+        GRID_H = Math.ceil(rect.height / TILE_SIZE) || 15;
+    }
+
+    function generateLevel() {
+        walls = [];
+        wallSet.clear();
+        enemies = [];
+        floorItems = [];
+        explored.clear();
+        visible.clear();
+        let grid = Array.from({length: GRID_W}, () => Array(GRID_H).fill(1));
+        
+        let roomW = 3, roomH = 3;
+        let startX = Math.floor(GRID_W / 2) - Math.floor(roomW / 2);
+        let startY = Math.floor(GRID_H / 2) - Math.floor(roomH / 2);
+        
+        for (let x = startX; x < startX + roomW; x++) {
+            for (let y = startY; y < startY + roomH; y++) {
+                if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
+                    grid[x][y] = 0;
+                }
+            }
+        }
+        player.x = startX + 1;
+        player.y = startY + 1;
+        
+        let wallList = [];
+        const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
+        
+        function addWalls(cx, cy) {
+            for (let d of dirs) {
+                let nx = cx + d.dx;
+                let ny = cy + d.dy;
+                if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1) {
+                    if (grid[nx][ny] === 1) {
+                        wallList.push({x: nx, y: ny, dx: d.dx, dy: d.dy});
+                    }
+                }
+            }
+        }
+        
+        for (let x = startX; x < startX + roomW; x++) {
+            for (let y = startY; y < startY + roomH; y++) {
+                if (grid[x][y] === 0) {
+                    addWalls(x, y);
+                }
+            }
+        }
+        
+        let iterations = 0;
+        
+        while (wallList.length > 0 && iterations < 10000) {
+            let idx = Math.floor(Math.random() * wallList.length);
+            let wall = wallList[idx];
+            wallList.splice(idx, 1);
+            
+            if (grid[wall.x][wall.y] === 0) continue;
+            
+            let floorCount = 0;
+            for (let d of dirs) {
+                if (grid[wall.x + d.dx] && grid[wall.x + d.dx][wall.y + d.dy] === 0) {
+                    floorCount++;
+                }
+            }
+            
+            if (floorCount !== 1) continue;
+            
+            let isRoom = Math.random() < 0.6;
+            let carved = false;
+            
+            if (isRoom) {
+                let rw = Math.floor(Math.random() * 3) + 3; 
+                let rh = Math.floor(Math.random() * 3) + 3;
+                let rx, ry;
+                if (wall.dx !== 0) { 
+                    rx = wall.dx > 0 ? wall.x + 1 : wall.x - rw;
+                    ry = wall.y - Math.floor(Math.random() * rh);
+                } else { 
+                    rx = wall.x - Math.floor(Math.random() * rw);
+                    ry = wall.dy > 0 ? wall.y + 1 : wall.y - rh;
+                }
+                
+                let fits = true;
+                if (rx < 1 || ry < 1 || rx + rw >= GRID_W - 1 || ry + rh >= GRID_H - 1) fits = false;
+                else {
+                    for (let x = rx - 1; x <= rx + rw; x++) {
+                        for (let y = ry - 1; y <= ry + rh; y++) {
+                            if (x === wall.x && y === wall.y) continue;
+                            if (grid[x] && grid[x][y] === 0) fits = false;
+                        }
+                    }
+                }
+                
+                if (fits) {
+                    for (let x = rx; x < rx + rw; x++) {
+                        for (let y = ry; y < ry + rh; y++) {
+                            grid[x][y] = 0;
+                        }
+                    }
+                    grid[wall.x][wall.y] = 0;
+                    for (let x = rx; x < rx + rw; x++) {
+                        for (let y = ry; y < ry + rh; y++) {
+                            addWalls(x, y);
+                        }
+                    }
+                    addWalls(wall.x, wall.y);
+                    carved = true;
+                }
+            } else {
+                let length = Math.floor(Math.random() * 3) + 3; 
+                let cx = wall.x + wall.dx;
+                let cy = wall.y + wall.dy;
+                
+                let fits = true;
+                for (let i = 0; i < length; i++) {
+                    let tx = cx + wall.dx * i;
+                    let ty = cy + wall.dy * i;
+                    if (tx < 1 || ty < 1 || tx >= GRID_W - 1 || ty >= GRID_H - 1) {
+                        fits = false; break;
+                    }
+                    let adjacentFloors = 0;
+                    for (let d of dirs) {
+                        if (grid[tx + d.dx] && grid[tx + d.dx][ty + d.dy] === 0) adjacentFloors++;
+                    }
+                    if (adjacentFloors > 0) { fits = false; break; }
+                }
+                
+                if (fits) {
+                    grid[wall.x][wall.y] = 0;
+                    addWalls(wall.x, wall.y);
+                    for (let i = 0; i < length; i++) {
+                        let tx = cx + wall.dx * i;
+                        let ty = cy + wall.dy * i;
+                        grid[tx][ty] = 0;
+                        addWalls(tx, ty);
+                    }
+                    carved = true;
+                }
+            }
+            
+            if (carved) iterations++;
+        }
+        
+        // Post-Processing 1: Add loops (connecting halls)
+        let potentialConnections = [];
+        for (let x = 1; x < GRID_W - 1; x++) {
+            for (let y = 1; y < GRID_H - 1; y++) {
+                if (grid[x][y] === 1) {
+                    let floorAbove = grid[x][y-1] === 0;
+                    let floorBelow = grid[x][y+1] === 0;
+                    let floorLeft = grid[x-1][y] === 0;
+                    let floorRight = grid[x+1][y] === 0;
+
+                    let horizontal = floorLeft && floorRight && !floorAbove && !floorBelow;
+                    let vertical = floorAbove && floorBelow && !floorLeft && !floorRight;
+
+                    if (horizontal || vertical) {
+                        potentialConnections.push({x, y});
+                    }
+                }
+            }
+        }
+
+        potentialConnections.sort(() => Math.random() - 0.5);
+        let connectionsToBreak = Math.floor(potentialConnections.length * 0.3); // Connect 30%
+        for (let i = 0; i < connectionsToBreak; i++) {
+            let pos = potentialConnections[i];
+            grid[pos.x][pos.y] = 0;
+        }
+
+        // Post-Processing 2: Remove some dead ends
+        for (let pass = 0; pass < 3; pass++) {
+            let deadEnds = [];
+            for (let x = 1; x < GRID_W - 1; x++) {
+                for (let y = 1; y < GRID_H - 1; y++) {
+                    if (grid[x][y] === 0 && (x !== player.x || y !== player.y)) {
+                        let wallCount = 0;
+                        if (grid[x][y-1] === 1) wallCount++;
+                        if (grid[x][y+1] === 1) wallCount++;
+                        if (grid[x-1][y] === 1) wallCount++;
+                        if (grid[x+1][y] === 1) wallCount++;
+                        
+                        if (wallCount === 3 && Math.random() < 0.7) { // Fill in 70% of dead ends
+                            deadEnds.push({x, y});
+                        }
+                    }
+                }
+            }
+            for (let pos of deadEnds) {
+                grid[pos.x][pos.y] = 1;
+            }
+        }
+
+        let emptySpaces = [];
+        for (let x = 0; x < GRID_W; x++) {
+            for (let y = 0; y < GRID_H; y++) {
+                if (grid[x][y] === 1) {
+                    walls.push({ x, y });
+                    wallSet.add(`${x},${y}`);
+                } else {
+                    if (x !== player.x || y !== player.y) {
+                        emptySpaces.push({ x, y });
+                    }
+                }
+            }
+        }
+        
+        emptySpaces = emptySpaces.filter(p => Math.hypot(p.x - player.x, p.y - player.y) > 5);
+        let numEnemies = Math.floor((GRID_W * GRID_H) / 60); 
+        let enemyDirs = [{x: 0, y: -1}, {x: 1, y: 0}, {x: 0, y: 1}, {x: -1, y: 0}];
+        for (let i = 0; i < numEnemies; i++) {
+            if (emptySpaces.length > 0) {
+                let idx = Math.floor(Math.random() * emptySpaces.length);
+                let pos = emptySpaces.splice(idx, 1)[0];
+                let dir = enemyDirs[Math.floor(Math.random() * enemyDirs.length)];
+                let hearingLevel = Math.floor(Math.random() * 4); // 0 to 3
+                enemies.push({ x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, type: 'Sentry', hp: 1, hearing: hearingLevel });
+            }
+        }
+
+        let numLoot = Math.floor((GRID_W * GRID_H) / 80); 
+        let possibleLoot = [
+            { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", count: 1, stackable: true },
+            { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true },
+            { name: "Leather Armor", type: "body", icon: "■", color: "#8b4513", defense: 1, stackable: false },
+            { name: "Leather Boots", type: "feet", icon: "▨", color: "#8b4513", stealth: 1, stackable: false }
+        ];
+        for (let i = 0; i < numLoot; i++) {
+            if (emptySpaces.length > 0) {
+                let idx = Math.floor(Math.random() * emptySpaces.length);
+                let pos = emptySpaces.splice(idx, 1)[0];
+                let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
+                floorItems.push({ x: pos.x, y: pos.y, item: { ...lootTemplate } });
+            }
+        }
+    }
+
+    function logMessage(msg) {
+        const entry = document.createElement('div');
+        entry.textContent = "> " + msg;
+        logEl.prepend(entry);
+    }
+
+    function drawBoard() {
+        board.innerHTML = ''; 
+
+        // Draw Grid
+        for(let x=0; x<GRID_W; x++) {
+            for(let y=0; y<GRID_H; y++) {
+                let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", x * TILE_SIZE);
+                rect.setAttribute("y", y * TILE_SIZE);
+                rect.setAttribute("width", TILE_SIZE);
+                rect.setAttribute("height", TILE_SIZE);
+                rect.setAttribute("fill", "none");
+                rect.setAttribute("stroke", "#222");
+                board.appendChild(rect);
+            }
+        }
+
+        // Draw Walls
+        walls.forEach(w => {
+            let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", w.x * TILE_SIZE);
+            rect.setAttribute("y", w.y * TILE_SIZE);
+            rect.setAttribute("width", TILE_SIZE);
+            rect.setAttribute("height", TILE_SIZE);
+            rect.setAttribute("fill", "#555");
+            board.appendChild(rect);
+        });
+
+        // Draw Fog of War (Fill for LOS)
+        for(let x=0; x<GRID_W; x++) {
+            for(let y=0; y<GRID_H; y++) {
+                let posStr = `${x},${y}`;
+                if (!visible.has(posStr)) {
+                    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute("x", x * TILE_SIZE);
+                    rect.setAttribute("y", y * TILE_SIZE);
+                    rect.setAttribute("width", TILE_SIZE + 1);
+                    rect.setAttribute("height", TILE_SIZE + 1);
+                    rect.setAttribute("fill", explored.has(posStr) ? "rgba(0, 0, 0, 0.7)" : "#000");
+                    rect.setAttribute("pointer-events", "none");
+                    board.appendChild(rect);
+                }
+            }
+        }
+
+        // Setup light gradient for player
+        let defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        let grad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
+        grad.setAttribute("id", "playerLight");
+        grad.setAttribute("gradientUnits", "userSpaceOnUse");
+        let cx = player.x * TILE_SIZE + TILE_SIZE / 2;
+        let cy = player.y * TILE_SIZE + TILE_SIZE / 2;
+        grad.setAttribute("cx", cx);
+        grad.setAttribute("cy", cy);
+        grad.setAttribute("r", PLAYER_VISION_RANGE * TILE_SIZE);
+        
+        let stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop1.setAttribute("offset", "0%");
+        stop1.setAttribute("stop-color", "rgba(0, 255, 255, 0.3)");
+        let stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        stop2.setAttribute("offset", "100%");
+        stop2.setAttribute("stop-color", "rgba(0, 255, 255, 0)");
+        
+        grad.appendChild(stop1);
+        grad.appendChild(stop2);
+        defs.appendChild(grad);
+        board.appendChild(defs);
+
+        // Draw Player Light (Raycasted)
+        let pts = [];
+        let maxDist = PLAYER_VISION_RANGE * TILE_SIZE;
+        let stepSize = TILE_SIZE / 4;
+        
+        for (let a = 0; a <= Math.PI * 2 + 0.01; a += Math.PI / 128) {
+            let dist = 0;
+            let rayX = cx;
+            let rayY = cy;
+            
+            while (dist < maxDist) {
+                dist += stepSize;
+                let nextX = cx + Math.cos(a) * dist;
+                let nextY = cy + Math.sin(a) * dist;
+                let gx = Math.floor(nextX / TILE_SIZE);
+                let gy = Math.floor(nextY / TILE_SIZE);
+                if (wallSet.has(`${gx},${gy}`) || gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) {
+                    let refineStep = stepSize / 2;
+                    dist -= stepSize;
+                    for (let i = 0; i < 6; i++) {
+                        dist += refineStep;
+                        let rx = cx + Math.cos(a) * dist;
+                        let ry = cy + Math.sin(a) * dist;
+                        let r_gx = Math.floor(rx / TILE_SIZE);
+                        let r_gy = Math.floor(ry / TILE_SIZE);
+                        if (wallSet.has(`${r_gx},${r_gy}`) || r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H) {
+                            dist -= refineStep;
+                        }
+                        refineStep /= 2;
+                    }
+                    rayX = cx + Math.cos(a) * dist;
+                    rayY = cy + Math.sin(a) * dist;
+                    break;
+                }
+                rayX = nextX;
+                rayY = nextY;
+            }
+            pts.push(`${rayX},${rayY}`);
+        }
+        
+        let playerLight = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        playerLight.setAttribute("points", pts.join(" "));
+        playerLight.setAttribute("fill", "url(#playerLight)");
+        playerLight.setAttribute("pointer-events", "none");
+        board.appendChild(playerLight);
+
+        // Draw debug hearing
+        if (debugHearing) {
+            audibleTiles.forEach((dist, posStr) => {
+                let [ax, ay] = posStr.split(',').map(Number);
+                let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", ax * TILE_SIZE);
+                rect.setAttribute("y", ay * TILE_SIZE);
+                rect.setAttribute("width", TILE_SIZE);
+                rect.setAttribute("height", TILE_SIZE);
+                rect.setAttribute("fill", "rgba(255, 165, 0, 0.2)");
+                rect.setAttribute("pointer-events", "none");
+                board.appendChild(rect);
+            });
+        }
+
+        // Draw Floor Items
+        let drawnTiles = new Set();
+        for (let i = floorItems.length - 1; i >= 0; i--) {
+            let fi = floorItems[i];
+            let posStr = `${fi.x},${fi.y}`;
+            if (!visible.has(posStr) && !debugVision) continue;
+            if (drawnTiles.has(posStr)) continue; // Only draw the top item
+            drawnTiles.add(posStr);
+
+            let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", fi.x * TILE_SIZE + TILE_SIZE / 2);
+            text.setAttribute("y", fi.y * TILE_SIZE + TILE_SIZE / 2 + 2);
+            text.setAttribute("fill", fi.item.color || "#ccc");
+            text.setAttribute("font-size", "20");
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "middle");
+            text.textContent = fi.item.icon || fi.item.name.charAt(0);
+            board.appendChild(text);
+        }
+
+        // Draw debug vision
+        if (debugVision) {
+            // Draw enemy vision
+            enemies.forEach(e => {
+                let pts = [];
+                let cx = e.x * TILE_SIZE + TILE_SIZE / 2;
+                let cy = e.y * TILE_SIZE + TILE_SIZE / 2;
+                let baseAngle = Math.atan2(e.dy, e.dx);
+                pts.push(`${cx},${cy}`);
+                
+                let maxDist = 8 * TILE_SIZE;
+                let stepSize = TILE_SIZE / 4;
+                
+                for (let a = -Math.PI / 4; a <= Math.PI / 4 + 0.01; a += Math.PI / 128) {
+                    let angle = baseAngle + a;
+                    let dist = 0;
+                    let rayX = cx;
+                    let rayY = cy;
+                    
+                    while (dist < maxDist) {
+                        dist += stepSize;
+                        let nextX = cx + Math.cos(angle) * dist;
+                        let nextY = cy + Math.sin(angle) * dist;
+                        let gx = Math.floor(nextX / TILE_SIZE);
+                        let gy = Math.floor(nextY / TILE_SIZE);
+                        if (wallSet.has(`${gx},${gy}`) || gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) {
+                            let refineStep = stepSize / 2;
+                            dist -= stepSize;
+                            for (let i = 0; i < 6; i++) {
+                                dist += refineStep;
+                                let rx = cx + Math.cos(angle) * dist;
+                                let ry = cy + Math.sin(angle) * dist;
+                                let r_gx = Math.floor(rx / TILE_SIZE);
+                                let r_gy = Math.floor(ry / TILE_SIZE);
+                                if (wallSet.has(`${r_gx},${r_gy}`) || r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H) {
+                                    dist -= refineStep;
+                                }
+                                refineStep /= 2;
+                            }
+                            rayX = cx + Math.cos(angle) * dist;
+                            rayY = cy + Math.sin(angle) * dist;
+                            break;
+                        }
+                        rayX = nextX;
+                        rayY = nextY;
+                    }
+                    pts.push(`${rayX},${rayY}`);
+                }
+                let poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                poly.setAttribute("points", pts.join(" "));
+                poly.setAttribute("fill", "rgba(255, 0, 0, 0.15)");
+                poly.setAttribute("pointer-events", "none");
+                board.appendChild(poly);
+            });
+        }
+
+        // Draw Enemies
+        enemies.forEach(e => {
+            if (!visible.has(`${e.x},${e.y}`) && !debugVision) return;
+
+            let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+            let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", e.x * TILE_SIZE + 5);
+            rect.setAttribute("y", e.y * TILE_SIZE + 5);
+            rect.setAttribute("width", TILE_SIZE - 10);
+            rect.setAttribute("height", TILE_SIZE - 10);
+            rect.setAttribute("fill", "red");
+            if (e.hasLOS) {
+                rect.setAttribute("stroke", "white");
+                rect.setAttribute("stroke-width", "2");
+            } else if (e.lastKnown) {
+                rect.setAttribute("stroke", "orange");
+                rect.setAttribute("stroke-width", "2");
+            }
+            g.appendChild(rect);
+
+            // Draw facing indicator
+            let mag = Math.hypot(e.dx, e.dy) || 1;
+            let nx = e.dx / mag;
+            let ny = e.dy / mag;
+            let cx = e.x * TILE_SIZE + TILE_SIZE / 2;
+            let cy = e.y * TILE_SIZE + TILE_SIZE / 2;
+
+            let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", cx);
+            line.setAttribute("y1", cy);
+            line.setAttribute("x2", cx + nx * (TILE_SIZE / 2 - 5));
+            line.setAttribute("y2", cy + ny * (TILE_SIZE / 2 - 5));
+            line.setAttribute("stroke", "#111");
+            line.setAttribute("stroke-width", "3");
+            line.setAttribute("stroke-linecap", "round");
+            g.appendChild(line);
+
+            board.appendChild(g);
+        });
+
+        // Draw Player (Triangle)
+        let poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        let px = player.x * TILE_SIZE;
+        let py = player.y * TILE_SIZE;
+        poly.setAttribute("points", `${px+20},${py+5} ${px+35},${py+35} ${px+5},${py+35}`);
+        poly.setAttribute("fill", "cyan");
+
+        let angle = Math.atan2(player.dy, player.dx) * 180 / Math.PI + 90;
+        poly.setAttribute("transform", `rotate(${angle}, ${px+20}, ${py+20})`);
+
+        board.appendChild(poly);
+        renderUI();
+    }
+
+    function addItemToInventory(item) {
+        let existingItem = inventory.find(i => i.name === item.name && i.stackable);
+        if (existingItem) {
+            existingItem.count += (item.count || 1);
+            logMessage(`Added ${item.count || 1}x ${item.name} to inventory.`);
+        } else {
+            if (inventory.length < INVENTORY_CAPACITY) {
+                inventory.push({ ...item, count: item.count || 1 });
+                logMessage(`Picked up ${item.name}.`);
+            } else {
+                logMessage("Inventory is full!");
+            }
+        }
+        renderUI();
+    }
+
+    function bindTooltip(el, text) {
+        el.addEventListener('mousemove', (e) => {
+            tooltipEl.textContent = text;
+            tooltipEl.style.display = 'block';
+            let ttWidth = tooltipEl.offsetWidth;
+            let ttHeight = tooltipEl.offsetHeight;
+            let left = e.pageX + 15;
+            let top = e.pageY - ttHeight - 15; // Above the mouse
+            if (top < 0) top = e.pageY + 15; // Keep on screen
+            if (left + ttWidth > window.innerWidth) left = window.innerWidth - ttWidth - 10;
+            tooltipEl.style.left = left + 'px';
+            tooltipEl.style.top = top + 'px';
+        });
+        el.addEventListener('mouseleave', () => {
+            tooltipEl.style.display = 'none';
+        });
+    }
+
+    function renderUI() {
+        hpEl.textContent = `HP: ${player.hp} / ${player.maxHp}`;
+        
+        equipmentListEl.innerHTML = '';
+        for (let slotName in equipment) {
+            let item = equipment[slotName];
+            let slot = document.createElement('div');
+            slot.className = 'equipment-slot';
+            slot.innerHTML = `<span>${slotName.charAt(0).toUpperCase() + slotName.slice(1)}</span> <span style="color: ${item ? 'cyan' : '#555'}">${item ? item.icon + ' ' + item.name : 'Empty'}</span>`;
+            
+            if (item) {
+                bindTooltip(slot, item.name);
+                slot.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showItemContextMenu(e, item, 'equipment', slotName, -1);
+                });
+            }
+            equipmentListEl.appendChild(slot);
+        }
+
+        inventoryGridEl.innerHTML = '';
+        for (let i = 0; i < INVENTORY_CAPACITY; i++) {
+            let slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            if (i < inventory.length) {
+                let item = inventory[i];
+                slot.textContent = item.icon || item.name.charAt(0);
+                
+                bindTooltip(slot, item.name);
+                
+                slot.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showItemContextMenu(e, item, 'inventory', null, i);
+                });
+                
+                if (item.color) {
+                    slot.style.color = item.color;
+                    slot.style.textShadow = `0 0 6px ${item.color}`;
+                }
+                
+                if (item.count > 1) {
+                    let countEl = document.createElement('span');
+                    countEl.className = 'item-count';
+                    countEl.textContent = item.count;
+                    slot.appendChild(countEl);
+                }
+            }
+            inventoryGridEl.appendChild(slot);
+        }
+    }
+
+    function getPlayerStealth() {
+        let stealth = 0;
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].stealth) stealth += equipment[slot].stealth;
+        }
+        return stealth;
+    }
+
+    function handleInput(e) {
+        if (isAutoRunning) {
+            isAutoRunning = false;
+            return;
+        }
+        let key = e.key.toLowerCase();
+        
+        if (key === 'v') {
+            debugVision = !debugVision;
+            debugToggleEl.checked = debugVision;
+            logMessage(debugVision ? "Debug vision ON" : "Debug vision OFF");
+            drawBoard();
+            return;
+        }
+        
+        if (key === 'h') {
+            debugHearing = !debugHearing;
+            debugHearingToggleEl.checked = debugHearing;
+            logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
+            drawBoard();
+            return;
+        }
+
+        if (keyMap[key]) {
+            processTurn(keyMap[key].x, keyMap[key].y);
+        }
+    }
+
+    function handleMouseClick(e) {
+        if (isAutoRunning) {
+            isAutoRunning = false;
+            return;
+        }
+        let rect = board.getBoundingClientRect();
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+        
+        let gridX = Math.floor(mouseX / TILE_SIZE);
+        let gridY = Math.floor(mouseY / TILE_SIZE);
+
+        let dx = gridX - player.x;
+        let dy = gridY - player.y;
+
+        // Check if clicked tile is adjacent (including diagonals) or self
+        if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+            processTurn(dx, dy);
+        } else {
+            if (enemies.some(e => e.hasLOS || visible.has(`${e.x},${e.y}`))) {
+                logMessage("Enemies in sight! Cannot auto-run.");
+            } else {
+                triggerAutoRun(gridX, gridY);
+            }
+        }
+    }
+
+    function handleRightClick(e) {
+        e.preventDefault(); 
+        let rect = board.getBoundingClientRect();
+        let gridX = Math.floor((e.clientX - rect.left) / TILE_SIZE);
+        let gridY = Math.floor((e.clientY - rect.top) / TILE_SIZE);
+
+        let title = "Empty Tile";
+        let desc = "Safe to traverse.";
+
+        if (gridX === player.x && gridY === player.y) {
+            title = "Player";
+            desc = "HP: " + player.hp + " / " + player.maxHp + "<br>A glowing geometry of hope.";
+        } else if (wallSet.has(`${gridX},${gridY}`)) {
+            title = "Wall";
+            desc = "Solid matter. Impassable.";
+        } else {
+            let enemy = enemies.find(en => en.x === gridX && en.y === gridY);
+            if (enemy && (visible.has(`${enemy.x},${enemy.y}`) || debugVision)) {
+                title = "Sentry (Red Square)";
+                desc = `Threat: Low<br>Behavior: Stands guard until it spots you.<br>HP: ${enemy.hp}<br>Hearing: ${enemy.hearing}`;
+            }
+        }
+
+        let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (visible.has(`${gridX},${gridY}`) || debugVision));
+        if (itemsHere.length > 0 && title === "Empty Tile") {
+            title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
+            desc = itemsHere.length === 1 ? `Type: ${itemsHere[0].item.type.charAt(0).toUpperCase() + itemsHere[0].item.type.slice(1)}` : "Multiple items scattered here.";
+        }
+
+        cmTitle.style.color = title === "Player" ? "cyan" : (title.includes("Sentry") ? "red" : (itemsHere.length === 1 ? itemsHere[0].item.color : "#ccc"));
+        cmTitle.innerHTML = title;
+        cmDesc.innerHTML = desc;
+
+        cmActions.innerHTML = '';
+        availableActions.forEach(action => {
+            if (action.condition(gridX, gridY)) {
+                let li = document.createElement('li');
+                li.textContent = action.name;
+                li.onclick = () => {
+                    action.execute(gridX, gridY);
+                };
+                cmActions.appendChild(li);
+            }
+        });
+
+        // Dynamic Pick Up actions
+        if (itemsHere.length > 0 && Math.abs(gridX - player.x) <= 1 && Math.abs(gridY - player.y) <= 1) {
+            itemsHere.forEach(fi => {
+                let li = document.createElement('li');
+                li.textContent = `Pick up ${fi.item.name} ${fi.item.count > 1 ? `(x${fi.item.count})` : ''}`;
+                li.onclick = (evt) => {
+                    evt.stopPropagation(); // Stop click from reaching document and hiding the menu
+                    pickUpItem(fi);
+                    handleRightClick(e);
+                };
+                cmActions.appendChild(li);
+            });
+        }
+
+        contextMenu.style.display = 'block';
+
+        let menuWidth = contextMenu.offsetWidth;
+        let menuHeight = contextMenu.offsetHeight;
+        
+        let left = e.pageX + 10;
+        let top = e.pageY - menuHeight - 10; // Position above mouse
+        if (top < 0) top = e.pageY + 10; // Keep on screen
+        if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 10;
+        
+        contextMenu.style.left = left + 'px';
+        contextMenu.style.top = top + 'px';
+    }
+
+    function showItemContextMenu(e, item, source, slotName, index) {
+        cmTitle.style.color = item.color || "cyan";
+        cmTitle.innerHTML = item.name;
+        
+        let descHtml = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
+        if (item.damage) descHtml += `<br>Damage: ${item.damage}`;
+        if (item.defense) descHtml += `<br>Defense: ${item.defense}`;
+        if (item.stealth) descHtml += `<br>Stealth: ${item.stealth}`;
+        if (item.count > 1) descHtml += `<br>Quantity: ${item.count}`;
+        cmDesc.innerHTML = descHtml;
+
+        cmActions.innerHTML = '';
+
+        if (source === 'inventory') {
+            const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
+            if (equippableTypes.includes(item.type)) {
+                let li = document.createElement('li');
+                li.textContent = "Equip";
+                li.onclick = () => { equipItem(index); contextMenu.style.display = 'none'; };
+                cmActions.appendChild(li);
+            }
+            if (item.type === 'potion') {
+                let li = document.createElement('li');
+                li.textContent = "Drink";
+                li.onclick = () => { useItem(index); contextMenu.style.display = 'none'; };
+                cmActions.appendChild(li);
+            }
+            let dropLi = document.createElement('li');
+            dropLi.textContent = "Drop";
+            dropLi.onclick = () => { dropItem(index); contextMenu.style.display = 'none'; };
+            cmActions.appendChild(dropLi);
+            
+            if (item.count > 1) {
+                let dropAllLi = document.createElement('li');
+                dropAllLi.textContent = "Drop All";
+                dropAllLi.onclick = () => { dropAllItem(index); contextMenu.style.display = 'none'; };
+                cmActions.appendChild(dropAllLi);
+            }
+        } else if (source === 'equipment') {
+            let li = document.createElement('li');
+            li.textContent = "Unequip";
+            li.onclick = () => { unequipItem(slotName); contextMenu.style.display = 'none'; };
+            cmActions.appendChild(li);
+        }
+
+        contextMenu.style.display = 'block';
+
+        let menuWidth = contextMenu.offsetWidth;
+        let menuHeight = contextMenu.offsetHeight;
+        let left = e.pageX + 10;
+        let top = e.pageY - menuHeight - 10; 
+        if (top < 0) top = e.pageY + 10; 
+        if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 10;
+        contextMenu.style.left = left + 'px';
+        contextMenu.style.top = top + 'px';
+    }
+
+    function hideContextMenu(e) {
+        if (e.button !== 2) { 
+            contextMenu.style.display = 'none';
+        }
+    }
+
+    function processTurn(dx, dy) {
+        if (player.hp <= 0) return;
+
+        if (dx !== 0 || dy !== 0) {
+            player.dx = dx;
+            player.dy = dy;
+            let newX = player.x + dx;
+            let newY = player.y + dy;
+
+            // Boundary check
+            if (newX < 0 || newX >= GRID_W || newY < 0 || newY >= GRID_H) return;
+            
+            // Wall check
+            if (wallSet.has(`${newX},${newY}`)) return;
+
+            // Combat check
+            let enemyIndex = enemies.findIndex(e => e.x === newX && e.y === newY);
+            if (enemyIndex !== -1) {
+                enemies.splice(enemyIndex, 1);
+                logMessage("Shattered a Sentry.");
+            } else {
+                player.x = newX;
+                player.y = newY;
+            }
+        } else {
+            logMessage("Waited a turn.");
+        }
+
+        updateLOS();
+        updateEnemies();
+        updateLOS();
+        drawBoard();
+    }
+
+    function updateEnemies() {
+        enemies.forEach(e => {
+            let targetX, targetY;
+
+            if (e.hasLOS) {
+                targetX = player.x;
+                targetY = player.y;
+            } else if (e.lastKnown) {
+                targetX = e.lastKnown.x;
+                targetY = e.lastKnown.y;
+                if (e.x === targetX && e.y === targetY) {
+                    e.lastKnown = null;
+                    return;
+                }
+            } else {
+                return;
+            }
+
+            let path = findPath(e.x, e.y, targetX, targetY, true);
+            if (path && path.length > 0) {
+                let dx = path[0].x;
+                let dy = path[0].y;
+                
+                e.dx = dx;
+                e.dy = dy;
+
+                let nextX = e.x + dx;
+                let nextY = e.y + dy;
+
+                // Attack player
+                if (nextX === player.x && nextY === player.y) {
+                    player.hp -= 1;
+                    logMessage("A Sentry struck you! HP left: " + player.hp);
+                    if (player.hp <= 0) {
+                        logMessage("CRITICAL FAILURE. Run ended.");
+                    }
+                    return;
+                }
+
+                // Move if space is free
+                if (!wallSet.has(`${nextX},${nextY}`) && 
+                    !enemies.some(other => other !== e && other.x === nextX && other.y === nextY)) {
+                    e.x = nextX;
+                    e.y = nextY;
+                }
+            }
+        });
+    }
+
+    function updateLOS() {
+        visible.clear();
+        for(let x=0; x<GRID_W; x++) {
+            for(let y=0; y<GRID_H; y++) {
+                if (canPlayerSee(x, y)) {
+                    visible.add(`${x},${y}`);
+                    explored.add(`${x},${y}`);
+                }
+            }
+        }
+
+        let playerStealth = getPlayerStealth();
+        let maxEnemyHearing = enemies.length > 0 ? Math.max(...enemies.map(e => e.hearing)) : 0;
+        let footprintLimit = Math.max(6, maxEnemyHearing); // Keep debug drawing minimum size of 6
+        let maxHearingDist = Math.max(0, footprintLimit - playerStealth);
+        audibleTiles = getAudibleTiles(player.x, player.y, maxHearingDist);
+
+        enemies.forEach(e => {
+            if (inVisionCone(e, player.x, player.y)) {
+                e.hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
+            } else {
+                e.hasLOS = false;
+            }
+
+            let dist = audibleTiles.get(`${e.x},${e.y}`);
+            e.heardPlayer = (dist !== undefined && dist <= e.hearing - playerStealth);
+
+            if (e.hasLOS || e.heardPlayer) {
+                e.lastKnown = { x: player.x, y: player.y };
+            }
+        });
+    }
+
+    function getAudibleTiles(startX, startY, maxDist) {
+        let openSet = [{x: startX, y: startY, dist: 0}];
+        let visited = new Map();
+        visited.set(`${startX},${startY}`, 0);
+
+        while (openSet.length > 0) {
+            openSet.sort((a, b) => a.dist - b.dist);
+            let current = openSet.shift();
+            
+            if (current.dist >= maxDist) continue;
+
+            for (let key in keyMap) {
+                let dx = keyMap[key].x;
+                let dy = keyMap[key].y;
+                if (dx === 0 && dy === 0) continue;
+
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+
+                if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+                if (wallSet.has(`${nx},${ny}`)) continue;
+
+                let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
+                let newDist = current.dist + stepCost;
+
+                if (newDist <= maxDist) {
+                    let posStr = `${nx},${ny}`;
+                    if (!visited.has(posStr) || visited.get(posStr) > newDist) {
+                        visited.set(posStr, newDist);
+                        openSet.push({x: nx, y: ny, dist: newDist});
+                    }
+                }
+            }
+        }
+        return visited;
+    }
+
+    function inVisionCone(e, px, py) {
+        let vecX = px - e.x;
+        let vecY = py - e.y;
+        let dist = Math.hypot(vecX, vecY);
+        if (dist === 0) return true; // Direct overlap
+        
+        let eMag = Math.hypot(e.dx, e.dy) || 1;
+        let dot = (vecX / dist) * (e.dx / eMag) + (vecY / dist) * (e.dy / eMag);
+        
+        if (dot < 0.707) return false; // 90 degree vision cone (45 degrees each side)
+        
+        return dist <= 8;
+    }
+
+    function canPlayerSee(x, y) {
+        let distToPlayer = Math.hypot(player.x - x, player.y - y);
+        return distToPlayer <= PLAYER_VISION_RANGE && hasLineOfSight(player.x, player.y, x, y);
+    }
+
+    function hasLineOfSight(x1, y1, x2, y2) {
+        let dx = Math.abs(x2 - x1);
+        let dy = Math.abs(y2 - y1);
+        let sx = (x1 < x2) ? 1 : -1;
+        let sy = (y1 < y2) ? 1 : -1;
+        let err = dx - dy;
+
+        let cx = x1;
+        let cy = y1;
+
+        while (true) {
+            if (cx === x2 && cy === y2) return true;
+            if (wallSet.has(`${cx},${cy}`)) return false;
+
+            let e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; cx += sx; }
+            if (e2 < dx) { err += dx; cy += sy; }
+        }
+    }
+
+    function findPath(startX, startY, endX, endY, ignoreEnemies = false) {
+        let openSet = [{x: startX, y: startY, path: [], g: 0, f: 0}];
+        let visited = new Map();
+        visited.set(`${startX},${startY}`, 0);
+
+        while (openSet.length > 0) {
+            openSet.sort((a, b) => a.f - b.f);
+            let current = openSet.shift();
+
+            if (current.x === endX && current.y === endY) return current.path;
+
+            for (let key in keyMap) {
+                let dx = keyMap[key].x;
+                let dy = keyMap[key].y;
+                if (dx === 0 && dy === 0) continue;
+
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+
+                if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+                if (wallSet.has(`${nx},${ny}`)) continue;
+                if (!ignoreEnemies && enemies.some(e => e.x === nx && e.y === ny)) continue;
+
+                let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
+                let g = current.g + stepCost;
+                let h = Math.hypot(endX - nx, endY - ny);
+                let cross = Math.abs((nx - endX) * (startY - endY) - (startX - endX) * (ny - endY));
+                let f = g + h + cross * 0.001; // Tie-breaker for straightest path
+
+                let posStr = `${nx},${ny}`;
+                if (!visited.has(posStr) || visited.get(posStr) > g) {
+                    visited.set(posStr, g);
+                    openSet.push({x: nx, y: ny, path: [...current.path, {x: dx, y: dy}], g: g, f: f});
+                }
+            }
+        }
+        return null;
+    }
+    
+    function triggerAutoRun(x, y) {
+        let path = findPath(player.x, player.y, x, y);
+        if (path && path.length > 0) {
+            autoRunPath = path;
+            isAutoRunning = true;
+            executeAutoRunStep();
+        } else {
+            logMessage("No clear path to destination.");
+        }
+    }
+
+    function executeAutoRunStep() {
+        if (!isAutoRunning || autoRunPath.length === 0 || player.hp <= 0) {
+            isAutoRunning = false;
+            return;
+        }
+
+        let step = autoRunPath.shift();
+        processTurn(step.x, step.y);
+
+        if (enemies.some(e => e.hasLOS || visible.has(`${e.x},${e.y}`))) {
+            logMessage("Enemy spotted! Auto-run halted.");
+            isAutoRunning = false;
+            autoRunPath = [];
+            return;
+        }
+
+        if (autoRunPath.length > 0) {
+            setTimeout(executeAutoRunStep, 50);
+        } else {
+            isAutoRunning = false;
+        }
+    }
+
+    function equipItem(index) {
+        let item = inventory[index];
+        let slot = item.type;
+        let currentEquipped = equipment[slot];
+        
+        if (item.count > 1) {
+            item.count--;
+            equipment[slot] = {...item, count: 1};
+        } else {
+            inventory.splice(index, 1);
+            equipment[slot] = item;
+        }
+
+        if (currentEquipped) addItemToInventory(currentEquipped);
+        logMessage(`Equipped ${item.name}.`);
+        renderUI();
+        tooltipEl.style.display = 'none';
+    }
+
+    function unequipItem(slotName) {
+        let item = equipment[slotName];
+        if (inventory.length < INVENTORY_CAPACITY) {
+            equipment[slotName] = null;
+            addItemToInventory(item);
+            logMessage(`Unequipped ${item.name}.`);
+        } else {
+            logMessage("Inventory full, cannot unequip.");
+        }
+        renderUI();
+        tooltipEl.style.display = 'none';
+    }
+
+    function useItem(index) {
+        let item = inventory[index];
+        if (item.type === 'potion' && player.hp < player.maxHp) {
+            player.hp = Math.min(player.maxHp, player.hp + 1);
+            logMessage(`Drank ${item.name}. Recovered 1 HP.`);
+            if (item.count > 1) item.count--;
+            else inventory.splice(index, 1);
+            renderUI();
+            tooltipEl.style.display = 'none';
+        } else if (item.type === 'potion') {
+            logMessage("HP already full.");
+        }
+    }
+
+    function dropItem(index) {
+        let item = inventory[index];
+        let droppedItem = { ...item, count: 1 };
+        
+        let existingFloorItem = floorItems.find(fi => fi.x === player.x && fi.y === player.y && fi.item.name === droppedItem.name && fi.item.stackable);
+        if (existingFloorItem) {
+            existingFloorItem.item.count++;
+        } else {
+            floorItems.push({ x: player.x, y: player.y, item: droppedItem });
+        }
+
+        logMessage(`Dropped ${item.name}.`);
+        if (item.count > 1) item.count--;
+        else inventory.splice(index, 1);
+        
+        renderUI();
+        drawBoard();
+        tooltipEl.style.display = 'none';
+    }
+
+    function dropAllItem(index) {
+        let item = inventory[index];
+        let droppedItem = { ...item };
+        
+        let existingFloorItem = floorItems.find(fi => fi.x === player.x && fi.y === player.y && fi.item.name === droppedItem.name && fi.item.stackable);
+        if (existingFloorItem) {
+            existingFloorItem.item.count += droppedItem.count;
+        } else {
+            floorItems.push({ x: player.x, y: player.y, item: droppedItem });
+        }
+
+        logMessage(`Dropped ${item.count}x ${item.name}.`);
+        inventory.splice(index, 1);
+        
+        renderUI();
+        drawBoard();
+        tooltipEl.style.display = 'none';
+    }
+
+    function pickUpItem(floorItem) {
+        let idx = floorItems.indexOf(floorItem);
+        if (idx > -1) {
+            let existingItem = inventory.find(i => i.name === floorItem.item.name && i.stackable);
+            if (existingItem) {
+                existingItem.count += floorItem.item.count;
+                logMessage(`Picked up ${floorItem.item.count}x ${floorItem.item.name}.`);
+                floorItems.splice(idx, 1);
+            } else if (inventory.length < INVENTORY_CAPACITY) {
+                inventory.push(floorItem.item);
+                logMessage(`Picked up ${floorItem.item.name}.`);
+                floorItems.splice(idx, 1);
+            } else {
+                logMessage("Inventory is full! Cannot pick up.");
+                return;
+            }
+            renderUI();
+            drawBoard();
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>
