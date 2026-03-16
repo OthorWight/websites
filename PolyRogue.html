@@ -72,6 +72,8 @@
             background-color: #000;
             border: none;
             cursor: crosshair;
+        user-select: none;
+        -webkit-user-select: none;
         }
 
         #ui-panel {
@@ -288,7 +290,7 @@
         <h2>Game Settings</h2>
         <label class="settings-label"><input type="checkbox" id="setting-auto-ammo" checked> Auto-Pickup Ammo</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-gold" checked> Auto-Pickup Gold</label>
-        <label class="settings-label"><input type="checkbox" id="setting-auto-potion"> Auto-Pickup Potions</label>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-potion" checked> Auto-Pickup Potions</label>
         <button id="close-settings-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
     </div>
 
@@ -380,7 +382,7 @@
     let gameSettings = {
         autoPickupAmmo: true,
         autoPickupGold: true,
-        autoPickupPotion: false
+        autoPickupPotion: true
     };
 
     // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
@@ -398,6 +400,8 @@
         weapon: { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damage: 1, range: 5, ammoType: "Pebble" } 
     };
     const INVENTORY_CAPACITY = 16;
+    
+    const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
     
     // Direction mapping for QWEASDZXC
     const keyMap = {
@@ -914,7 +918,7 @@
         for (let i = floorItems.length - 1; i >= 0; i--) {
             let fi = floorItems[i];
             if (fi.x < camBounds.startX || fi.x > camBounds.endX || fi.y < camBounds.startY || fi.y > camBounds.endY) continue;
-            if (!mapData[fi.x][fi.y].isVisible && !debugVision) continue;
+            if (!mapData[fi.x][fi.y].isExplored && !debugVision) continue;
             
             let posStr = `${fi.x},${fi.y}`;
             if (drawnTiles.has(posStr)) continue;
@@ -927,6 +931,9 @@
             text.setAttribute("font-size", "20");
             text.setAttribute("text-anchor", "middle");
             text.setAttribute("dominant-baseline", "middle");
+            if (!mapData[fi.x][fi.y].isVisible && !debugVision) {
+                text.setAttribute("opacity", "0.4");
+            }
             text.textContent = fi.item.icon || fi.item.name.charAt(0);
             fragment.appendChild(text);
         }
@@ -1090,7 +1097,7 @@
             let item = equipment[slotName];
             let slot = document.createElement('div');
             slot.className = 'equipment-slot';
-            slot.innerHTML = `<span>${slotName.charAt(0).toUpperCase() + slotName.slice(1)}</span> <span style="color: ${item ? 'cyan' : '#555'}">${item ? item.icon + ' ' + item.name : 'Empty'}</span>`;
+            slot.innerHTML = `<span>${slotName.charAt(0).toUpperCase() + slotName.slice(1)}</span> <span style="color: ${item ? (item.color || 'cyan') : '#555'}">${item ? item.icon + ' ' + item.name : 'Empty'}</span>`;
             
             if (item) {
                 bindTooltip(slot, item.name);
@@ -1289,7 +1296,7 @@
             }
         }
 
-        let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isVisible || debugVision));
+        let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isExplored || debugVision));
         if (itemsHere.length > 0 && title === "Empty Tile") {
             title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
             desc = itemsHere.length === 1 ? `Type: ${itemsHere[0].item.type.charAt(0).toUpperCase() + itemsHere[0].item.type.slice(1)}` : "Multiple items scattered here.";
@@ -1322,6 +1329,17 @@
                     handleRightClick(e);
                 };
                 cmActions.appendChild(li);
+
+                if (equippableTypes.includes(fi.item.type)) {
+                    let liEquip = document.createElement('li');
+                    liEquip.textContent = `Equip ${fi.item.name}`;
+                    liEquip.onclick = (evt) => {
+                        evt.stopPropagation();
+                        equipFloorItem(fi);
+                        handleRightClick(e);
+                    };
+                    cmActions.appendChild(liEquip);
+                }
             });
         }
 
@@ -1356,7 +1374,6 @@
         cmActions.innerHTML = '';
 
         if (source === 'inventory') {
-            const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
             if (equippableTypes.includes(item.type)) {
                 let li = document.createElement('li');
                 li.textContent = "Equip";
@@ -1863,6 +1880,43 @@
             tooltipEl.style.display = 'none';
         } else if (item.type === 'potion') {
             logMessage("HP already full.");
+        }
+    }
+
+    function equipFloorItem(floorItem) {
+        let idx = floorItems.indexOf(floorItem);
+        if (idx > -1) {
+            let item = floorItem.item;
+            let slot = item.type;
+            let currentEquipped = equipment[slot];
+            
+            if (item.count > 1) {
+                item.count--;
+                equipment[slot] = {...item, count: 1};
+            } else {
+                floorItems.splice(idx, 1);
+                equipment[slot] = item;
+            }
+
+            if (currentEquipped) {
+                let existingItem = inventory.find(i => i.name === currentEquipped.name && i.stackable);
+                if (existingItem) {
+                    existingItem.count += (currentEquipped.count || 1);
+                } else if (inventory.length < INVENTORY_CAPACITY) {
+                    inventory.push(currentEquipped);
+                } else {
+                    let existingFloorItem = floorItems.find(fi => fi.x === player.x && fi.y === player.y && fi.item.name === currentEquipped.name && fi.item.stackable);
+                    if (existingFloorItem) {
+                        existingFloorItem.item.count += (currentEquipped.count || 1);
+                    } else {
+                        floorItems.push({ x: player.x, y: player.y, item: currentEquipped });
+                    }
+                    logMessage(`Inventory full, dropped ${currentEquipped.name} to the floor.`);
+                }
+            }
+            logMessage(`Equipped ${item.name}.`);
+            renderUI();
+            drawBoard();
         }
     }
 
