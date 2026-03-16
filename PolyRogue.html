@@ -12,10 +12,11 @@
         Instant load times, clean modern aesthetic, no ASCII, no complex pixel art.
 
         1. Visual Style & Interface:
-        - Player: Glowing cyan Triangle.
-        - Enemies: Red/orange polygons (e.g., Red Square for Seekers).
-        - Environment: Minimalist grid lines, solid gray walls.
-        - Context Menus: Right-clicking pauses game, opens dark gray info panel.
+        - Player: Glowing cyan Triangle (rotates based on movement direction).
+        - Enemies: Red polygons with facing indicators (e.g., Red Square for Sentries).
+        - Environment: Minimalist grid lines, solid gray walls, true Line of Sight (LoS) fog of war.
+        - Context Menus: Right-clicking opens an info/action panel (move, attack, auto-walk, pick up, equip, use).
+        - UI Panel: Side panel tracking HP, Floor, Action Log, Equipment slots, and a 16-slot Inventory grid. Tooltips for items.
 
         2. Core Game Loop:
         - Turn-based: Time moves only when the player takes an action.
@@ -23,17 +24,27 @@
 
         3. Mechanics & Controls:
         - Movement: 8-way directional (orthogonal + diagonal).
-        - Combat: Bump-to-attack destroys basic enemies instantly.
-        - Controls (Mouse): Left-click adjacent tile/enemy to move/attack. 
-          Left-click player to wait. Right-click for Context Menu.
-        - Controls (Keyboard): QWEASDZXC / Numpad for movement. 'I' for inspect (TBD).
+        - Auto-Run: Left-clicking a distant tile (or using Context Menu) auto-walks the player, halting automatically if an enemy is spotted.
+        - Combat: Bump-to-attack. HP system for player and enemies.
+        - Stealth & Senses: Player emits noise based on distance and stealth stats. Enemies investigate noises or chase if player enters their vision cone/LoS.
+        - Controls (Mouse): Left-click adjacent tile/enemy to move/attack. Left-click far tile to auto-run. Right-click for Context Menu. Scroll wheel to zoom.
+        - Controls (Keyboard): QWEASDZXC for movement. 'V' and 'H' for debug vision/hearing toggles.
 
-        4. Enemy Roster (Prototype includes Sentries):
-        - Sentry (Red Square): Stands still until it spots the player, then chases. 
-          Uses 8-way pathfinding.
+        4. Inventory & Equipment:
+        - Slots: Head, Body, Hands, Feet, Weapon.
+        - Stats: Items can grant Damage, Defense, and Stealth modifiers.
+        - Consumables & Loot: Potions for healing, Gold for currency, stackable items. Floor loot represented by icons.
 
-        5. Goals:
-        - Survive, clear enemies, reach the warp portal.
+        5. Enemy Roster (Prototype):
+        - Sentry (Red Square): Stands still until it hears/spots the player, then chases. 
+          Uses 8-way pathfinding. Has individual hearing levels and HP stats.
+
+        6. World Generation:
+        - Procedural generation: Carves rooms and corridors, removes dead-ends, adds loops, and scatters loot/enemies.
+        - Fog of War: Explored areas remain dim, active vision uses raycasting.
+
+        7. Goals:
+        - Survive, clear enemies, collect loot, reach the warp portal (TBD).
         =============================================================================
         */
 
@@ -115,6 +126,20 @@
             letter-spacing: 1px;
         }
 
+        .ui-btn {
+            background: #111;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+        .ui-btn:hover {
+            border-color: cyan;
+            color: cyan;
+        }
+
         .equipment-slot, .inventory-slot {
             background: #111;
             border: 1px solid #444;
@@ -190,6 +215,36 @@
             box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
             white-space: nowrap;
         }
+
+        #settings-modal {
+            position: absolute;
+            background: rgba(20, 20, 20, 0.98);
+            border: 1px solid #777;
+            padding: 20px;
+            color: #fff;
+            font-family: sans-serif;
+            z-index: 200;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 250px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #settings-modal h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            color: cyan;
+        }
+        .settings-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -209,6 +264,7 @@
                     <input type="checkbox" id="debug-hearing-toggle"> Show Hearing (H)
                 </label>
             </div>
+            <button id="settings-btn" class="ui-btn">Settings</button>
 
             <div class="section-title">Equipment</div>
             <div id="equipment-list"></div>
@@ -228,10 +284,67 @@
 
     <div id="tooltip" style="display: none;"></div>
 
+    <div id="settings-modal" style="display: none;">
+        <h2>Game Settings</h2>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-ammo" checked> Auto-Pickup Ammo</label>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-gold" checked> Auto-Pickup Gold</label>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-potion"> Auto-Pickup Potions</label>
+        <button id="close-settings-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
+    </div>
+
 <script>
+    class MinHeap {
+        constructor(scoreFn = node => node.f) {
+            this.heap = [];
+            this.scoreFn = scoreFn;
+        }
+        push(node) {
+            this.heap.push(node);
+            this.bubbleUp(this.heap.length - 1);
+        }
+        pop() {
+            if (this.heap.length === 0) return null;
+            if (this.heap.length === 1) return this.heap.pop();
+            const top = this.heap[0];
+            this.heap[0] = this.heap.pop();
+            this.sinkDown(0);
+            return top;
+        }
+        bubbleUp(idx) {
+            while (idx > 0) {
+                let parentIdx = Math.floor((idx - 1) / 2);
+                if (this.scoreFn(this.heap[idx]) >= this.scoreFn(this.heap[parentIdx])) break;
+                [this.heap[idx], this.heap[parentIdx]] = [this.heap[parentIdx], this.heap[idx]];
+                idx = parentIdx;
+            }
+        }
+        sinkDown(idx) {
+            const len = this.heap.length;
+            while (true) {
+                let left = 2 * idx + 1;
+                let right = 2 * idx + 2;
+                let smallest = idx;
+                if (left < len && this.scoreFn(this.heap[left]) < this.scoreFn(this.heap[smallest])) smallest = left;
+                if (right < len && this.scoreFn(this.heap[right]) < this.scoreFn(this.heap[smallest])) smallest = right;
+                if (smallest === idx) break;
+                [this.heap[idx], this.heap[smallest]] = [this.heap[smallest], this.heap[idx]];
+                idx = smallest;
+            }
+        }
+        isEmpty() {
+            return this.heap.length === 0;
+        }
+    }
+
     const TILE_SIZE = 40;
-    let GRID_W = 15;
-    let GRID_H = 15;
+    const GRID_W = 200;
+    const GRID_H = 200;
+
+    let pathfindingPass = 0;
+    const visitedG = new Float64Array(GRID_W * GRID_H);
+    const visitedPass = new Uint32Array(GRID_W * GRID_H);
+    const enemyPositionsMap = new Uint8Array(GRID_W * GRID_H);
+    let visibleTiles = [];
     
     const board = document.getElementById('game-board');
     const logEl = document.getElementById('log');
@@ -248,30 +361,41 @@
 
     let player = { x: 7, y: 7, hp: 3, maxHp: 3, dx: 0, dy: -1 };
     let enemies = [];
-    let walls = [];
     let floorItems = [];
-    let wallSet = new Set();
+    let mapData = []; // 2D array holding tile objects
     let isAutoRunning = false;
+    let isAutoExploring = false;
     let autoRunPath = [];
+
+    let currentZoom = 1.0;
+    const MIN_ZOOM = 0.8;
+    const MAX_ZOOM = 2.5;
+    let camBounds = { startX: 0, startY: 0, endX: 0, endY: 0 };
     
     const PLAYER_VISION_RANGE = 7;
     let debugVision = false;
     let debugHearing = false;
     let audibleTiles = new Map();
-    let explored = new Set();
-    let visible = new Set();
+
+    let gameSettings = {
+        autoPickupAmmo: true,
+        autoPickupGold: true,
+        autoPickupPotion: false
+    };
 
     // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
     let inventory = [
+        { name: "Dagger", type: "weapon", icon: "▲", color: "#cccccc", damage: 1 },
         { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", count: 5, stackable: true },
-        { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true }
+        { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true, healAmount: 1 },
+        { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", count: 10, stackable: true }
     ];
     let equipment = { 
         head: null, 
         body: null, 
         hands: null, 
         feet: null, 
-        weapon: { name: "Dagger", type: "weapon", icon: "▲", color: "#cccccc", damage: 1 } 
+        weapon: { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damage: 1, range: 5, ammoType: "Pebble" } 
     };
     const INVENTORY_CAPACITY = 16;
     
@@ -290,11 +414,19 @@
             execute: (x, y) => processTurn(0, 0)
         },
         {
+            name: "Auto-Explore",
+            condition: (x, y) => x === player.x && y === player.y,
+            execute: (x, y) => triggerAutoExplore()
+        },
+        {
             name: "Move",
             condition: (x, y) => {
                 let dx = Math.abs(x - player.x);
                 let dy = Math.abs(y - player.y);
-                return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0) && !wallSet.has(`${x},${y}`) && !enemies.some(e => e.x === x && e.y === y);
+                if (dx > 1 || dy > 1 || (dx === 0 && dy === 0)) return false;
+                if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return false;
+                if (mapData[x][y].isWall) return false;
+                return !enemies.some(e => e.x === x && e.y === y);
             },
             execute: (x, y) => processTurn(x - player.x, y - player.y)
         },
@@ -303,9 +435,24 @@
             condition: (x, y) => {
                 let dx = Math.abs(x - player.x);
                 let dy = Math.abs(y - player.y);
-                return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0) && enemies.some(e => e.x === x && e.y === y && (visible.has(`${e.x},${e.y}`) || debugVision));
+                return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0) && enemies.some(e => e.x === x && e.y === y && (mapData[e.x][e.y].isVisible || debugVision));
             },
             execute: (x, y) => processTurn(x - player.x, y - player.y)
+        },
+        {
+            name: "Ranged Attack",
+            condition: (x, y) => {
+                let wpn = equipment.weapon;
+                if (!wpn || !wpn.range || wpn.range <= 1) return false;
+                let dist = Math.hypot(x - player.x, y - player.y);
+                if (dist > wpn.range || dist === 0) return false;
+                if (!enemies.some(e => e.x === x && e.y === y && (mapData[e.x][e.y].isVisible || debugVision))) return false;
+                if (!hasLineOfSight(player.x, player.y, x, y)) return false;
+                let ammo = inventory.find(i => i.name === wpn.ammoType);
+                if (!ammo || ammo.count < 1) return false;
+                return true;
+            },
+            execute: (x, y) => executeRangedAttack(x, y)
         },
         {
             name: "Auto-Walk Here",
@@ -313,8 +460,8 @@
                 let dx = Math.abs(x - player.x);
                 let dy = Math.abs(y - player.y);
                 if (dx <= 1 && dy <= 1) return false; // Too close for auto-run
-                if (wallSet.has(`${x},${y}`)) return false;
-                if (enemies.some(e => e.hasLOS || visible.has(`${e.x},${e.y}`))) return false; // Prevent auto-run if enemies are visible
+                if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H || mapData[x][y].isWall) return false;
+                if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) return false; // Prevent auto-run if enemies are visible
                 return findPath(player.x, player.y, x, y) !== null; // Make sure we can reach it
             },
             execute: (x, y) => {
@@ -324,7 +471,6 @@
     ];
 
     function init() {
-        resizeBoard();
         generateLevel();
         updateLOS();
         renderUI();
@@ -345,27 +491,64 @@
             logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
             drawBoard();
         });
+        board.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                currentZoom = Math.min(MAX_ZOOM, currentZoom + 0.1);
+            } else {
+                currentZoom = Math.max(MIN_ZOOM, currentZoom - 0.1);
+            }
+            drawBoard();
+        });
+
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            document.getElementById('settings-modal').style.display = 'flex';
+        });
+        document.getElementById('close-settings-btn').addEventListener('click', () => {
+            document.getElementById('settings-modal').style.display = 'none';
+        });
+        document.getElementById('setting-auto-ammo').addEventListener('change', (e) => gameSettings.autoPickupAmmo = e.target.checked);
+        document.getElementById('setting-auto-gold').addEventListener('change', (e) => gameSettings.autoPickupGold = e.target.checked);
+        document.getElementById('setting-auto-potion').addEventListener('change', (e) => gameSettings.autoPickupPotion = e.target.checked);
 
         window.addEventListener('resize', () => {
-            resizeBoard();
             drawBoard();
         });
     }
 
-    function resizeBoard() {
-        const rect = board.getBoundingClientRect();
-        GRID_W = Math.ceil(rect.width / TILE_SIZE) || 15;
-        GRID_H = Math.ceil(rect.height / TILE_SIZE) || 15;
+    function updateCamera() {
+        let rect = board.getBoundingClientRect();
+        let w = rect.width || window.innerWidth;
+        let h = rect.height || window.innerHeight;
+
+        let vw = w / currentZoom;
+        let vh = h / currentZoom;
+
+        let cx = player.x * TILE_SIZE + TILE_SIZE / 2;
+        let cy = player.y * TILE_SIZE + TILE_SIZE / 2;
+
+        let vx = cx - vw / 2;
+        let vy = cy - vh / 2;
+
+        board.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
+
+        camBounds.startX = Math.max(0, Math.floor(vx / TILE_SIZE) - 2);
+        camBounds.startY = Math.max(0, Math.floor(vy / TILE_SIZE) - 2);
+        camBounds.endX = Math.min(GRID_W - 1, Math.floor((vx + vw) / TILE_SIZE) + 2);
+        camBounds.endY = Math.min(GRID_H - 1, Math.floor((vy + vh) / TILE_SIZE) + 2);
+    }
+
+    function initMap() {
+        mapData = Array.from({length: GRID_W}, () => 
+            Array.from({length: GRID_H}, () => ({ isWall: true, isVisible: false, isExplored: false }))
+        );
     }
 
     function generateLevel() {
-        walls = [];
-        wallSet.clear();
+        initMap();
         enemies = [];
+        visibleTiles = [];
         floorItems = [];
-        explored.clear();
-        visible.clear();
-        let grid = Array.from({length: GRID_W}, () => Array(GRID_H).fill(1));
         
         let roomW = 3, roomH = 3;
         let startX = Math.floor(GRID_W / 2) - Math.floor(roomW / 2);
@@ -374,7 +557,7 @@
         for (let x = startX; x < startX + roomW; x++) {
             for (let y = startY; y < startY + roomH; y++) {
                 if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
-                    grid[x][y] = 0;
+                    mapData[x][y].isWall = false;
                 }
             }
         }
@@ -389,7 +572,7 @@
                 let nx = cx + d.dx;
                 let ny = cy + d.dy;
                 if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1) {
-                    if (grid[nx][ny] === 1) {
+                    if (mapData[nx][ny].isWall) {
                         wallList.push({x: nx, y: ny, dx: d.dx, dy: d.dy});
                     }
                 }
@@ -398,7 +581,7 @@
         
         for (let x = startX; x < startX + roomW; x++) {
             for (let y = startY; y < startY + roomH; y++) {
-                if (grid[x][y] === 0) {
+                if (!mapData[x][y].isWall) {
                     addWalls(x, y);
                 }
             }
@@ -406,16 +589,16 @@
         
         let iterations = 0;
         
-        while (wallList.length > 0 && iterations < 10000) {
+        while (wallList.length > 0 && iterations < 300000) {
             let idx = Math.floor(Math.random() * wallList.length);
             let wall = wallList[idx];
             wallList.splice(idx, 1);
             
-            if (grid[wall.x][wall.y] === 0) continue;
+            if (!mapData[wall.x][wall.y].isWall) continue;
             
             let floorCount = 0;
             for (let d of dirs) {
-                if (grid[wall.x + d.dx] && grid[wall.x + d.dx][wall.y + d.dy] === 0) {
+                if (mapData[wall.x + d.dx] && !mapData[wall.x + d.dx][wall.y + d.dy].isWall) {
                     floorCount++;
                 }
             }
@@ -443,7 +626,7 @@
                     for (let x = rx - 1; x <= rx + rw; x++) {
                         for (let y = ry - 1; y <= ry + rh; y++) {
                             if (x === wall.x && y === wall.y) continue;
-                            if (grid[x] && grid[x][y] === 0) fits = false;
+                            if (mapData[x] && !mapData[x][y].isWall) fits = false;
                         }
                     }
                 }
@@ -451,10 +634,10 @@
                 if (fits) {
                     for (let x = rx; x < rx + rw; x++) {
                         for (let y = ry; y < ry + rh; y++) {
-                            grid[x][y] = 0;
+                            mapData[x][y].isWall = false;
                         }
                     }
-                    grid[wall.x][wall.y] = 0;
+                    mapData[wall.x][wall.y].isWall = false;
                     for (let x = rx; x < rx + rw; x++) {
                         for (let y = ry; y < ry + rh; y++) {
                             addWalls(x, y);
@@ -477,18 +660,18 @@
                     }
                     let adjacentFloors = 0;
                     for (let d of dirs) {
-                        if (grid[tx + d.dx] && grid[tx + d.dx][ty + d.dy] === 0) adjacentFloors++;
+                        if (mapData[tx + d.dx] && !mapData[tx + d.dx][ty + d.dy].isWall) adjacentFloors++;
                     }
                     if (adjacentFloors > 0) { fits = false; break; }
                 }
                 
                 if (fits) {
-                    grid[wall.x][wall.y] = 0;
+                    mapData[wall.x][wall.y].isWall = false;
                     addWalls(wall.x, wall.y);
                     for (let i = 0; i < length; i++) {
                         let tx = cx + wall.dx * i;
                         let ty = cy + wall.dy * i;
-                        grid[tx][ty] = 0;
+                        mapData[tx][ty].isWall = false;
                         addWalls(tx, ty);
                     }
                     carved = true;
@@ -502,11 +685,11 @@
         let potentialConnections = [];
         for (let x = 1; x < GRID_W - 1; x++) {
             for (let y = 1; y < GRID_H - 1; y++) {
-                if (grid[x][y] === 1) {
-                    let floorAbove = grid[x][y-1] === 0;
-                    let floorBelow = grid[x][y+1] === 0;
-                    let floorLeft = grid[x-1][y] === 0;
-                    let floorRight = grid[x+1][y] === 0;
+                if (mapData[x][y].isWall) {
+                    let floorAbove = !mapData[x][y-1].isWall;
+                    let floorBelow = !mapData[x][y+1].isWall;
+                    let floorLeft = !mapData[x-1][y].isWall;
+                    let floorRight = !mapData[x+1][y].isWall;
 
                     let horizontal = floorLeft && floorRight && !floorAbove && !floorBelow;
                     let vertical = floorAbove && floorBelow && !floorLeft && !floorRight;
@@ -522,7 +705,7 @@
         let connectionsToBreak = Math.floor(potentialConnections.length * 0.3); // Connect 30%
         for (let i = 0; i < connectionsToBreak; i++) {
             let pos = potentialConnections[i];
-            grid[pos.x][pos.y] = 0;
+            mapData[pos.x][pos.y].isWall = false;
         }
 
         // Post-Processing 2: Remove some dead ends
@@ -530,12 +713,12 @@
             let deadEnds = [];
             for (let x = 1; x < GRID_W - 1; x++) {
                 for (let y = 1; y < GRID_H - 1; y++) {
-                    if (grid[x][y] === 0 && (x !== player.x || y !== player.y)) {
+                    if (!mapData[x][y].isWall && (x !== player.x || y !== player.y)) {
                         let wallCount = 0;
-                        if (grid[x][y-1] === 1) wallCount++;
-                        if (grid[x][y+1] === 1) wallCount++;
-                        if (grid[x-1][y] === 1) wallCount++;
-                        if (grid[x+1][y] === 1) wallCount++;
+                        if (mapData[x][y-1].isWall) wallCount++;
+                        if (mapData[x][y+1].isWall) wallCount++;
+                        if (mapData[x-1][y].isWall) wallCount++;
+                        if (mapData[x+1][y].isWall) wallCount++;
                         
                         if (wallCount === 3 && Math.random() < 0.7) { // Fill in 70% of dead ends
                             deadEnds.push({x, y});
@@ -544,20 +727,15 @@
                 }
             }
             for (let pos of deadEnds) {
-                grid[pos.x][pos.y] = 1;
+                mapData[pos.x][pos.y].isWall = true;
             }
         }
 
         let emptySpaces = [];
         for (let x = 0; x < GRID_W; x++) {
             for (let y = 0; y < GRID_H; y++) {
-                if (grid[x][y] === 1) {
-                    walls.push({ x, y });
-                    wallSet.add(`${x},${y}`);
-                } else {
-                    if (x !== player.x || y !== player.y) {
-                        emptySpaces.push({ x, y });
-                    }
+                if (!mapData[x][y].isWall && (x !== player.x || y !== player.y)) {
+                    emptySpaces.push({ x, y });
                 }
             }
         }
@@ -578,9 +756,11 @@
         let numLoot = Math.floor((GRID_W * GRID_H) / 80); 
         let possibleLoot = [
             { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", count: 1, stackable: true },
-            { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true },
+            { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true, healAmount: 1 },
             { name: "Leather Armor", type: "body", icon: "■", color: "#8b4513", defense: 1, stackable: false },
-            { name: "Leather Boots", type: "feet", icon: "▨", color: "#8b4513", stealth: 1, stackable: false }
+            { name: "Leather Boots", type: "feet", icon: "▟", color: "#8b4513", stealth: 1, stackable: false },
+            { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damage: 1, range: 5, ammoType: "Pebble", stackable: false },
+            { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", count: 3, stackable: true }
         ];
         for (let i = 0; i < numLoot; i++) {
             if (emptySpaces.length > 0) {
@@ -596,49 +776,50 @@
         const entry = document.createElement('div');
         entry.textContent = "> " + msg;
         logEl.prepend(entry);
+        
+        if (logEl.children.length > 100) {
+            logEl.removeChild(logEl.lastChild);
+        }
     }
 
     function drawBoard() {
-        board.innerHTML = ''; 
+        updateCamera();
+        
+        let fragment = document.createDocumentFragment();
 
-        // Draw Grid
-        for(let x=0; x<GRID_W; x++) {
-            for(let y=0; y<GRID_H; y++) {
+        // Draw Map Tiles (Floors, Walls, and Fog)
+        for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+            for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                let tile = mapData[x][y];
+
+                if (!tile.isExplored && !debugVision) {
+                    continue; // Skip rendering completely unexplored tiles to save performance and hide floor lines
+                }
+
                 let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 rect.setAttribute("x", x * TILE_SIZE);
                 rect.setAttribute("y", y * TILE_SIZE);
                 rect.setAttribute("width", TILE_SIZE);
                 rect.setAttribute("height", TILE_SIZE);
-                rect.setAttribute("fill", "none");
-                rect.setAttribute("stroke", "#222");
-                board.appendChild(rect);
-            }
-        }
-
-        // Draw Walls
-        walls.forEach(w => {
-            let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-            rect.setAttribute("x", w.x * TILE_SIZE);
-            rect.setAttribute("y", w.y * TILE_SIZE);
-            rect.setAttribute("width", TILE_SIZE);
-            rect.setAttribute("height", TILE_SIZE);
-            rect.setAttribute("fill", "#555");
-            board.appendChild(rect);
-        });
-
-        // Draw Fog of War (Fill for LOS)
-        for(let x=0; x<GRID_W; x++) {
-            for(let y=0; y<GRID_H; y++) {
-                let posStr = `${x},${y}`;
-                if (!visible.has(posStr)) {
-                    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    rect.setAttribute("x", x * TILE_SIZE);
-                    rect.setAttribute("y", y * TILE_SIZE);
-                    rect.setAttribute("width", TILE_SIZE + 1);
-                    rect.setAttribute("height", TILE_SIZE + 1);
-                    rect.setAttribute("fill", explored.has(posStr) ? "rgba(0, 0, 0, 0.7)" : "#000");
-                    rect.setAttribute("pointer-events", "none");
-                    board.appendChild(rect);
+                
+                if (tile.isWall) {
+                    rect.setAttribute("fill", "#555");
+                } else {
+                    rect.setAttribute("fill", "none");
+                    rect.setAttribute("stroke", "#222");
+                }
+                fragment.appendChild(rect);
+                
+                // Draw Fog of War
+                if (!tile.isVisible && !debugVision) {
+                    let fog = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    fog.setAttribute("x", x * TILE_SIZE);
+                    fog.setAttribute("y", y * TILE_SIZE);
+                    fog.setAttribute("width", TILE_SIZE + 1);
+                    fog.setAttribute("height", TILE_SIZE + 1);
+                    fog.setAttribute("fill", "rgba(0, 0, 0, 0.7)"); // Tile is definitely explored if we reach here
+                    fog.setAttribute("pointer-events", "none");
+                    fragment.appendChild(fog);
                 }
             }
         }
@@ -664,7 +845,7 @@
         grad.appendChild(stop1);
         grad.appendChild(stop2);
         defs.appendChild(grad);
-        board.appendChild(defs);
+        fragment.appendChild(defs);
 
         // Draw Player Light (Raycasted)
         let pts = [];
@@ -682,7 +863,7 @@
                 let nextY = cy + Math.sin(a) * dist;
                 let gx = Math.floor(nextX / TILE_SIZE);
                 let gy = Math.floor(nextY / TILE_SIZE);
-                if (wallSet.has(`${gx},${gy}`) || gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) {
+                if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H || mapData[gx][gy].isWall) {
                     let refineStep = stepSize / 2;
                     dist -= stepSize;
                     for (let i = 0; i < 6; i++) {
@@ -691,7 +872,7 @@
                         let ry = cy + Math.sin(a) * dist;
                         let r_gx = Math.floor(rx / TILE_SIZE);
                         let r_gy = Math.floor(ry / TILE_SIZE);
-                        if (wallSet.has(`${r_gx},${r_gy}`) || r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H) {
+                        if (r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H || mapData[r_gx][r_gy].isWall) {
                             dist -= refineStep;
                         }
                         refineStep /= 2;
@@ -710,12 +891,13 @@
         playerLight.setAttribute("points", pts.join(" "));
         playerLight.setAttribute("fill", "url(#playerLight)");
         playerLight.setAttribute("pointer-events", "none");
-        board.appendChild(playerLight);
+        fragment.appendChild(playerLight);
 
         // Draw debug hearing
         if (debugHearing) {
             audibleTiles.forEach((dist, posStr) => {
                 let [ax, ay] = posStr.split(',').map(Number);
+                if (ax < camBounds.startX || ax > camBounds.endX || ay < camBounds.startY || ay > camBounds.endY) return;
                 let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 rect.setAttribute("x", ax * TILE_SIZE);
                 rect.setAttribute("y", ay * TILE_SIZE);
@@ -723,7 +905,7 @@
                 rect.setAttribute("height", TILE_SIZE);
                 rect.setAttribute("fill", "rgba(255, 165, 0, 0.2)");
                 rect.setAttribute("pointer-events", "none");
-                board.appendChild(rect);
+                fragment.appendChild(rect);
             });
         }
 
@@ -731,9 +913,11 @@
         let drawnTiles = new Set();
         for (let i = floorItems.length - 1; i >= 0; i--) {
             let fi = floorItems[i];
+            if (fi.x < camBounds.startX || fi.x > camBounds.endX || fi.y < camBounds.startY || fi.y > camBounds.endY) continue;
+            if (!mapData[fi.x][fi.y].isVisible && !debugVision) continue;
+            
             let posStr = `${fi.x},${fi.y}`;
-            if (!visible.has(posStr) && !debugVision) continue;
-            if (drawnTiles.has(posStr)) continue; // Only draw the top item
+            if (drawnTiles.has(posStr)) continue;
             drawnTiles.add(posStr);
 
             let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -744,18 +928,20 @@
             text.setAttribute("text-anchor", "middle");
             text.setAttribute("dominant-baseline", "middle");
             text.textContent = fi.item.icon || fi.item.name.charAt(0);
-            board.appendChild(text);
+            fragment.appendChild(text);
         }
 
         // Draw debug vision
         if (debugVision) {
             // Draw enemy vision
             enemies.forEach(e => {
+                if (e.x < camBounds.startX || e.x > camBounds.endX || e.y < camBounds.startY || e.y > camBounds.endY) return;
+                
                 let pts = [];
-                let cx = e.x * TILE_SIZE + TILE_SIZE / 2;
-                let cy = e.y * TILE_SIZE + TILE_SIZE / 2;
+                let ecx = e.x * TILE_SIZE + TILE_SIZE / 2;
+                let ecy = e.y * TILE_SIZE + TILE_SIZE / 2;
                 let baseAngle = Math.atan2(e.dy, e.dx);
-                pts.push(`${cx},${cy}`);
+                pts.push(`${ecx},${ecy}`);
                 
                 let maxDist = 8 * TILE_SIZE;
                 let stepSize = TILE_SIZE / 4;
@@ -763,31 +949,31 @@
                 for (let a = -Math.PI / 4; a <= Math.PI / 4 + 0.01; a += Math.PI / 128) {
                     let angle = baseAngle + a;
                     let dist = 0;
-                    let rayX = cx;
-                    let rayY = cy;
+                    let rayX = ecx;
+                    let rayY = ecy;
                     
                     while (dist < maxDist) {
                         dist += stepSize;
-                        let nextX = cx + Math.cos(angle) * dist;
-                        let nextY = cy + Math.sin(angle) * dist;
+                        let nextX = ecx + Math.cos(angle) * dist;
+                        let nextY = ecy + Math.sin(angle) * dist;
                         let gx = Math.floor(nextX / TILE_SIZE);
                         let gy = Math.floor(nextY / TILE_SIZE);
-                        if (wallSet.has(`${gx},${gy}`) || gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) {
+                        if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H || mapData[gx][gy].isWall) {
                             let refineStep = stepSize / 2;
                             dist -= stepSize;
                             for (let i = 0; i < 6; i++) {
                                 dist += refineStep;
-                                let rx = cx + Math.cos(angle) * dist;
-                                let ry = cy + Math.sin(angle) * dist;
+                                let rx = ecx + Math.cos(angle) * dist;
+                                let ry = ecy + Math.sin(angle) * dist;
                                 let r_gx = Math.floor(rx / TILE_SIZE);
                                 let r_gy = Math.floor(ry / TILE_SIZE);
-                                if (wallSet.has(`${r_gx},${r_gy}`) || r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H) {
+                                if (r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H || mapData[r_gx][r_gy].isWall) {
                                     dist -= refineStep;
                                 }
                                 refineStep /= 2;
                             }
-                            rayX = cx + Math.cos(angle) * dist;
-                            rayY = cy + Math.sin(angle) * dist;
+                            rayX = ecx + Math.cos(angle) * dist;
+                            rayY = ecy + Math.sin(angle) * dist;
                             break;
                         }
                         rayX = nextX;
@@ -799,13 +985,14 @@
                 poly.setAttribute("points", pts.join(" "));
                 poly.setAttribute("fill", "rgba(255, 0, 0, 0.15)");
                 poly.setAttribute("pointer-events", "none");
-                board.appendChild(poly);
+                fragment.appendChild(poly);
             });
         }
 
         // Draw Enemies
         enemies.forEach(e => {
-            if (!visible.has(`${e.x},${e.y}`) && !debugVision) return;
+            if (e.x < camBounds.startX || e.x > camBounds.endX || e.y < camBounds.startY || e.y > camBounds.endY) return;
+            if (!mapData[e.x][e.y].isVisible && !debugVision) return;
 
             let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
@@ -828,20 +1015,20 @@
             let mag = Math.hypot(e.dx, e.dy) || 1;
             let nx = e.dx / mag;
             let ny = e.dy / mag;
-            let cx = e.x * TILE_SIZE + TILE_SIZE / 2;
-            let cy = e.y * TILE_SIZE + TILE_SIZE / 2;
+            let ecx = e.x * TILE_SIZE + TILE_SIZE / 2;
+            let ecy = e.y * TILE_SIZE + TILE_SIZE / 2;
 
             let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", cx);
-            line.setAttribute("y1", cy);
-            line.setAttribute("x2", cx + nx * (TILE_SIZE / 2 - 5));
-            line.setAttribute("y2", cy + ny * (TILE_SIZE / 2 - 5));
+            line.setAttribute("x1", ecx);
+            line.setAttribute("y1", ecy);
+            line.setAttribute("x2", ecx + nx * (TILE_SIZE / 2 - 5));
+            line.setAttribute("y2", ecy + ny * (TILE_SIZE / 2 - 5));
             line.setAttribute("stroke", "#111");
             line.setAttribute("stroke-width", "3");
             line.setAttribute("stroke-linecap", "round");
             g.appendChild(line);
 
-            board.appendChild(g);
+            fragment.appendChild(g);
         });
 
         // Draw Player (Triangle)
@@ -851,10 +1038,13 @@
         poly.setAttribute("points", `${px+20},${py+5} ${px+35},${py+35} ${px+5},${py+35}`);
         poly.setAttribute("fill", "cyan");
 
-        let angle = Math.atan2(player.dy, player.dx) * 180 / Math.PI + 90;
-        poly.setAttribute("transform", `rotate(${angle}, ${px+20}, ${py+20})`);
+        let pangle = Math.atan2(player.dy, player.dx) * 180 / Math.PI + 90;
+        poly.setAttribute("transform", `rotate(${pangle}, ${px+20}, ${py+20})`);
 
-        board.appendChild(poly);
+        fragment.appendChild(poly);
+        
+        board.innerHTML = '';
+        board.appendChild(fragment);
         renderUI();
     }
 
@@ -955,12 +1145,18 @@
     }
 
     function handleInput(e) {
-        if (isAutoRunning) {
+        if (isAutoRunning || isAutoExploring) {
             isAutoRunning = false;
+            isAutoExploring = false;
             return;
         }
         let key = e.key.toLowerCase();
         
+        if (key === 'r') {
+            triggerAutoExplore();
+            return;
+        }
+
         if (key === 'v') {
             debugVision = !debugVision;
             debugToggleEl.checked = debugVision;
@@ -983,16 +1179,19 @@
     }
 
     function handleMouseClick(e) {
-        if (isAutoRunning) {
+        if (isAutoRunning || isAutoExploring) {
             isAutoRunning = false;
+            isAutoExploring = false;
             return;
         }
-        let rect = board.getBoundingClientRect();
-        let mouseX = e.clientX - rect.left;
-        let mouseY = e.clientY - rect.top;
+
+        let pt = board.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        let svgP = pt.matrixTransform(board.getScreenCTM().inverse());
         
-        let gridX = Math.floor(mouseX / TILE_SIZE);
-        let gridY = Math.floor(mouseY / TILE_SIZE);
+        let gridX = Math.floor(svgP.x / TILE_SIZE);
+        let gridY = Math.floor(svgP.y / TILE_SIZE);
 
         let dx = gridX - player.x;
         let dy = gridY - player.y;
@@ -1001,7 +1200,34 @@
         if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
             processTurn(dx, dy);
         } else {
-            if (enemies.some(e => e.hasLOS || visible.has(`${e.x},${e.y}`))) {
+            let enemyTarget = enemies.find(en => en.x === gridX && en.y === gridY);
+            let wpn = equipment.weapon;
+
+            if (enemyTarget && (mapData[gridX][gridY].isVisible || debugVision)) {
+                if (wpn && wpn.range && wpn.range > 1) {
+                    let dist = Math.hypot(dx, dy);
+                    if (dist <= wpn.range) {
+                        if (hasLineOfSight(player.x, player.y, gridX, gridY)) {
+                            let ammo = inventory.find(i => i.name === wpn.ammoType);
+                            if (ammo && ammo.count > 0) {
+                                executeRangedAttack(gridX, gridY);
+                                return;
+                            } else {
+                                logMessage("Out of ammo!");
+                                return;
+                            }
+                        } else {
+                            logMessage("No line of sight.");
+                            return;
+                        }
+                    } else {
+                        logMessage("Target out of range.");
+                        return;
+                    }
+                }
+            }
+
+            if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
                 logMessage("Enemies in sight! Cannot auto-run.");
             } else {
                 triggerAutoRun(gridX, gridY);
@@ -1009,11 +1235,42 @@
         }
     }
 
+    function executeRangedAttack(x, y) {
+        let wpn = equipment.weapon;
+        let ammoIndex = inventory.findIndex(i => i.name === wpn.ammoType);
+        
+        inventory[ammoIndex].count--;
+        if (inventory[ammoIndex].count <= 0) inventory.splice(ammoIndex, 1);
+        
+        let enemyIndex = enemies.findIndex(e => e.x === x && e.y === y);
+        if (enemyIndex !== -1) {
+            let enemy = enemies[enemyIndex];
+            enemy.hp -= (wpn.damage || 1);
+            logMessage(`Fired ${wpn.ammoType} at Sentry for ${wpn.damage || 1} damage!`);
+            if (enemy.hp <= 0) {
+                dropLoot(x, y, 0.75); // 75% chance to recover ammo on ranged kill
+                enemies.splice(enemyIndex, 1);
+                logMessage("Shattered a Sentry.");
+            }
+        }
+        
+        updateLOS();
+        updateEnemies();
+        updateLOS();
+        renderUI();
+        drawBoard();
+    }
+
     function handleRightClick(e) {
         e.preventDefault(); 
-        let rect = board.getBoundingClientRect();
-        let gridX = Math.floor((e.clientX - rect.left) / TILE_SIZE);
-        let gridY = Math.floor((e.clientY - rect.top) / TILE_SIZE);
+
+        let pt = board.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        let svgP = pt.matrixTransform(board.getScreenCTM().inverse());
+        
+        let gridX = Math.floor(svgP.x / TILE_SIZE);
+        let gridY = Math.floor(svgP.y / TILE_SIZE);
 
         let title = "Empty Tile";
         let desc = "Safe to traverse.";
@@ -1021,18 +1278,18 @@
         if (gridX === player.x && gridY === player.y) {
             title = "Player";
             desc = "HP: " + player.hp + " / " + player.maxHp + "<br>A glowing geometry of hope.";
-        } else if (wallSet.has(`${gridX},${gridY}`)) {
+        } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isWall) {
             title = "Wall";
             desc = "Solid matter. Impassable.";
         } else {
             let enemy = enemies.find(en => en.x === gridX && en.y === gridY);
-            if (enemy && (visible.has(`${enemy.x},${enemy.y}`) || debugVision)) {
+            if (enemy && (mapData[enemy.x][enemy.y].isVisible || debugVision)) {
                 title = "Sentry (Red Square)";
                 desc = `Threat: Low<br>Behavior: Stands guard until it spots you.<br>HP: ${enemy.hp}<br>Hearing: ${enemy.hearing}`;
             }
         }
 
-        let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (visible.has(`${gridX},${gridY}`) || debugVision));
+        let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isVisible || debugVision));
         if (itemsHere.length > 0 && title === "Empty Tile") {
             title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
             desc = itemsHere.length === 1 ? `Type: ${itemsHere[0].item.type.charAt(0).toUpperCase() + itemsHere[0].item.type.slice(1)}` : "Multiple items scattered here.";
@@ -1088,8 +1345,11 @@
         
         let descHtml = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
         if (item.damage) descHtml += `<br>Damage: ${item.damage}`;
+        if (item.range) descHtml += `<br>Range: ${item.range}`;
+        if (item.ammoType) descHtml += `<br>Ammo: ${item.ammoType}`;
         if (item.defense) descHtml += `<br>Defense: ${item.defense}`;
         if (item.stealth) descHtml += `<br>Stealth: ${item.stealth}`;
+        if (item.healAmount) descHtml += `<br>Restores HP: ${item.healAmount}`;
         if (item.count > 1) descHtml += `<br>Quantity: ${item.count}`;
         cmDesc.innerHTML = descHtml;
 
@@ -1158,16 +1418,18 @@
             if (newX < 0 || newX >= GRID_W || newY < 0 || newY >= GRID_H) return;
             
             // Wall check
-            if (wallSet.has(`${newX},${newY}`)) return;
+            if (mapData[newX][newY].isWall) return;
 
             // Combat check
             let enemyIndex = enemies.findIndex(e => e.x === newX && e.y === newY);
             if (enemyIndex !== -1) {
+                dropLoot(newX, newY, 0.05); // 5% chance to find ammo on melee kill
                 enemies.splice(enemyIndex, 1);
                 logMessage("Shattered a Sentry.");
             } else {
                 player.x = newX;
                 player.y = newY;
+                checkAutoPickup();
             }
         } else {
             logMessage("Waited a turn.");
@@ -1177,6 +1439,20 @@
         updateEnemies();
         updateLOS();
         drawBoard();
+    }
+
+    function checkAutoPickup() {
+        let itemsHere = floorItems.filter(fi => fi.x === player.x && fi.y === player.y);
+        itemsHere.forEach(fi => {
+            let shouldPickup = false;
+            if (fi.item.type === 'ammo' && gameSettings.autoPickupAmmo) shouldPickup = true;
+            if (fi.item.type === 'money' && gameSettings.autoPickupGold) shouldPickup = true;
+            if (fi.item.type === 'potion' && gameSettings.autoPickupPotion) shouldPickup = true;
+            
+            if (shouldPickup) {
+                pickUpItem(fi);
+            }
+        });
     }
 
     function updateEnemies() {
@@ -1219,7 +1495,7 @@
                 }
 
                 // Move if space is free
-                if (!wallSet.has(`${nextX},${nextY}`) && 
+                if (!mapData[nextX][nextY].isWall && 
                     !enemies.some(other => other !== e && other.x === nextX && other.y === nextY)) {
                     e.x = nextX;
                     e.y = nextY;
@@ -1229,12 +1505,22 @@
     }
 
     function updateLOS() {
-        visible.clear();
-        for(let x=0; x<GRID_W; x++) {
-            for(let y=0; y<GRID_H; y++) {
+        for (let tile of visibleTiles) {
+            tile.isVisible = false;
+        }
+        visibleTiles = [];
+
+        let startX = Math.max(0, player.x - PLAYER_VISION_RANGE - 1);
+        let endX = Math.min(GRID_W - 1, player.x + PLAYER_VISION_RANGE + 1);
+        let startY = Math.max(0, player.y - PLAYER_VISION_RANGE - 1);
+        let endY = Math.min(GRID_H - 1, player.y + PLAYER_VISION_RANGE + 1);
+
+        for(let x = startX; x <= endX; x++) {
+            for(let y = startY; y <= endY; y++) {
                 if (canPlayerSee(x, y)) {
-                    visible.add(`${x},${y}`);
-                    explored.add(`${x},${y}`);
+                    mapData[x][y].isVisible = true;
+                    mapData[x][y].isExplored = true;
+                    visibleTiles.push(mapData[x][y]);
                 }
             }
         }
@@ -1263,6 +1549,12 @@
 
     function getAudibleTiles(startX, startY, maxDist) {
         let openSet = [{x: startX, y: startY, dist: 0}];
+        
+        pathfindingPass++;
+        let startIdx = startY * GRID_W + startX;
+        visitedPass[startIdx] = pathfindingPass;
+        visitedG[startIdx] = 0;
+        
         let visited = new Map();
         visited.set(`${startX},${startY}`, 0);
 
@@ -1281,16 +1573,18 @@
                 let ny = current.y + dy;
 
                 if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
-                if (wallSet.has(`${nx},${ny}`)) continue;
+                if (mapData[nx][ny].isWall) continue;
 
                 let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
                 let newDist = current.dist + stepCost;
 
                 if (newDist <= maxDist) {
-                    let posStr = `${nx},${ny}`;
-                    if (!visited.has(posStr) || visited.get(posStr) > newDist) {
-                        visited.set(posStr, newDist);
+                    let nIdx = ny * GRID_W + nx;
+                    if (visitedPass[nIdx] !== pathfindingPass || visitedG[nIdx] > newDist + 1e-6) {
+                        visitedPass[nIdx] = pathfindingPass;
+                        visitedG[nIdx] = newDist;
                         openSet.push({x: nx, y: ny, dist: newDist});
+                        visited.set(`${nx},${ny}`, newDist);
                     }
                 }
             }
@@ -1329,7 +1623,7 @@
 
         while (true) {
             if (cx === x2 && cy === y2) return true;
-            if (wallSet.has(`${cx},${cy}`)) return false;
+            if (cx < 0 || cy < 0 || cx >= GRID_W || cy >= GRID_H || mapData[cx][cy].isWall) return false;
 
             let e2 = 2 * err;
             if (e2 > -dy) { err -= dy; cx += sx; }
@@ -1338,15 +1632,40 @@
     }
 
     function findPath(startX, startY, endX, endY, ignoreEnemies = false) {
-        let openSet = [{x: startX, y: startY, path: [], g: 0, f: 0}];
-        let visited = new Map();
-        visited.set(`${startX},${startY}`, 0);
+        pathfindingPass++;
+        let openSet = new MinHeap(n => n.f);
+        openSet.push({x: startX, y: startY, parent: null, g: 0, f: 0});
+        
+        let startIdx = startY * GRID_W + startX;
+        visitedPass[startIdx] = pathfindingPass;
+        visitedG[startIdx] = 0;
 
-        while (openSet.length > 0) {
-            openSet.sort((a, b) => a.f - b.f);
-            let current = openSet.shift();
+        if (!ignoreEnemies) {
+            enemyPositionsMap.fill(0);
+            for (let e of enemies) {
+                if (mapData[e.x][e.y].isVisible || debugVision) {
+                    enemyPositionsMap[e.y * GRID_W + e.x] = 1;
+                }
+            }
+        }
 
-            if (current.x === endX && current.y === endY) return current.path;
+        while (!openSet.isEmpty()) {
+            let current = openSet.pop();
+            
+            let currentIdx = current.y * GRID_W + current.x;
+            if (visitedPass[currentIdx] === pathfindingPass && visitedG[currentIdx] < current.g - 1e-6) {
+                continue;
+            }
+
+            if (current.x === endX && current.y === endY) {
+                let path = [];
+                let curr = current;
+                while (curr.parent) {
+                    path.push({x: curr.dx, y: curr.dy});
+                    curr = curr.parent;
+                }
+                return path.reverse();
+            }
 
             for (let key in keyMap) {
                 let dx = keyMap[key].x;
@@ -1357,19 +1676,21 @@
                 let ny = current.y + dy;
 
                 if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
-                if (wallSet.has(`${nx},${ny}`)) continue;
-                if (!ignoreEnemies && enemies.some(e => e.x === nx && e.y === ny)) continue;
+                if (mapData[nx][ny].isWall) continue;
+                let nIdx = ny * GRID_W + nx;
+                if (!ignoreEnemies && enemyPositionsMap[nIdx]) continue;
 
                 let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
                 let g = current.g + stepCost;
-                let h = Math.hypot(endX - nx, endY - ny);
-                let cross = Math.abs((nx - endX) * (startY - endY) - (startX - endX) * (ny - endY));
-                let f = g + h + cross * 0.001; // Tie-breaker for straightest path
 
-                let posStr = `${nx},${ny}`;
-                if (!visited.has(posStr) || visited.get(posStr) > g) {
-                    visited.set(posStr, g);
-                    openSet.push({x: nx, y: ny, path: [...current.path, {x: dx, y: dy}], g: g, f: f});
+                if (visitedPass[nIdx] !== pathfindingPass || visitedG[nIdx] > g) {
+                    let h = Math.hypot(endX - nx, endY - ny);
+                    let cross = Math.abs((nx - endX) * (startY - endY) - (startX - endX) * (ny - endY));
+                    let f = g + h + cross * 0.001; // Tie-breaker for straightest path
+                    
+                    visitedPass[nIdx] = pathfindingPass;
+                    visitedG[nIdx] = g;
+                    openSet.push({x: nx, y: ny, parent: current, dx: dx, dy: dy, g: g, f: f});
                 }
             }
         }
@@ -1390,15 +1711,17 @@
     function executeAutoRunStep() {
         if (!isAutoRunning || autoRunPath.length === 0 || player.hp <= 0) {
             isAutoRunning = false;
+            isAutoExploring = false;
             return;
         }
 
         let step = autoRunPath.shift();
         processTurn(step.x, step.y);
 
-        if (enemies.some(e => e.hasLOS || visible.has(`${e.x},${e.y}`))) {
+        if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
             logMessage("Enemy spotted! Auto-run halted.");
             isAutoRunning = false;
+            isAutoExploring = false;
             autoRunPath = [];
             return;
         }
@@ -1407,7 +1730,93 @@
             setTimeout(executeAutoRunStep, 50);
         } else {
             isAutoRunning = false;
+            if (isAutoExploring) {
+                setTimeout(triggerAutoExplore, 50);
+            }
         }
+    }
+
+    function triggerAutoExplore() {
+        if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
+            logMessage("Cannot auto-explore while enemies are in sight.");
+            isAutoExploring = false;
+            return;
+        }
+
+        let target = findAutoExploreTarget();
+        if (target) {
+            let path = findPath(player.x, player.y, target.x, target.y);
+            if (path && path.length > 0) {
+                autoRunPath = path;
+                isAutoRunning = true;
+                isAutoExploring = true;
+                executeAutoRunStep();
+            } else {
+                logMessage("No reachable unexplored areas or items.");
+                isAutoExploring = false;
+            }
+        } else {
+            logMessage("Fully explored!");
+            isAutoExploring = false;
+        }
+    }
+
+    function findAutoExploreTarget() {
+        let bestItem = null;
+        let bestItemDist = Infinity;
+        
+        for (let fi of floorItems) {
+            if (mapData[fi.x][fi.y].isVisible) {
+                let wantsToPickup = false;
+                if (fi.item.type === 'ammo' && gameSettings.autoPickupAmmo) wantsToPickup = true;
+                if (fi.item.type === 'money' && gameSettings.autoPickupGold) wantsToPickup = true;
+                if (fi.item.type === 'potion' && gameSettings.autoPickupPotion) wantsToPickup = true;
+                
+                if (wantsToPickup && (fi.x !== player.x || fi.y !== player.y)) {
+                    let path = findPath(player.x, player.y, fi.x, fi.y);
+                    if (path && path.length > 0 && path.length < bestItemDist) {
+                        bestItem = {x: fi.x, y: fi.y};
+                        bestItemDist = path.length;
+                    }
+                }
+            }
+        }
+        if (bestItem) return bestItem;
+
+        let openSet = [{x: player.x, y: player.y}];
+        let head = 0;
+        
+        pathfindingPass++;
+        let startIdx = player.y * GRID_W + player.x;
+        visitedPass[startIdx] = pathfindingPass;
+
+        while (head < openSet.length) {
+            let current = openSet[head++];
+
+            for (let key in keyMap) {
+                let dx = keyMap[key].x;
+                let dy = keyMap[key].y;
+                if (dx === 0 && dy === 0) continue;
+
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+
+                if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+                if (mapData[nx][ny].isWall) continue;
+                
+                let nIdx = ny * GRID_W + nx;
+                if (visitedPass[nIdx] !== pathfindingPass) {
+                    visitedPass[nIdx] = pathfindingPass;
+                    
+                    if (!mapData[nx][ny].isExplored) {
+                        return {x: nx, y: ny};
+                    } else {
+                        openSet.push({x: nx, y: ny});
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     function equipItem(index) {
@@ -1445,8 +1854,9 @@
     function useItem(index) {
         let item = inventory[index];
         if (item.type === 'potion' && player.hp < player.maxHp) {
-            player.hp = Math.min(player.maxHp, player.hp + 1);
-            logMessage(`Drank ${item.name}. Recovered 1 HP.`);
+            let heal = item.healAmount || 1;
+            player.hp = Math.min(player.maxHp, player.hp + heal);
+            logMessage(`Drank ${item.name}. Recovered ${heal} HP.`);
             if (item.count > 1) item.count--;
             else inventory.splice(index, 1);
             renderUI();
@@ -1513,6 +1923,19 @@
             }
             renderUI();
             drawBoard();
+        }
+    }
+
+    function dropLoot(x, y, chance = 0.75) {
+        if (Math.random() < chance) {
+            let droppedItem = { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", count: 1, stackable: true };
+            let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
+            if (existingFloorItem) {
+                existingFloorItem.item.count += droppedItem.count;
+            } else {
+                floorItems.push({ x: x, y: y, item: droppedItem });
+            }
+            logMessage("A Pebble dropped to the floor.");
         }
     }
 
