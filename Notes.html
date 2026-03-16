@@ -394,6 +394,147 @@
             }
 
             // --- Drawing Finalization & Smoothing ---
+            function pointSegmentDistance(p, start, end) {
+                const dx = end.x - start.x;
+                const dy = end.y - start.y;
+                const lenSq = dx * dx + dy * dy;
+                if (lenSq === 0) return Math.hypot(p.x - start.x, p.y - start.y);
+                const t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / lenSq;
+                let projX = start.x + t * dx;
+                let projY = start.y + t * dy;
+                if (t < 0) { projX = start.x; projY = start.y; }
+                else if (t > 1) { projX = end.x; projY = end.y; }
+                return Math.hypot(p.x - projX, p.y - projY);
+            }
+
+            function simplifyPath(points, epsilon) {
+                if (points.length <= 2) return points;
+                
+                let maxDist = 0;
+                let index = 0;
+                const start = points[0];
+                const end = points[points.length - 1];
+                
+                for (let i = 1; i < points.length - 1; i++) {
+                    const dist = pointSegmentDistance(points[i], start, end);
+                    if (dist > maxDist) {
+                        maxDist = dist;
+                        index = i;
+                    }
+                }
+                
+                if (maxDist > epsilon) {
+                    const left = simplifyPath(points.slice(0, index + 1), epsilon);
+                    const right = simplifyPath(points.slice(index), epsilon);
+                    return left.slice(0, left.length - 1).concat(right);
+                } else {
+                    return [start, end];
+                }
+            }
+
+            function recognizeShape(path) {
+                if (path.length < MIN_PATH_POINTS_FOR_SMOOTHING) return null;
+
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                let pathLength = 0;
+                
+                for (let i = 0; i < path.length; i++) {
+                    const p = path[i];
+                    if (p.x < minX) minX = p.x;
+                    if (p.x > maxX) maxX = p.x;
+                    if (p.y < minY) minY = p.y;
+                    if (p.y > maxY) maxY = p.y;
+                    
+                    if (i > 0) {
+                        const prev = path[i-1];
+                        pathLength += Math.hypot(p.x - prev.x, p.y - prev.y);
+                    }
+                }
+                
+                const w = maxX - minX;
+                const h = maxY - minY;
+                const maxDim = Math.max(w, h);
+                const cx = minX + w / 2;
+                const cy = minY + h / 2;
+                
+                const start = path[0];
+                const end = path[path.length - 1];
+                const distStartEnd = Math.hypot(start.x - end.x, start.y - end.y);
+                const isClosed = distStartEnd < pathLength * 0.2 || distStartEnd < maxDim * 0.3;
+                
+                if (maxDim < 15) return null;
+
+                if (!isClosed) {
+                    const maxDev = calculateMaxDeviation(path, start, end);
+                    if (maxDev < STRAIGHTNESS_THRESHOLD) {
+                        let x1 = start.x, y1 = start.y, x2 = end.x, y2 = end.y;
+                        const dx = Math.abs(x2 - x1);
+                        const dy = Math.abs(y2 - y1);
+                        if (dy < dx * 0.1) { y1 = y2 = (y1 + y2) / 2; }
+                        else if (dx < dy * 0.1) { x1 = x2 = (x1 + x2) / 2; }
+                        return { type: 'line', x1, y1, x2, y2 };
+                    }
+                }
+
+                if (isClosed) {
+                    const expectedPerimeter = 2 * (w + h);
+                    if (pathLength > expectedPerimeter * 1.5) {
+                        return null; // Scribble
+                    }
+                    
+                    let circleError = 0;
+                    const rx = w / 2;
+                    const ry = h / 2;
+                    for (const p of path) {
+                        const nx = (p.x - cx) / rx;
+                        const ny = (p.y - cy) / ry;
+                        circleError += Math.abs(nx*nx + ny*ny - 1);
+                    }
+                    circleError /= path.length;
+                    
+                    if (circleError < 0.4) {
+                        if (Math.abs(w - h) < maxDim * 0.2) {
+                            return { type: 'circle', cx, cy, r: (w + h) / 4 };
+                        } else {
+                            return { type: 'ellipse', cx, cy, rx, ry };
+                        }
+                    }
+
+                    const closedPath = [...path, start];
+                    const epsilon = maxDim * 0.12; 
+                    let simplified = simplifyPath(closedPath, epsilon);
+                    
+                    if (simplified.length === 4) { // Triangle
+                        return { type: 'polygon', points: simplified.slice(0, 3) };
+                    } else if (simplified.length === 5) { // Quadrilateral
+                        let rectError = 0;
+                        for (const pt of path) {
+                            const dLeft = Math.abs(pt.x - minX);
+                            const dRight = Math.abs(pt.x - maxX);
+                            const dTop = Math.abs(pt.y - minY);
+                            const dBottom = Math.abs(pt.y - maxY);
+                            rectError += Math.min(dLeft, dRight, dTop, dBottom);
+                        }
+                        rectError /= path.length;
+                        
+                        if (rectError < maxDim * 0.1) {
+                            if (Math.abs(w - h) < maxDim * 0.2) {
+                                const side = (w + h) / 2;
+                                return { type: 'rectangle', x: cx - side/2, y: cy - side/2, w: side, h: side };
+                            } else {
+                                return { type: 'rectangle', x: minX, y: minY, w, h };
+                            }
+                        }
+                        
+                        return { type: 'polygon', points: simplified.slice(0, 4) };
+                    } else if (simplified.length === 6) { // Pentagon
+                         return { type: 'polygon', points: simplified.slice(0, 5) };
+                    }
+                }
+                
+                return null;
+            }
+
             function finalizeDrawing() {
                 if (!preDrawImageData || !currentPath || currentPath.length < 2) {
                     console.log("FinalizeDrawing: Not enough data, clearing state.");
@@ -427,16 +568,26 @@
                         ctx.fill();
                     }
                 } else {
-                    // 2. Analyze for straightness
-                    const startPoint = path[0];
-                    const endPoint = path[path.length - 1];
-                    const maxDeviation = calculateMaxDeviation(path, startPoint, endPoint);
-
-                    if (maxDeviation < STRAIGHTNESS_THRESHOLD) {
-                        // 3a. Draw a straight line
+                    const shape = recognizeShape(path);
+                    
+                    if (shape) {
                         ctx.beginPath();
-                        ctx.moveTo(startPoint.x, startPoint.y);
-                        ctx.lineTo(endPoint.x, endPoint.y);
+                        if (shape.type === 'line') {
+                            ctx.moveTo(shape.x1, shape.y1);
+                            ctx.lineTo(shape.x2, shape.y2);
+                        } else if (shape.type === 'circle') {
+                            ctx.arc(shape.cx, shape.cy, shape.r, 0, Math.PI * 2);
+                        } else if (shape.type === 'ellipse') {
+                            ctx.ellipse(shape.cx, shape.cy, shape.rx, shape.ry, 0, 0, Math.PI * 2);
+                        } else if (shape.type === 'rectangle') {
+                            ctx.rect(shape.x, shape.y, shape.w, shape.h);
+                        } else if (shape.type === 'polygon') {
+                            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                            for (let i = 1; i < shape.points.length; i++) {
+                                ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                            }
+                            ctx.closePath();
+                        }
                         ctx.stroke();
                     } else {
                         // 3b. Smooth the curve (using Chaikin's algorithm)

@@ -92,15 +92,28 @@
         <p class="text-2xl">Loading Game...</p>
     </div>
 
-    <div id="game-container" class="hidden w-full max-w-lg mx-auto p-4 backdrop-blur-sm pixel-border">
+    <div id="game-container" class="hidden w-full max-w-3xl mx-auto p-4 backdrop-blur-sm pixel-border">
         
         <!-- Pet Display -->
         <div class="flex flex-col items-center mb-4">
-            <h1 id="petName" class="text-3xl mb-2">My Pet</h1>
-            <div class="pet-container">
-                <div id="pet" class="pet">😀</div>
+            <h1 class="text-3xl mb-2 flex items-center gap-2">
+                <span id="petName">My Pet</span>
+                <button id="rename-btn" class="text-sm bg-gray-600 hover:bg-gray-500 rounded px-2 py-1 border border-gray-400" title="Rename Pet">✏️</button>
+            </h1>
+            <div class="pet-container relative">
+                <div id="pet" class="pet cursor-pointer transition-transform hover:scale-110">😀</div>
+                <div id="poop-display" class="absolute bottom-2 right-2 text-2xl drop-shadow-md"></div>
             </div>
-            <p id="petLevel" class="mt-2 text-lg">Level: 1</p>
+            <div class="flex items-center justify-center gap-4 mt-2">
+                <p id="petLevel" class="text-lg">Level: 1</p>
+                <button id="prestige-btn" class="btn-pixel bg-yellow-500 hidden text-xs py-1 px-2 text-black hover:bg-yellow-400">Prestige!</button>
+            </div>
+            <div class="w-full max-w-[200px] mt-3">
+                <div class="flex justify-between text-xs mb-1 text-gray-400"><label>XP</label><span id="xp-text">0/100</span></div>
+                <div class="progress-bar-container" style="height: 12px;">
+                    <div id="xp-bar" class="progress-bar bg-purple-500" style="width: 0%;"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Stats -->
@@ -123,13 +136,20 @@
                     <div id="energy-bar" class="progress-bar bg-blue-500" style="width: 100%;"></div>
                 </div>
             </div>
+            <div>
+                <label>Health</label>
+                <div class="progress-bar-container">
+                    <div id="health-bar" class="progress-bar bg-red-500" style="width: 100%;"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Action Buttons -->
-        <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="grid grid-cols-2 gap-3 mb-4">
             <button id="feed-btn" class="btn-pixel">Feed</button>
             <button id="play-btn" class="btn-pixel">Play</button>
             <button id="rest-btn" class="btn-pixel">Rest</button>
+            <button id="clean-btn" class="btn-pixel">Clean</button>
         </div>
 
         <!-- Currency -->
@@ -137,11 +157,21 @@
             <p class="text-xl">Coins: <span id="coins">0</span></p>
         </div>
 
-        <!-- Upgrades Store -->
-        <div>
-            <h2 class="text-2xl text-center mb-2">Upgrades</h2>
-            <div id="upgrades-container" class="space-y-2">
-                <!-- Upgrades will be dynamically inserted here -->
+        <!-- Stores -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Upgrades -->
+            <div>
+                <h2 class="text-2xl text-center mb-2">Upgrades</h2>
+                <div id="upgrades-container" class="space-y-2">
+                    <!-- Upgrades will be dynamically inserted here -->
+                </div>
+            </div>
+            <!-- Cosmetics -->
+            <div>
+                <h2 class="text-2xl text-center mb-2">Cosmetics</h2>
+                <div id="cosmetics-container" class="space-y-2">
+                    <!-- Cosmetics will be dynamically inserted here -->
+                </div>
             </div>
         </div>
 
@@ -159,11 +189,19 @@
         const hungerBar = document.getElementById('hunger-bar');
         const happinessBar = document.getElementById('happiness-bar');
         const energyBar = document.getElementById('energy-bar');
+        const healthBar = document.getElementById('health-bar');
+        const xpBar = document.getElementById('xp-bar');
+        const xpText = document.getElementById('xp-text');
+        const renameBtn = document.getElementById('rename-btn');
         const feedBtn = document.getElementById('feed-btn');
         const playBtn = document.getElementById('play-btn');
         const restBtn = document.getElementById('rest-btn');
+        const cleanBtn = document.getElementById('clean-btn');
+        const poopDisplay = document.getElementById('poop-display');
         const coinsElement = document.getElementById('coins');
         const upgradesContainer = document.getElementById('upgrades-container');
+        const cosmeticsContainer = document.getElementById('cosmetics-container');
+        const prestigeBtn = document.getElementById('prestige-btn');
         const messageBox = document.getElementById('message-box');
 
         // --- Game State ---
@@ -171,14 +209,22 @@
             name: "Goober",
             level: 1,
             xp: 0,
+            health: 100,
+            poop: 0,
             hunger: 100,
             happiness: 100,
             energy: 100,
             coins: 0,
+            prestige: 0,
+            cosmetics: {
+                unlocked: ['default'],
+                active: 'default'
+            },
             lastUpdate: Date.now(),
             upgrades: {
                 autoFeeder: 0,
                 autoPlayer: 0,
+                autoCleaner: 0,
             }
         };
 
@@ -195,7 +241,63 @@
                 baseCost: 75,
                 costIncrease: 2.5,
                 description: (level) => `Plays with your pet automatically. Level ${level}.`
+            },
+            autoCleaner: {
+                name: "Roomba",
+                baseCost: 150,
+                costIncrease: 3,
+                description: (level) => `Cleans up messes automatically. Level ${level}.`
             }
+        };
+
+        // --- Evolutions & Cosmetics Definitions ---
+        const evolutions = [
+            { level: 100, name: "Mythic", emoji: "🐉", mult: 10, drain: 3 },
+            { level: 30, name: "Adult", emoji: "🐔", mult: 4, drain: 2 },
+            { level: 10, name: "Baby", emoji: "🐥", mult: 2, drain: 1.5 },
+            { level: 1, name: "Egg", emoji: "🥚", mult: 1, drain: 1 }
+        ];
+
+        const cosmeticsList = [
+            { id: 'default', name: 'Basic Blue', cost: 0, color: '#2c5282' },
+            { id: 'forest', name: 'Forest Green', cost: 500, color: '#276749' },
+            { id: 'royal', name: 'Royal Purple', cost: 2500, color: '#553c9a' },
+            { id: 'crimson', name: 'Crimson Red', cost: 10000, color: '#9b2c2c' },
+            { id: 'gold', name: 'Golden Glow', cost: 50000, color: '#b7791f' },
+        ];
+
+        function getCurrentEvolution() {
+            return evolutions.find(e => gameState.level >= e.level) || evolutions[3];
+        }
+
+        // --- Audio System ---
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        function playTone(freq, type, duration, vol = 0.1) {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        const sounds = {
+            feed: () => { playTone(400, 'sine', 0.1); setTimeout(() => playTone(600, 'sine', 0.2), 100); },
+            play: () => { playTone(600, 'square', 0.1); setTimeout(() => playTone(800, 'square', 0.2), 100); },
+            rest: () => { playTone(300, 'sine', 0.3); setTimeout(() => playTone(200, 'sine', 0.4), 200); },
+            clean: () => { playTone(800, 'triangle', 0.1, 0.05); setTimeout(() => playTone(1000, 'triangle', 0.1, 0.05), 100); setTimeout(() => playTone(1200, 'triangle', 0.2, 0.05), 200); },
+            pet: () => { playTone(500, 'sine', 0.1, 0.05); },
+            levelUp: () => { playTone(400, 'square', 0.1); setTimeout(() => playTone(500, 'square', 0.1), 100); setTimeout(() => playTone(600, 'square', 0.3), 200); },
+            error: () => { playTone(150, 'sawtooth', 0.2, 0.1); }
         };
 
         // --- Local Storage Persistence ---
@@ -206,6 +308,9 @@
                     const loadedState = JSON.parse(saved);
                     if (loadedState && typeof loadedState.hunger === 'number') {
                         Object.assign(gameState, loadedState);
+                        // Handle backward compatibility for new state fields
+                        if (gameState.prestige === undefined) gameState.prestige = 0;
+                        if (!gameState.cosmetics) gameState.cosmetics = { unlocked: ['default'], active: 'default' };
                     }
                 } catch (e) {
                     // Ignore parse errors, start new game
@@ -233,11 +338,37 @@
         function gameLoop() {
             const now = Date.now();
             const elapsedSeconds = (now - gameState.lastUpdate) / 1000;
+            const evo = getCurrentEvolution();
 
             // Stat decay
-            gameState.hunger = Math.max(0, gameState.hunger - 0.5 * elapsedSeconds);
-            gameState.happiness = Math.max(0, gameState.happiness - 0.3 * elapsedSeconds);
-            gameState.energy = Math.max(0, gameState.energy - 0.2 * elapsedSeconds);
+            gameState.hunger = Math.max(0, gameState.hunger - (0.5 * evo.drain) * elapsedSeconds);
+            gameState.happiness = Math.max(0, gameState.happiness - (0.3 * evo.drain) * elapsedSeconds);
+            gameState.energy = Math.max(0, gameState.energy - (0.2 * evo.drain) * elapsedSeconds);
+
+            // Poop mechanics
+            if (Math.random() < 0.03 * elapsedSeconds) { // 3% chance per second to poop
+                gameState.poop++;
+            }
+
+            // Auto-cleaner
+            if (gameState.upgrades.autoCleaner > 0 && gameState.poop > 0) {
+                if (Math.random() < (0.1 * gameState.upgrades.autoCleaner * elapsedSeconds)) {
+                    gameState.poop = Math.max(0, gameState.poop - 1);
+                }
+            }
+
+            // Health drains if stats are 0 or if there is poop
+            let healthDrain = 0;
+            if (gameState.poop > 0) healthDrain += gameState.poop * 1.5;
+            if (gameState.hunger === 0) healthDrain += 2;
+            if (gameState.happiness === 0) healthDrain += 1;
+            if (gameState.energy === 0) healthDrain += 1;
+
+            if (healthDrain > 0) {
+                gameState.health = Math.max(0, gameState.health - healthDrain * elapsedSeconds);
+            } else if (gameState.health < 100 && gameState.hunger > 50 && gameState.energy > 30) {
+                gameState.health = Math.min(100, gameState.health + 2 * elapsedSeconds); // Natural recovery
+            }
 
             // Auto-upgrades
             if (gameState.upgrades.autoFeeder > 0) {
@@ -249,8 +380,14 @@
 
             // Earn coins based on pet's well-being
             const averageStat = (gameState.hunger + gameState.happiness + gameState.energy) / 3;
-            if (averageStat > 70) {
-                gameState.coins += (0.1 * gameState.level * elapsedSeconds);
+            if (averageStat > 70 && gameState.health > 50) {
+                const prestigeMult = 1 + (gameState.prestige * 5);
+                gameState.coins += (0.1 * gameState.level * evo.mult * prestigeMult * elapsedSeconds);
+            }
+
+            // Random Events
+            if (Math.random() < 0.01 * elapsedSeconds) { // 1% chance per second
+                triggerRandomEvent();
             }
 
             gameState.lastUpdate = now;
@@ -258,29 +395,62 @@
             saveGame(); // Save state every loop
         }
 
+        function triggerRandomEvent() {
+            const events = [
+                { msg: "Your pet found a shiny coin!", action: () => gameState.coins += 50 * gameState.level, color: "bg-yellow-500 text-black" },
+                { msg: "Your pet had a bad dream and lost energy.", action: () => gameState.energy = Math.max(0, gameState.energy - 20), color: "bg-blue-800" },
+                { msg: "A butterfly landed on your pet! So happy!", action: () => gameState.happiness = Math.min(100, gameState.happiness + 30), color: "bg-green-500" },
+                { msg: "Your pet ate a weird bug. Health down.", action: () => gameState.health = Math.max(0, gameState.health - 15), color: "bg-red-800" },
+                { msg: "A burst of motivation! Energy up.", action: () => gameState.energy = Math.min(100, gameState.energy + 30), color: "bg-blue-400" }
+            ];
+            const ev = events[Math.floor(Math.random() * events.length)];
+            ev.action();
+            showMessage(ev.msg, ev.color);
+            updateUI();
+        }
+
         function updateUI() {
+            const evo = getCurrentEvolution();
+
             petNameElement.textContent = gameState.name;
-            petLevelElement.textContent = `Level: ${gameState.level}`;
             coinsElement.textContent = Math.floor(gameState.coins);
+
+            let levelText = `Level: ${gameState.level} (${evo.name})`;
+            if (gameState.prestige > 0) levelText += ` [P${gameState.prestige}]`;
+            petLevelElement.textContent = levelText;
+
+            const xpToNextLevel = gameState.level * 100;
+            const xpPercent = (gameState.xp / xpToNextLevel) * 100;
+            xpBar.style.width = `${xpPercent}%`;
+            xpText.textContent = `${Math.floor(gameState.xp)}/${xpToNextLevel}`;
+            
+            prestigeBtn.classList.toggle('hidden', gameState.level < 100);
 
             hungerBar.style.width = `${gameState.hunger}%`;
             happinessBar.style.width = `${gameState.happiness}%`;
             energyBar.style.width = `${gameState.energy}%`;
+            healthBar.style.width = `${gameState.health}%`;
+            
+            poopDisplay.textContent = '💩'.repeat(Math.min(4, gameState.poop)); // Cap visual poops
 
             // Change pet face based on stats
             const avgStat = (gameState.hunger + gameState.happiness) / 2;
-            if (gameState.energy < 20) petElement.textContent = '😴';
+            if (gameState.health <= 0) petElement.textContent = '👻';
+            else if (gameState.health < 40) petElement.textContent = '🤢';
+            else if (gameState.energy < 20) petElement.textContent = '😴';
             else if (avgStat < 30) petElement.textContent = '😭';
             else if (avgStat < 60) petElement.textContent = '😐';
-            else petElement.textContent = '😀';
+            else petElement.textContent = evo.emoji;
 
             // Update progress bar colors
             updateBarColor(hungerBar, gameState.hunger);
             updateBarColor(happinessBar, gameState.happiness);
             updateBarColor(energyBar, gameState.energy);
+            updateBarColor(healthBar, gameState.health);
 
             // Update upgrades display
             renderUpgrades();
+            renderCosmetics();
         }
 
         function updateBarColor(bar, value) {
@@ -296,18 +466,20 @@
 
         function addXp(amount) {
             gameState.xp += amount;
-            const xpToNextLevel = gameState.level * 100;
-            if (gameState.xp >= xpToNextLevel) {
+            let xpToNextLevel = gameState.level * 100;
+            while (gameState.xp >= xpToNextLevel) {
+                gameState.xp -= xpToNextLevel;
                 gameState.level++;
-                gameState.xp = 0;
-                showMessage(`Your pet leveled up to Level ${gameState.level}!`, 'bg-purple-500');
+                xpToNextLevel = gameState.level * 100;
+                showMessage(`Your pet leveled up to Level ${gameState.level}!`, "bg-purple-500");
+                sounds.levelUp();
             }
         }
 
-        function showMessage(text, bgColor) {
+        function showMessage(text, colorClasses) {
             messageBox.textContent = text;
             messageBox.className = 'message-box'; // Reset classes
-            messageBox.classList.add(bgColor, 'opacity-100');
+            messageBox.classList.add(...colorClasses.split(' '), 'opacity-100');
 
             setTimeout(() => {
                 messageBox.classList.remove('opacity-100');
@@ -315,16 +487,27 @@
         }
 
         // --- Action Handlers ---
+        renameBtn.addEventListener('click', () => {
+            const newName = prompt("Enter a new name for your pet:", gameState.name);
+            if (newName && newName.trim().length > 0) {
+                gameState.name = newName.trim();
+                updateUI();
+                saveGame();
+            }
+        });
+
         feedBtn.addEventListener('click', () => {
             if (gameState.energy > 5) {
                 gameState.hunger = Math.min(100, gameState.hunger + 15);
                 gameState.energy -= 5;
                 addXp(10);
                 showMessage("Yum!", "bg-green-500");
+                sounds.feed();
                 updateUI();
                 saveGame();
             } else {
                 showMessage("Too tired to eat...", "bg-gray-500");
+                sounds.error();
             }
         });
 
@@ -335,10 +518,12 @@
                 gameState.hunger -= 5;
                 addXp(15);
                 showMessage("Whee!", "bg-yellow-500");
+                sounds.play();
                 updateUI();
                 saveGame();
             } else {
                 showMessage("Too tired to play...", "bg-gray-500");
+                sounds.error();
             }
         });
 
@@ -348,8 +533,60 @@
             gameState.happiness -= 5;
             addXp(5);
             showMessage("Zzz...", "bg-blue-500");
+            sounds.rest();
             updateUI();
             saveGame();
+        });
+
+        cleanBtn.addEventListener('click', () => {
+            if (gameState.poop > 0) {
+                gameState.poop = 0;
+                addXp(10);
+                showMessage("Sparkling clean!", "bg-blue-400");
+                sounds.clean();
+                updateUI();
+                saveGame();
+            } else {
+                showMessage("Already clean!", "bg-gray-500");
+                sounds.error();
+            }
+        });
+
+        // Interactive Petting
+        petElement.addEventListener('click', () => {
+            if (gameState.health > 0 && gameState.energy > 0) {
+                gameState.happiness = Math.min(100, gameState.happiness + 3);
+                const evo = getCurrentEvolution();
+                const prestigeMult = 1 + (gameState.prestige * 5);
+                gameState.coins += Math.max(0.1, 0.1 * gameState.level * evo.mult * prestigeMult); // Click reward
+                sounds.pet();
+                
+                // Visual feedback pop
+                petElement.style.transform = 'translateY(-15px) scale(1.1)';
+                setTimeout(() => petElement.style.transform = '', 150);
+                
+                updateUI();
+                saveGame();
+            }
+        });
+
+        prestigeBtn.addEventListener('click', () => {
+            if (gameState.level >= 100) {
+                gameState.prestige++;
+                gameState.level = 1;
+                gameState.xp = 0;
+                gameState.coins = 0;
+                gameState.poop = 0;
+                gameState.hunger = 100;
+                gameState.happiness = 100;
+                gameState.energy = 100;
+                gameState.health = 100;
+                gameState.upgrades = { autoFeeder: 0, autoPlayer: 0, autoCleaner: 0 };
+                showMessage("PRESTIGE! You have been reborn stronger.", "bg-yellow-500 text-black");
+                sounds.levelUp();
+                updateUI();
+                saveGame();
+            }
         });
 
         // --- Upgrades Rendering & Logic ---
@@ -404,6 +641,59 @@
                     updateUI();
                     saveGame();
                 }
+            }
+        });
+
+        // --- Cosmetics Rendering & Logic ---
+        function renderCosmetics() {
+            cosmeticsContainer.innerHTML = '';
+            cosmeticsList.forEach(cosmetic => {
+                const isUnlocked = gameState.cosmetics.unlocked.includes(cosmetic.id);
+                const isActive = gameState.cosmetics.active === cosmetic.id;
+                const canAfford = gameState.coins >= cosmetic.cost;
+
+                const el = document.createElement('div');
+                el.className = 'pixel-border p-2 upgrade-item flex justify-between items-center';
+                
+                let btnHtml = '';
+                if (isActive) {
+                    btnHtml = `<button class="btn-pixel bg-green-600 cursor-default">Equipped</button>`;
+                } else if (isUnlocked) {
+                    btnHtml = `<button class="btn-pixel bg-blue-600 hover:bg-blue-500" data-equip="${cosmetic.id}">Equip</button>`;
+                } else {
+                    btnHtml = `<button class="btn-pixel ${canAfford ? 'bg-yellow-600 hover:bg-yellow-500' : ''}" ${canAfford ? '' : 'disabled'} data-buy="${cosmetic.id}">Buy (${cosmetic.cost}c)</button>`;
+                }
+
+                el.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-6 h-6 rounded-full border-2 border-gray-300" style="background-color: ${cosmetic.color}"></div>
+                        <p>${cosmetic.name}</p>
+                    </div>
+                    ${btnHtml}
+                `;
+                cosmeticsContainer.appendChild(el);
+            });
+            
+            // Apply active background color
+            const activeCosmetic = cosmeticsList.find(c => c.id === gameState.cosmetics.active) || cosmeticsList[0];
+            document.querySelector('.pet-container').style.backgroundColor = activeCosmetic.color;
+        }
+
+        cosmeticsContainer.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                if (e.target.dataset.equip) {
+                    gameState.cosmetics.active = e.target.dataset.equip;
+                } else if (e.target.dataset.buy) {
+                    const cosmetic = cosmeticsList.find(c => c.id === e.target.dataset.buy);
+                    if (gameState.coins >= cosmetic.cost) {
+                        gameState.coins -= cosmetic.cost;
+                        gameState.cosmetics.unlocked.push(cosmetic.id);
+                        gameState.cosmetics.active = cosmetic.id;
+                        showMessage(`Unlocked ${cosmetic.name}!`, "bg-purple-500");
+                    }
+                }
+                updateUI();
+                saveGame();
             }
         });
 
