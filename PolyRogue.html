@@ -76,6 +76,68 @@
         -webkit-user-select: none;
         }
 
+        #dust-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 300px; /* Leave space for the UI panel */
+            bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #dust-pattern {
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            right: -50%;
+            bottom: -50%;
+            font-size: 20px;
+            transform: scale(var(--dust-zoom, 1));
+            transform-origin: center;
+            background-image: 
+                radial-gradient(circle at 15% 25%, rgba(200, 220, 255, 0.25) 0.05em, transparent 0.05em),
+                radial-gradient(circle at 75% 15%, rgba(200, 220, 255, 0.2) 0.1em, transparent 0.1em),
+                radial-gradient(circle at 40% 65%, rgba(200, 220, 255, 0.15) 0.15em, transparent 0.15em),
+                radial-gradient(circle at 85% 85%, rgba(200, 220, 255, 0.1) 0.2em, transparent 0.2em),
+                radial-gradient(circle at 10% 80%, rgba(200, 220, 255, 0.08) 0.25em, transparent 0.25em),
+                radial-gradient(circle at 60% 40%, rgba(200, 220, 255, 0.05) 0.3em, transparent 0.3em);
+            background-size: 10em 10em, 18em 18em, 25em 25em, 13em 13em, 16em 16em, 21em 21em;
+            animation: dustFall 60s linear infinite;
+        }
+
+        @keyframes dustFall {
+            0% { 
+                background-position: 
+                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
+                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
+                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
+                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
+                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
+                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)); 
+            }
+            100% { 
+                background-position: 
+                    calc(10em + var(--cam-x, 0em)) calc(10em + var(--cam-y, 0em)), 
+                    calc(-18em + var(--cam-x, 0em)) calc(18em + var(--cam-y, 0em)), 
+                    calc(25em + var(--cam-x, 0em)) calc(25em + var(--cam-y, 0em)), 
+                    calc(-13em + var(--cam-x, 0em)) calc(13em + var(--cam-y, 0em)), 
+                    calc(16em + var(--cam-x, 0em)) calc(-16em + var(--cam-y, 0em)), 
+                    calc(-21em + var(--cam-x, 0em)) calc(21em + var(--cam-y, 0em)); 
+            }
+        }
+
+        @keyframes rippleAnim {
+            0% { transform: scale(0); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+
+        @keyframes projAnim {
+            0% { transform: translate(var(--start-x), var(--start-y)); opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(var(--end-x), var(--end-y)); opacity: 0; }
+        }
+
         #ui-panel {
             width: 300px;
             box-sizing: border-box;
@@ -247,12 +309,81 @@
             font-size: 0.9rem;
             cursor: pointer;
         }
+
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 10, 10, 0.95);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #eee;
+        }
+        #start-screen h1 {
+            font-size: 3rem;
+            color: cyan;
+            margin-bottom: 20px;
+        }
+        #start-screen .intro-text {
+            max-width: 600px;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+        #start-screen .controls-list {
+            text-align: left;
+            background: #222;
+            padding: 20px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        #start-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background: #111;
+            color: cyan;
+            border: 2px solid cyan;
+            cursor: pointer;
+            border-radius: 5px;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        #start-btn:hover {
+            background: cyan;
+            color: #111;
+        }
     </style>
 </head>
 <body>
 
+    <div id="start-screen">
+        <h1>Project Poly-Rogue</h1>
+        <div class="intro-text">
+            You are a glowing geometry of hope descending into the darkened facility.<br>
+            Survive, explore, and scavenge equipment to delve deeper into the procedural depths.
+        </div>
+        <div class="controls-list">
+            <h3 style="color: cyan; margin-top: 0;">Controls</h3>
+            <ul style="margin-bottom: 0; padding-left: 20px;">
+                <li><b>Mouse:</b> Left-click to move/attack. Left-click far away to auto-run. Right-click for context menu. Scroll to zoom.</li>
+                <li><b>Keyboard:</b> Q,W,E,A,S,D,Z,X,C for 8-way movement.</li>
+                <li><b>R:</b> Auto-explore the map.</li>
+                <li><b>V / H:</b> Toggle debug vision / hearing layers.</li>
+            </ul>
+        </div>
+        <button id="start-btn">Start Game</button>
+    </div>
+
     <div id="game-wrapper">
         <svg id="game-board"></svg>
+        <div id="dust-overlay">
+            <div id="dust-pattern"></div>
+        </div>
         <div id="ui-panel">
             <h1>Project Poly-Rogue</h1>
             <div class="stat" id="hp-display">HP: 3 / 3</div>
@@ -288,6 +419,7 @@
 
     <div id="settings-modal" style="display: none;">
         <h2>Game Settings</h2>
+        <label class="settings-label"><input type="checkbox" id="setting-audio" checked> Enable Audio & Music</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-ammo" checked> Auto-Pickup Ammo</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-gold" checked> Auto-Pickup Gold</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-potion" checked> Auto-Pickup Potions</label>
@@ -361,48 +493,134 @@
     const cmActions = document.getElementById('cm-actions');
     const tooltipEl = document.getElementById('tooltip');
 
-    let player = { x: 7, y: 7, hp: 3, maxHp: 3, dx: 0, dy: -1 };
+    let player = { x: 7, y: 7, hp: 20, maxHp: 20, dx: 0, dy: -1 };
     let enemies = [];
+    let initialEnemyCount = 0;
     let floorItems = [];
     let mapData = []; // 2D array holding tile objects
     let isAutoRunning = false;
     let isAutoExploring = false;
     let autoRunPath = [];
+    let gameStarted = false;
 
     let currentZoom = 1.0;
     const MIN_ZOOM = 0.8;
     const MAX_ZOOM = 2.5;
     let camBounds = { startX: 0, startY: 0, endX: 0, endY: 0 };
+    let camView = { vx: 0, vy: 0, vw: 0, vh: 0 };
     
-    const PLAYER_VISION_RANGE = 7;
     let debugVision = false;
     let debugHearing = false;
     let audibleTiles = new Map();
+    let turnSounds = [];
+    let projectiles = [];
 
     let gameSettings = {
+        audio: true,
         autoPickupAmmo: true,
         autoPickupGold: true,
         autoPickupPotion: true
     };
 
-    // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
-    let inventory = [
-        { name: "Dagger", type: "weapon", icon: "▲", color: "#cccccc", damage: 1 },
-        { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", count: 5, stackable: true },
-        { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true, healAmount: 1 },
-        { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", count: 10, stackable: true }
+    const itemTemplates = {
+        "Dagger": { name: "Dagger", type: "weapon", icon: "▲", color: "#cccccc", damageMin: 1, damageMax: 2, accuracy: 3, stackable: false },
+        "Gold Nugget": { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", stackable: true },
+        "Health Potion": { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", healAmount: 5, stackable: true },
+        "Pebble": { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", stackable: true },
+        "Sling": { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damageMin: 1, damageMax: 3, range: 5, ammoType: "Pebble", accuracy: 6, stackable: false },
+        "Leather Armor": { name: "Leather Armor", type: "body", icon: "■", color: "#8b4513", defense: 1, stackable: false },
+        "Leather Helm": { name: "Leather Helm", type: "head", icon: "◓", color: "#8b4513", defense: 1, stackable: false },
+        "Leather Gloves": { name: "Leather Gloves", type: "hands", icon: "▨", color: "#8b4513", damageBonus: 1, stackable: false },
+        "Leather Boots": { name: "Leather Boots", type: "feet", icon: "▟", color: "#8b4513", stealth: 1, stackable: false }
+    };
+
+    const rareModifiers = [
+        { name: "Sentry Slayer", desc: "+1 Damage vs Sentries", stat: "dmgSentry", value: 1 },
+        { name: "Seeker Bane", desc: "+1 Damage vs Seekers", stat: "dmgSeeker", value: 1 },
+        { name: "Evasive", desc: "+5% Dodge Chance", stat: "dodge", value: 0.05 },
+        { name: "Eagle-Eyed", desc: "+1 Vision Range", stat: "vision", value: 1 },
+        { name: "Silent", desc: "+1 Stealth", stat: "stealthBonusRare", value: 1 },
+        { name: "Scavenger", desc: "+10% Ammo Recovery", stat: "ammoRec", value: 0.10 },
+        { name: "Vitality", desc: "+2 Max HP", stat: "maxHp", value: 2 },
+        { name: "Precise", desc: "+2 Accuracy", stat: "accBonus", value: 2 },
+        { name: "Sentry Guard", desc: "+1 Defense vs Sentries", stat: "defSentry", value: 1 },
+        { name: "Seeker Guard", desc: "+1 Defense vs Seekers", stat: "defSeeker", value: 1 },
+        { name: "Vampiric", desc: "Heal 1 HP on kill", stat: "healOnKill", value: 1 },
+        { name: "Savage", desc: "+1 Melee Damage", stat: "meleeDmg", value: 1 },
+        { name: "Sniper", desc: "+1 Ranged Damage", stat: "rangedDmg", value: 1 },
+        { name: "Sturdy", desc: "+1 Defense", stat: "defense", value: 1 },
+        { name: "Lethal", desc: "+1 Damage", stat: "allDmg", value: 1 }
     ];
+
+    const enemyTemplates = {
+        "Sentry": { type: "Sentry", hp: 1, damageMin: 1, damageMax: 2, searchTurns: 0 },
+        "Seeker": { type: "Seeker", hp: 3, damageMin: 3, damageMax: 5, searchTurns: 0, wanderTarget: null, wasSeeingPlayer: false }
+    };
+
+    function getRareStat(statName) {
+        let total = 0;
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].rarity === 'rare' && equipment[slot].rareMod && equipment[slot].rareMod.stat === statName) {
+                total += equipment[slot].rareMod.value;
+            }
+        }
+        return total;
+    }
+
+    function getPlayerVisionRange() {
+        return 7 + getRareStat('vision');
+    }
+
+    function updateMaxHp() {
+        let baseMaxHp = 20;
+        player.maxHp = baseMaxHp + getRareStat('maxHp');
+        if (player.hp > player.maxHp) player.hp = player.maxHp;
+    }
+
+    // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
+    let inventory = [];
     let equipment = { 
         head: null, 
         body: null, 
         hands: null, 
         feet: null, 
-        weapon: { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damage: 1, range: 5, ammoType: "Pebble" } 
+        weapon: { ...itemTemplates["Sling"], count: 1, rarity: "normal" } 
     };
     const INVENTORY_CAPACITY = 16;
     
     const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
     
+    const possibleLoot = [
+        { name: "Gold Nugget", count: 1 },
+        { name: "Health Potion", count: 1 },
+        { name: "Dagger", count: 1 },
+        { name: "Leather Armor", count: 1 },
+        { name: "Leather Helm", count: 1 },
+        { name: "Leather Gloves", count: 1 },
+        { name: "Leather Boots", count: 1 },
+        { name: "Sling", count: 1 },
+        { name: "Pebble", count: 3 }
+    ];
+    
+    function createItem(config) {
+        let template = itemTemplates[config.name];
+        let item = { ...template, count: config.count || 1 };
+        
+        if (equippableTypes.includes(item.type)) {
+            if (Math.random() < 0.3) {
+                item.rarity = "rare";
+                let mod = rareModifiers[Math.floor(Math.random() * rareModifiers.length)];
+                item.rareMod = mod;
+                item.name = `Rare ${item.name}`; 
+            } else {
+                item.rarity = "normal";
+            }
+        } else {
+            item.rarity = "normal";
+        }
+        return item;
+    }
+
     // Direction mapping for QWEASDZXC
     const keyMap = {
         'q': {x:-1, y:-1}, 'w': {x:0, y:-1}, 'e': {x:1, y:-1},
@@ -474,6 +692,102 @@
         }
     ];
 
+    let audioCtx = null;
+    let bgmGain = null;
+    let bgmOscillators = [];
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        startBGM();
+    }
+
+    function startBGM() {
+        if (bgmOscillators.length > 0) return;
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.value = 0.05;
+        bgmGain.connect(audioCtx.destination);
+
+        let osc1 = audioCtx.createOscillator();
+        osc1.type = 'sine';
+        osc1.frequency.value = 55;
+        osc1.connect(bgmGain);
+        osc1.start();
+        bgmOscillators.push(osc1);
+
+        let osc2 = audioCtx.createOscillator();
+        osc2.type = 'triangle';
+        osc2.frequency.value = 55.5;
+        osc2.connect(bgmGain);
+        osc2.start();
+        bgmOscillators.push(osc2);
+
+        let lfo = audioCtx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 0.05;
+        let lfoGain = audioCtx.createGain();
+        lfoGain.gain.value = 0.03;
+        lfo.connect(lfoGain);
+        lfoGain.connect(bgmGain.gain);
+        lfo.start();
+        bgmOscillators.push(lfo);
+    }
+
+    function stopBGM() {
+        bgmOscillators.forEach(osc => {
+            try { osc.stop(); } catch(e) {}
+            osc.disconnect();
+        });
+        bgmOscillators = [];
+        if (bgmGain) {
+            bgmGain.disconnect();
+            bgmGain = null;
+        }
+    }
+
+    function playSfx(type) {
+        if (!gameSettings.audio || !audioCtx) return;
+        
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        let now = audioCtx.currentTime;
+
+        let freqs = {
+            'step': { t: 'sine', f1: 80, f2: 10, d: 0.05, v: 0.05 },
+            'hit': { t: 'sawtooth', f1: 200, f2: 50, d: 0.1, v: 0.1 },
+            'miss': { t: 'sine', f1: 300, f2: 200, d: 0.1, v: 0.05 },
+            'shoot': { t: 'square', f1: 400, f2: 800, d: 0.1, v: 0.05 },
+            'pickup': { t: 'sine', f1: 800, f2: 1200, d: 0.1, v: 0.05 },
+            'equip': { t: 'triangle', f1: 600, f2: null, d: 0.15, v: 0.05 },
+            'potion': { t: 'sine', f1: 400, f2: 800, d: 0.2, v: 0.05 },
+            'player_hurt': { t: 'sawtooth', f1: 150, f2: 20, d: 0.3, v: 0.15 },
+            'error': { t: 'sawtooth', f1: 100, f2: null, d: 0.1, v: 0.05 },
+            'shriek': { t: 'sawtooth', f1: 400, f2: 1200, d: 0.2, v: 0.05 }
+        };
+
+        let config = freqs[type] || freqs['error'];
+
+        osc.type = config.t;
+        osc.frequency.setValueAtTime(config.f1, now);
+        if (config.f2 !== null) {
+            if (type === 'miss' || type === 'potion' || type === 'pickup') osc.frequency.linearRampToValueAtTime(config.f2, now + config.d);
+            else osc.frequency.exponentialRampToValueAtTime(config.f2, now + config.d);
+        }
+        
+        gain.gain.setValueAtTime(config.v, now);
+        if (type === 'equip' || type === 'error') gain.gain.linearRampToValueAtTime(0.01, now + config.d);
+        else gain.gain.exponentialRampToValueAtTime(0.01, now + config.d);
+        
+        osc.start(now);
+        osc.stop(now + config.d);
+    }
+
     function init() {
         generateLevel();
         updateLOS();
@@ -481,6 +795,14 @@
         drawBoard();
         logMessage("Floor 1 initialized.");
         
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-screen').style.display = 'none';
+            gameStarted = true;
+            if (gameSettings.audio && !audioCtx) {
+                initAudio();
+            }
+        });
+
         document.addEventListener('keydown', handleInput);
         board.addEventListener('click', handleMouseClick);
         board.addEventListener('contextmenu', handleRightClick);
@@ -511,6 +833,11 @@
         document.getElementById('close-settings-btn').addEventListener('click', () => {
             document.getElementById('settings-modal').style.display = 'none';
         });
+        document.getElementById('setting-audio').addEventListener('change', (e) => {
+            gameSettings.audio = e.target.checked;
+            if (gameSettings.audio) initAudio();
+            else { stopBGM(); if (audioCtx) audioCtx.suspend(); }
+        });
         document.getElementById('setting-auto-ammo').addEventListener('change', (e) => gameSettings.autoPickupAmmo = e.target.checked);
         document.getElementById('setting-auto-gold').addEventListener('change', (e) => gameSettings.autoPickupGold = e.target.checked);
         document.getElementById('setting-auto-potion').addEventListener('change', (e) => gameSettings.autoPickupPotion = e.target.checked);
@@ -540,6 +867,18 @@
         camBounds.startY = Math.max(0, Math.floor(vy / TILE_SIZE) - 2);
         camBounds.endX = Math.min(GRID_W - 1, Math.floor((vx + vw) / TILE_SIZE) + 2);
         camBounds.endY = Math.min(GRID_H - 1, Math.floor((vy + vh) / TILE_SIZE) + 2);
+
+        camView.vx = vx;
+        camView.vy = vy;
+        camView.vw = vw;
+        camView.vh = vh;
+
+        let dustOffsetX = -cx / 10;
+        let dustOffsetY = -cy / 10;
+        let dustPattern = document.getElementById('dust-pattern');
+        dustPattern.style.setProperty('--dust-zoom', currentZoom);
+        dustPattern.style.setProperty('--cam-x', `${dustOffsetX}em`);
+        dustPattern.style.setProperty('--cam-y', `${dustOffsetY}em`);
     }
 
     function initMap() {
@@ -583,13 +922,51 @@
             }
         }
         
+        let startWalls = [];
         for (let x = startX; x < startX + roomW; x++) {
             for (let y = startY; y < startY + roomH; y++) {
                 if (!mapData[x][y].isWall) {
-                    addWalls(x, y);
+                    for (let d of dirs) {
+                        let nx = x + d.dx;
+                        let ny = y + d.dy;
+                        if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1) {
+                            if (mapData[nx][ny].isWall) {
+                                startWalls.push({x: nx, y: ny, dx: d.dx, dy: d.dy});
+                            }
+                        }
+                    }
                 }
             }
         }
+        
+        if (startWalls.length > 0) {
+            let exitWall = startWalls[Math.floor(Math.random() * startWalls.length)];
+            wallList.push(exitWall);
+        }
+
+        let startingItems = [
+            { name: "Dagger", count: 1 },
+            { name: "Gold Nugget", count: 5 },
+            { name: "Health Potion", count: 1 },
+            { name: "Pebble", count: 10 }
+        ];
+
+        let startFloorTiles = [];
+        for (let x = startX; x < startX + roomW; x++) {
+            for (let y = startY; y < startY + roomH; y++) {
+                if (x !== player.x || y !== player.y) {
+                    startFloorTiles.push({x, y});
+                }
+            }
+        }
+        
+        startFloorTiles.sort(() => Math.random() - 0.5);
+        startingItems.forEach((itemCfg, i) => {
+            if (i < startFloorTiles.length) {
+                let pos = startFloorTiles[i];
+                floorItems.push({ x: pos.x, y: pos.y, item: createItem(itemCfg) });
+            }
+        });
         
         let iterations = 0;
         
@@ -690,6 +1067,8 @@
         for (let x = 1; x < GRID_W - 1; x++) {
             for (let y = 1; y < GRID_H - 1; y++) {
                 if (mapData[x][y].isWall) {
+                    if (x >= startX - 1 && x <= startX + roomW && y >= startY - 1 && y <= startY + roomH) continue;
+
                     let floorAbove = !mapData[x][y-1].isWall;
                     let floorBelow = !mapData[x][y+1].isWall;
                     let floorLeft = !mapData[x-1][y].isWall;
@@ -753,32 +1132,52 @@
                 let pos = emptySpaces.splice(idx, 1)[0];
                 let dir = enemyDirs[Math.floor(Math.random() * enemyDirs.length)];
                 let hearingLevel = Math.floor(Math.random() * 4); // 0 to 3
-                enemies.push({ x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, type: 'Sentry', hp: 1, hearing: hearingLevel });
+                if (Math.random() < 0.01) {
+                    enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2 });
+                } else {
+                    enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel });
+                }
             }
         }
+        initialEnemyCount = enemies.length;
 
-        let numLoot = Math.floor((GRID_W * GRID_H) / 80); 
-        let possibleLoot = [
-            { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", count: 1, stackable: true },
-            { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", count: 1, stackable: true, healAmount: 1 },
-            { name: "Leather Armor", type: "body", icon: "■", color: "#8b4513", defense: 1, stackable: false },
-            { name: "Leather Boots", type: "feet", icon: "▟", color: "#8b4513", stealth: 1, stackable: false },
-            { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damage: 1, range: 5, ammoType: "Pebble", stackable: false },
-            { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", count: 3, stackable: true }
-        ];
+        let numLoot = Math.floor((GRID_W * GRID_H) / 800); 
         for (let i = 0; i < numLoot; i++) {
             if (emptySpaces.length > 0) {
                 let idx = Math.floor(Math.random() * emptySpaces.length);
                 let pos = emptySpaces.splice(idx, 1)[0];
                 let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
-                floorItems.push({ x: pos.x, y: pos.y, item: { ...lootTemplate } });
+                floorItems.push({ x: pos.x, y: pos.y, item: createItem({ name: lootTemplate.name, count: lootTemplate.count }) });
+            }
+        }
+
+        // Apply grimy smooth random tint
+        for (let x = 0; x < GRID_W; x++) {
+            for (let y = 0; y < GRID_H; y++) {
+                let n1 = Math.sin(x * 0.6) * Math.cos(y * 0.6);
+                let n2 = Math.sin((x - y) * 0.4);
+                let noise = n1 + n2;
+                let grit = Math.random() * 12 - 6; // chunkier static
+                
+                if (mapData[x][y].isWall) {
+                    let r = Math.floor(65 + noise * 15 + grit);
+                    let g = Math.floor(60 + noise * 15 + grit);
+                    let b = Math.floor(55 + noise * 15 + grit);
+                    mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    let r = Math.floor(22 + noise * 10 + grit);
+                    let g = Math.floor(28 + noise * 12 + grit); // Slightly greener
+                    let b = Math.floor(20 + noise * 10 + grit);
+                    mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
+                }
             }
         }
     }
 
-    function logMessage(msg) {
+    function logMessage(msg, color = null) {
         const entry = document.createElement('div');
         entry.textContent = "> " + msg;
+        if (color) entry.style.color = color;
         logEl.prepend(entry);
         
         if (logEl.children.length > 100) {
@@ -807,10 +1206,10 @@
                 rect.setAttribute("height", TILE_SIZE);
                 
                 if (tile.isWall) {
-                    rect.setAttribute("fill", "#555");
+                    rect.setAttribute("fill", tile.color || "#555");
                 } else {
-                    rect.setAttribute("fill", "none");
-                    rect.setAttribute("stroke", "#222");
+                    rect.setAttribute("fill", tile.color || "#111");
+                    rect.setAttribute("stroke", "#1a1a1a");
                 }
                 fragment.appendChild(rect);
                 
@@ -829,6 +1228,7 @@
         }
 
         // Setup light gradient for player
+        let currentVisionRange = getPlayerVisionRange();
         let defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
         let grad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
         grad.setAttribute("id", "playerLight");
@@ -837,7 +1237,7 @@
         let cy = player.y * TILE_SIZE + TILE_SIZE / 2;
         grad.setAttribute("cx", cx);
         grad.setAttribute("cy", cy);
-        grad.setAttribute("r", PLAYER_VISION_RANGE * TILE_SIZE);
+        grad.setAttribute("r", currentVisionRange * TILE_SIZE);
         
         let stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         stop1.setAttribute("offset", "0%");
@@ -849,11 +1249,30 @@
         grad.appendChild(stop1);
         grad.appendChild(stop2);
         defs.appendChild(grad);
+
+        let rareGrad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        rareGrad.setAttribute("id", "rareBeamGrad");
+        rareGrad.setAttribute("x1", "0%");
+        rareGrad.setAttribute("y1", "0%");
+        rareGrad.setAttribute("x2", "0%");
+        rareGrad.setAttribute("y2", "100%");
+        
+        let rs1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        rs1.setAttribute("offset", "0%");
+        rs1.setAttribute("stop-color", "rgba(80, 250, 123, 0)");
+        let rs2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        rs2.setAttribute("offset", "100%");
+        rs2.setAttribute("stop-color", "rgba(80, 250, 123, 0.6)");
+        
+        rareGrad.appendChild(rs1);
+        rareGrad.appendChild(rs2);
+        defs.appendChild(rareGrad);
+        
         fragment.appendChild(defs);
 
         // Draw Player Light (Raycasted)
         let pts = [];
-        let maxDist = PLAYER_VISION_RANGE * TILE_SIZE;
+        let maxDist = currentVisionRange * TILE_SIZE;
         let stepSize = TILE_SIZE / 4;
         
         for (let a = 0; a <= Math.PI * 2 + 0.01; a += Math.PI / 128) {
@@ -897,6 +1316,22 @@
         playerLight.setAttribute("pointer-events", "none");
         fragment.appendChild(playerLight);
 
+        let dustOverlay = document.getElementById('dust-overlay');
+        if (debugVision) {
+            dustOverlay.style.webkitClipPath = 'none';
+            dustOverlay.style.clipPath = 'none';
+        } else {
+            let clipPts = pts.map(ptStr => {
+                let [px, py] = ptStr.split(',').map(Number);
+                let sx = (px - camView.vx) / camView.vw * 100;
+                let sy = (py - camView.vy) / camView.vh * 100;
+                return `${sx.toFixed(2)}% ${sy.toFixed(2)}%`;
+            });
+            let polygonStr = `polygon(${clipPts.join(', ')})`;
+            dustOverlay.style.webkitClipPath = polygonStr;
+            dustOverlay.style.clipPath = polygonStr;
+        }
+
         // Draw debug hearing
         if (debugHearing) {
             audibleTiles.forEach((dist, posStr) => {
@@ -923,6 +1358,18 @@
             let posStr = `${fi.x},${fi.y}`;
             if (drawnTiles.has(posStr)) continue;
             drawnTiles.add(posStr);
+
+            let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && itemFi.item.rarity === 'rare');
+            if (hasRare && (mapData[fi.x][fi.y].isVisible || debugVision)) {
+                let beam = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                beam.setAttribute("x", fi.x * TILE_SIZE + TILE_SIZE / 2 - 4);
+                beam.setAttribute("y", fi.y * TILE_SIZE - TILE_SIZE * 1.5);
+                beam.setAttribute("width", 8);
+                beam.setAttribute("height", TILE_SIZE * 2);
+                beam.setAttribute("fill", "url(#rareBeamGrad)");
+                beam.setAttribute("pointer-events", "none");
+                fragment.appendChild(beam);
+            }
 
             let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
             text.setAttribute("x", fi.x * TILE_SIZE + TILE_SIZE / 2);
@@ -1008,7 +1455,12 @@
             rect.setAttribute("y", e.y * TILE_SIZE + 5);
             rect.setAttribute("width", TILE_SIZE - 10);
             rect.setAttribute("height", TILE_SIZE - 10);
-            rect.setAttribute("fill", "red");
+            rect.setAttribute("fill", e.type === 'Seeker' ? "orange" : "red");
+            
+            if (e.type === 'Seeker') {
+                rect.setAttribute("transform", `rotate(45, ${e.x * TILE_SIZE + TILE_SIZE / 2}, ${e.y * TILE_SIZE + TILE_SIZE / 2})`);
+            }
+            
             if (e.hasLOS) {
                 rect.setAttribute("stroke", "white");
                 rect.setAttribute("stroke-width", "2");
@@ -1049,7 +1501,60 @@
         poly.setAttribute("transform", `rotate(${pangle}, ${px+20}, ${py+20})`);
 
         fragment.appendChild(poly);
+
+        // Draw Projectiles
+        projectiles.forEach(p => {
+            if (p.drawn) return;
+            
+            let startPx = p.startX * TILE_SIZE + TILE_SIZE / 2;
+            let startPy = p.startY * TILE_SIZE + TILE_SIZE / 2;
+            let endPx = p.endX * TILE_SIZE + TILE_SIZE / 2;
+            let endPy = p.endY * TILE_SIZE + TILE_SIZE / 2;
+
+            let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", 0);
+            circle.setAttribute("cy", 0);
+            circle.setAttribute("r", 6);
+            circle.setAttribute("fill", p.color);
+            circle.setAttribute("stroke", "#fff");
+            circle.setAttribute("stroke-width", "1");
+            circle.setAttribute("pointer-events", "none");
+
+            circle.style.setProperty('--start-x', `${startPx}px`);
+            circle.style.setProperty('--start-y', `${startPy}px`);
+            circle.style.setProperty('--end-x', `${endPx}px`);
+            circle.style.setProperty('--end-y', `${endPy}px`);
+            circle.style.animation = `projAnim 0.15s linear forwards`;
+
+            fragment.appendChild(circle);
+            
+            p.drawn = true;
+        });
         
+        // Draw Sound Ripples
+        turnSounds.forEach(snd => {
+            if (!snd.color || snd.drawn) return;
+            if (snd.x < camBounds.startX || snd.x > camBounds.endX || snd.y < camBounds.startY || snd.y > camBounds.endY) return;
+
+            for (let i = 0; i < 2; i++) {
+                let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", snd.x * TILE_SIZE + TILE_SIZE / 2);
+                circle.setAttribute("cy", snd.y * TILE_SIZE + TILE_SIZE / 2);
+                circle.setAttribute("r", snd.volume * TILE_SIZE / 2);
+                circle.setAttribute("fill", "none");
+                circle.setAttribute("stroke", snd.color);
+                circle.setAttribute("stroke-width", snd.color === "orange" ? "4" : "2");
+                circle.setAttribute("opacity", "0");
+                circle.setAttribute("pointer-events", "none");
+
+                circle.style.transformOrigin = `${snd.x * TILE_SIZE + TILE_SIZE / 2}px ${snd.y * TILE_SIZE + TILE_SIZE / 2}px`;
+                circle.style.animation = `rippleAnim 0.6s ease-out ${i * 0.2}s forwards`;
+
+                fragment.appendChild(circle);
+            }
+            snd.drawn = true;
+        });
+
         board.innerHTML = '';
         board.appendChild(fragment);
         renderUI();
@@ -1107,6 +1612,11 @@
                     showItemContextMenu(e, item, 'equipment', slotName, -1);
                 });
             }
+            
+            if (item && item.rarity === 'rare') {
+                slot.style.borderColor = '#50fa7b';
+                slot.style.boxShadow = 'inset 0 0 5px rgba(80, 250, 123, 0.2)';
+            }
             equipmentListEl.appendChild(slot);
         }
 
@@ -1131,6 +1641,11 @@
                     slot.style.color = item.color;
                     slot.style.textShadow = `0 0 6px ${item.color}`;
                 }
+
+                if (item.rarity === 'rare') {
+                    slot.style.borderColor = '#50fa7b';
+                    slot.style.boxShadow = 'inset 0 0 8px rgba(80, 250, 123, 0.4)';
+                }
                 
                 if (item.count > 1) {
                     let countEl = document.createElement('span');
@@ -1148,10 +1663,30 @@
         for (let slot in equipment) {
             if (equipment[slot] && equipment[slot].stealth) stealth += equipment[slot].stealth;
         }
+        stealth += getRareStat('stealthBonusRare');
         return stealth;
     }
 
+    function getPlayerDefense() {
+        let defense = 0;
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].defense) defense += equipment[slot].defense;
+        }
+        defense += getRareStat('defense');
+        return defense;
+    }
+
+    function getPlayerDamageBonus() {
+        let bonus = 0;
+        for (let slot in equipment) {
+            if (slot !== 'weapon' && equipment[slot] && equipment[slot].damageBonus) bonus += equipment[slot].damageBonus;
+        }
+        bonus += getRareStat('allDmg');
+        return bonus;
+    }
+
     function handleInput(e) {
+        if (!gameStarted) return;
         if (isAutoRunning || isAutoExploring) {
             isAutoRunning = false;
             isAutoExploring = false;
@@ -1221,21 +1756,38 @@
                                 return;
                             } else {
                                 logMessage("Out of ammo!");
+                        playSfx('error');
                                 return;
                             }
                         } else {
                             logMessage("No line of sight.");
+                    playSfx('error');
                             return;
                         }
-                    } else {
-                        logMessage("Target out of range.");
-                        return;
                     }
+                }
+
+                let path = findPath(player.x, player.y, gridX, gridY);
+                if (path && path.length > 0) {
+                    let step = path[0];
+                    processTurn(step.x, step.y);
+                    return;
+                } else {
+                    logMessage("No clear path to enemy.");
+            playSfx('error');
+                    return;
                 }
             }
 
             if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
-                logMessage("Enemies in sight! Cannot auto-run.");
+                let path = findPath(player.x, player.y, gridX, gridY);
+                if (path && path.length > 0) {
+                    let step = path[0];
+                    processTurn(step.x, step.y);
+                } else {
+                    logMessage("No clear path to destination.");
+                    playSfx('error');
+                }
             } else {
                 triggerAutoRun(gridX, gridY);
             }
@@ -1244,20 +1796,54 @@
 
     function executeRangedAttack(x, y) {
         let wpn = equipment.weapon;
+        playSfx('shoot');
         let ammoIndex = inventory.findIndex(i => i.name === wpn.ammoType);
         
         inventory[ammoIndex].count--;
         if (inventory[ammoIndex].count <= 0) inventory.splice(ammoIndex, 1);
         
         let enemyIndex = enemies.findIndex(e => e.x === x && e.y === y);
+        turnSounds = [];
+        projectiles = [];
+        projectiles.push({
+            startX: player.x,
+            startY: player.y,
+            endX: x,
+            endY: y,
+            color: '#a9a9a9'
+        });
         if (enemyIndex !== -1) {
             let enemy = enemies[enemyIndex];
-            enemy.hp -= (wpn.damage || 1);
-            logMessage(`Fired ${wpn.ammoType} at Sentry for ${wpn.damage || 1} damage!`);
-            if (enemy.hp <= 0) {
-                dropLoot(x, y, 0.75); // 75% chance to recover ammo on ranged kill
-                enemies.splice(enemyIndex, 1);
-                logMessage("Shattered a Sentry.");
+            let accuracy = ((wpn.accuracy !== undefined) ? wpn.accuracy : 1) + getRareStat('accBonus');
+            let roll = Math.floor(Math.random() * 20) + 1;
+
+            if (roll < accuracy) {
+                logMessage(`Fired ${wpn.ammoType} at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
+                turnSounds.push({ x: x, y: y, volume: 4, color: "white" });
+                setTimeout(() => playSfx('miss'), 100);
+            } else {
+                let minDmg = wpn.damageMin !== undefined ? wpn.damageMin : (wpn.damage || 1);
+                let maxDmg = wpn.damageMax !== undefined ? wpn.damageMax : (wpn.damage || 1);
+                let damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                damage += getPlayerDamageBonus();
+                damage += getRareStat('rangedDmg');
+                if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
+                if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+                
+                enemy.hp -= damage;
+                logMessage(`Fired ${wpn.ammoType} at ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
+                turnSounds.push({ x: x, y: y, volume: 8, color: "white" });
+                setTimeout(() => playSfx('hit'), 100);
+                if (enemy.hp <= 0) {
+                    dropLoot(x, y, 0.75); // 75% chance to recover ammo on ranged kill
+                    enemies.splice(enemyIndex, 1);
+                    logMessage(`Shattered a ${enemy.type}.`);
+                    let heal = getRareStat('healOnKill');
+                    if (heal > 0) {
+                        player.hp = Math.min(player.maxHp, player.hp + heal);
+                        logMessage(`Vampiric strike healed you for ${heal} HP.`);
+                    }
+                }
             }
         }
         
@@ -1291,18 +1877,35 @@
         } else {
             let enemy = enemies.find(en => en.x === gridX && en.y === gridY);
             if (enemy && (mapData[enemy.x][enemy.y].isVisible || debugVision)) {
-                title = "Sentry (Red Square)";
-                desc = `Threat: Low<br>Behavior: Stands guard until it spots you.<br>HP: ${enemy.hp}<br>Hearing: ${enemy.hearing}`;
+                title = enemy.type === 'Seeker' ? "Seeker (Orange Diamond)" : "Sentry (Red Square)";
+                let minDmg = enemy.damageMin !== undefined ? enemy.damageMin : (enemy.damage || 1);
+                let maxDmg = enemy.damageMax !== undefined ? enemy.damageMax : (enemy.damage || 1);
+                let threat = enemy.type === 'Seeker' ? "High" : "Low";
+                let behavior = enemy.type === 'Seeker' ? "Patrols until it spots you, then shrieks." : "Stands guard until it spots you.";
+                desc = `Threat: ${threat}<br>Behavior: ${behavior}<br>HP: ${enemy.hp}<br>Damage: ${minDmg}-${maxDmg}<br>Hearing: ${enemy.hearing}`;
             }
         }
 
         let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isExplored || debugVision));
         if (itemsHere.length > 0 && title === "Empty Tile") {
             title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
-            desc = itemsHere.length === 1 ? `Type: ${itemsHere[0].item.type.charAt(0).toUpperCase() + itemsHere[0].item.type.slice(1)}` : "Multiple items scattered here.";
+            if (itemsHere.length === 1) {
+                let item = itemsHere[0].item;
+                desc = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
+                if (item.damageMin !== undefined && item.damageMax !== undefined) desc += `<br>Damage: ${item.damageMin}-${item.damageMax}`;
+                else if (item.damage !== undefined) desc += `<br>Damage: ${item.damage}`;
+                if (item.accuracy !== undefined) desc += `<br>Accuracy: ${item.accuracy}+`;
+                if (item.range) desc += `<br>Range: ${item.range}`;
+                if (item.ammoType) desc += `<br>Ammo: ${item.ammoType}`;
+                if (item.defense) desc += `<br>Defense: ${item.defense}`;
+                if (item.stealth) desc += `<br>Stealth: ${item.stealth}`;
+                if (item.damageBonus) desc += `<br>Bonus Damage: +${item.damageBonus}`;
+            } else {
+                desc = "Multiple items scattered here.";
+            }
         }
 
-        cmTitle.style.color = title === "Player" ? "cyan" : (title.includes("Sentry") ? "red" : (itemsHere.length === 1 ? itemsHere[0].item.color : "#ccc"));
+        cmTitle.style.color = title === "Player" ? "cyan" : (title.includes("Sentry") ? "red" : (title.includes("Seeker") ? "orange" : (itemsHere.length === 1 ? itemsHere[0].item.color : "#ccc")));
         cmTitle.innerHTML = title;
         cmDesc.innerHTML = desc;
 
@@ -1325,7 +1928,7 @@
                 li.textContent = `Pick up ${fi.item.name} ${fi.item.count > 1 ? `(x${fi.item.count})` : ''}`;
                 li.onclick = (evt) => {
                     evt.stopPropagation(); // Stop click from reaching document and hiding the menu
-                    pickUpItem(fi);
+                    pickUpItem(fi, true);
                     handleRightClick(e);
                 };
                 cmActions.appendChild(li);
@@ -1362,13 +1965,19 @@
         cmTitle.innerHTML = item.name;
         
         let descHtml = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
-        if (item.damage) descHtml += `<br>Damage: ${item.damage}`;
+        if (item.damageMin !== undefined && item.damageMax !== undefined) descHtml += `<br>Damage: ${item.damageMin}-${item.damageMax}`;
+        else if (item.damage !== undefined) descHtml += `<br>Damage: ${item.damage}`;
+        if (item.accuracy !== undefined) descHtml += `<br>Accuracy: ${item.accuracy}+`;
         if (item.range) descHtml += `<br>Range: ${item.range}`;
         if (item.ammoType) descHtml += `<br>Ammo: ${item.ammoType}`;
         if (item.defense) descHtml += `<br>Defense: ${item.defense}`;
         if (item.stealth) descHtml += `<br>Stealth: ${item.stealth}`;
+        if (item.damageBonus) descHtml += `<br>Bonus Damage: +${item.damageBonus}`;
         if (item.healAmount) descHtml += `<br>Restores HP: ${item.healAmount}`;
         if (item.count > 1) descHtml += `<br>Quantity: ${item.count}`;
+        if (item.rarity === 'rare' && item.rareMod) {
+            descHtml += `<br><span style="color: #50fa7b;">Rare: ${item.rareMod.desc}</span>`;
+        }
         cmDesc.innerHTML = descHtml;
 
         cmActions.innerHTML = '';
@@ -1422,8 +2031,10 @@
         }
     }
 
-    function processTurn(dx, dy) {
+    function processTurn(dx, dy, silentWait = false) {
         if (player.hp <= 0) return;
+        turnSounds = [];
+        projectiles = [];
 
         if (dx !== 0 || dy !== 0) {
             player.dx = dx;
@@ -1432,30 +2043,70 @@
             let newY = player.y + dy;
 
             // Boundary check
-            if (newX < 0 || newX >= GRID_W || newY < 0 || newY >= GRID_H) return;
+            if (newX < 0 || newX >= GRID_W || newY < 0 || newY >= GRID_H) { playSfx('error'); return; }
             
             // Wall check
-            if (mapData[newX][newY].isWall) return;
+            if (mapData[newX][newY].isWall) { playSfx('error'); return; }
 
             // Combat check
             let enemyIndex = enemies.findIndex(e => e.x === newX && e.y === newY);
             if (enemyIndex !== -1) {
-                dropLoot(newX, newY, 0.05); // 5% chance to find ammo on melee kill
-                enemies.splice(enemyIndex, 1);
-                logMessage("Shattered a Sentry.");
+                let enemy = enemies[enemyIndex];
+                let wpn = equipment.weapon;
+                let accuracy = ((wpn && wpn.accuracy !== undefined) ? wpn.accuracy : 1) + getRareStat('accBonus');
+                let roll = Math.floor(Math.random() * 20) + 1;
+
+                if (roll < accuracy) {
+                    logMessage(`Struck at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
+                    turnSounds.push({ x: newX, y: newY, volume: 4, color: "white" });
+                    playSfx('miss');
+                } else {
+                    let damage = 1;
+                    if (wpn) {
+                        let minDmg = wpn.damageMin !== undefined ? wpn.damageMin : (wpn.damage || 1);
+                        let maxDmg = wpn.damageMax !== undefined ? wpn.damageMax : (wpn.damage || 1);
+                        damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                    }
+                    damage += getPlayerDamageBonus();
+                    damage += getRareStat('meleeDmg');
+                    if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
+                    if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+                    
+                    enemy.hp -= damage;
+                    logMessage(`Struck ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
+                    turnSounds.push({ x: newX, y: newY, volume: 8, color: "white" });
+                    playSfx('hit');
+                    if (enemy.hp <= 0) {
+                        dropLoot(newX, newY, 0.05); // 5% chance to find ammo on melee kill
+                        enemies.splice(enemyIndex, 1);
+                        logMessage(`Shattered a ${enemy.type}.`);
+                        let heal = getRareStat('healOnKill');
+                        if (heal > 0) {
+                            player.hp = Math.min(player.maxHp, player.hp + heal);
+                            logMessage(`Vampiric strike healed you for ${heal} HP.`);
+                        }
+                    }
+                }
             } else {
                 player.x = newX;
                 player.y = newY;
                 checkAutoPickup();
+                if (!isAutoRunning && !isAutoExploring) playSfx('step');
             }
         } else {
-            logMessage("Waited a turn.");
+            if (!silentWait) {
+                logMessage("Waited a turn.");
+            }
         }
 
         updateLOS();
         updateEnemies();
         updateLOS();
         drawBoard();
+
+        if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring) {
+            emitFlavorText();
+        }
     }
 
     function checkAutoPickup() {
@@ -1477,20 +2128,71 @@
             let targetX, targetY;
 
             if (e.hasLOS) {
+                if (e.type === 'Seeker' && !e.wasSeeingPlayer) {
+                    logMessage("A Seeker spotted you and shrieked!");
+                    turnSounds.push({ x: e.x, y: e.y, volume: 15, color: "orange" });
+                    playSfx('shriek');
+                }
+                e.wasSeeingPlayer = true;
                 targetX = player.x;
                 targetY = player.y;
             } else if (e.lastKnown) {
+                e.wasSeeingPlayer = false;
                 targetX = e.lastKnown.x;
                 targetY = e.lastKnown.y;
                 if (e.x === targetX && e.y === targetY) {
-                    e.lastKnown = null;
-                    return;
+                    if (e.searchTurns && e.searchTurns > 0) {
+                        e.searchTurns--;
+                        let possibleMoves = [];
+                        for (let key in keyMap) {
+                            let dx = keyMap[key].x;
+                            let dy = keyMap[key].y;
+                            if (dx === 0 && dy === 0) continue;
+                            let nx = e.x + dx;
+                            let ny = e.y + dy;
+                            if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1 && !mapData[nx][ny].isWall) {
+                                possibleMoves.push({x: nx, y: ny});
+                            }
+                        }
+                        if (possibleMoves.length > 0) {
+                            let move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                            e.lastKnown = { x: move.x, y: move.y };
+                            targetX = move.x;
+                            targetY = move.y;
+                        } else {
+                            e.lastKnown = null;
+                            return;
+                        }
+                    } else {
+                        e.lastKnown = null;
+                        return;
+                    }
                 }
             } else {
-                return;
+                e.wasSeeingPlayer = false;
+                if (e.type === 'Seeker') {
+                    if (!e.wanderTarget || (e.x === e.wanderTarget.x && e.y === e.wanderTarget.y)) {
+                        for (let i = 0; i < 20; i++) {
+                            let rx = Math.floor(Math.random() * GRID_W);
+                            let ry = Math.floor(Math.random() * GRID_H);
+                            if (!mapData[rx][ry].isWall) {
+                                e.wanderTarget = {x: rx, y: ry};
+                                break;
+                            }
+                        }
+                    }
+                    if (e.wanderTarget) {
+                        targetX = e.wanderTarget.x;
+                        targetY = e.wanderTarget.y;
+                    } else {
+                        return;
+                    }
+                } else {
+                    return;
+                }
             }
 
-            let path = findPath(e.x, e.y, targetX, targetY, true);
+            let path = findPath(e.x, e.y, targetX, targetY, 'enemy');
             if (path && path.length > 0) {
                 let dx = path[0].x;
                 let dy = path[0].y;
@@ -1503,8 +2205,31 @@
 
                 // Attack player
                 if (nextX === player.x && nextY === player.y) {
-                    player.hp -= 1;
-                    logMessage("A Sentry struck you! HP left: " + player.hp);
+                    let dodgeChance = getRareStat('dodge');
+                    if (Math.random() < dodgeChance) {
+                        logMessage(`A ${e.type} tried to strike you, but you dodged!`);
+                        playSfx('miss');
+                        return;
+                    }
+                    
+                    let minDmg = e.damageMin !== undefined ? e.damageMin : (e.damage || 1);
+                    let maxDmg = e.damageMax !== undefined ? e.damageMax : (e.damage || 1);
+                    let baseDamage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                    let defense = getPlayerDefense();
+                    if (e.type === 'Sentry') defense += getRareStat('defSentry');
+                    if (e.type === 'Seeker') defense += getRareStat('defSeeker');
+                    
+                    let actualDamage = Math.max(0, baseDamage - defense);
+                    
+                    player.hp -= actualDamage;
+                    if (actualDamage > 0) {
+                        logMessage(`A ${e.type} struck you for ${actualDamage} damage! HP left: ${player.hp}`);
+                        playSfx('player_hurt');
+                    } else {
+                        logMessage(`A ${e.type} struck you, but your armor blocked the damage!`);
+                        playSfx('equip');
+                    }
+                    
                     if (player.hp <= 0) {
                         logMessage("CRITICAL FAILURE. Run ended.");
                     }
@@ -1517,6 +2242,8 @@
                     e.x = nextX;
                     e.y = nextY;
                 }
+            } else if (e.type === 'Seeker' && e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
+                e.wanderTarget = null;
             }
         });
     }
@@ -1527,14 +2254,15 @@
         }
         visibleTiles = [];
 
-        let startX = Math.max(0, player.x - PLAYER_VISION_RANGE - 1);
-        let endX = Math.min(GRID_W - 1, player.x + PLAYER_VISION_RANGE + 1);
-        let startY = Math.max(0, player.y - PLAYER_VISION_RANGE - 1);
-        let endY = Math.min(GRID_H - 1, player.y + PLAYER_VISION_RANGE + 1);
+        let currentVisionRange = getPlayerVisionRange();
+        let startX = Math.max(0, player.x - currentVisionRange - 1);
+        let endX = Math.min(GRID_W - 1, player.x + currentVisionRange + 1);
+        let startY = Math.max(0, player.y - currentVisionRange - 1);
+        let endY = Math.min(GRID_H - 1, player.y + currentVisionRange + 1);
 
         for(let x = startX; x <= endX; x++) {
             for(let y = startY; y <= endY; y++) {
-                if (canPlayerSee(x, y)) {
+                if (canPlayerSee(x, y, currentVisionRange)) {
                     mapData[x][y].isVisible = true;
                     mapData[x][y].isExplored = true;
                     visibleTiles.push(mapData[x][y]);
@@ -1546,7 +2274,19 @@
         let maxEnemyHearing = enemies.length > 0 ? Math.max(...enemies.map(e => e.hearing)) : 0;
         let footprintLimit = Math.max(6, maxEnemyHearing); // Keep debug drawing minimum size of 6
         let maxHearingDist = Math.max(0, footprintLimit - playerStealth);
-        audibleTiles = getAudibleTiles(player.x, player.y, maxHearingDist);
+        
+        let playerNoiseMap = getAudibleTiles(player.x, player.y, maxHearingDist);
+        audibleTiles = new Map(playerNoiseMap);
+
+        let soundMaps = turnSounds.map(snd => {
+            let sMap = getAudibleTiles(snd.x, snd.y, snd.volume + maxEnemyHearing);
+            sMap.forEach((dist, posStr) => {
+                if (!audibleTiles.has(posStr) || audibleTiles.get(posStr) > dist) {
+                    audibleTiles.set(posStr, dist);
+                }
+            });
+            return { snd, sMap };
+        });
 
         enemies.forEach(e => {
             if (inVisionCone(e, player.x, player.y)) {
@@ -1555,11 +2295,23 @@
                 e.hasLOS = false;
             }
 
-            let dist = audibleTiles.get(`${e.x},${e.y}`);
-            e.heardPlayer = (dist !== undefined && dist <= e.hearing - playerStealth);
+            let pDist = playerNoiseMap.get(`${e.x},${e.y}`);
+            e.heardPlayer = (pDist !== undefined && pDist <= e.hearing - playerStealth);
+
+            let heardSound = null;
+            for (let {snd, sMap} of soundMaps) {
+                let sDist = sMap.get(`${e.x},${e.y}`);
+                if (sDist !== undefined && sDist <= e.hearing + snd.volume) {
+                    heardSound = snd;
+                }
+            }
 
             if (e.hasLOS || e.heardPlayer) {
                 e.lastKnown = { x: player.x, y: player.y };
+                e.searchTurns = 5;
+            } else if (heardSound) {
+                e.lastKnown = { x: heardSound.x, y: heardSound.y };
+                e.searchTurns = 5;
             }
         });
     }
@@ -1623,9 +2375,9 @@
         return dist <= 8;
     }
 
-    function canPlayerSee(x, y) {
+    function canPlayerSee(x, y, visionRange) {
         let distToPlayer = Math.hypot(player.x - x, player.y - y);
-        return distToPlayer <= PLAYER_VISION_RANGE && hasLineOfSight(player.x, player.y, x, y);
+        return distToPlayer <= visionRange && hasLineOfSight(player.x, player.y, x, y);
     }
 
     function hasLineOfSight(x1, y1, x2, y2) {
@@ -1648,7 +2400,7 @@
         }
     }
 
-    function findPath(startX, startY, endX, endY, ignoreEnemies = false) {
+    function findPath(startX, startY, endX, endY, pathingType = 'player') {
         pathfindingPass++;
         let openSet = new MinHeap(n => n.f);
         openSet.push({x: startX, y: startY, parent: null, g: 0, f: 0});
@@ -1657,10 +2409,10 @@
         visitedPass[startIdx] = pathfindingPass;
         visitedG[startIdx] = 0;
 
-        if (!ignoreEnemies) {
+        if (pathingType !== 'ignore') {
             enemyPositionsMap.fill(0);
             for (let e of enemies) {
-                if (mapData[e.x][e.y].isVisible || debugVision) {
+                if (pathingType === 'enemy' || mapData[e.x][e.y].isVisible || debugVision) {
                     enemyPositionsMap[e.y * GRID_W + e.x] = 1;
                 }
             }
@@ -1695,7 +2447,7 @@
                 if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
                 if (mapData[nx][ny].isWall) continue;
                 let nIdx = ny * GRID_W + nx;
-                if (!ignoreEnemies && enemyPositionsMap[nIdx]) continue;
+                if (pathingType !== 'ignore' && enemyPositionsMap[nIdx] && !(nx === endX && ny === endY)) continue;
 
                 let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
                 let g = current.g + stepCost;
@@ -1722,6 +2474,7 @@
             executeAutoRunStep();
         } else {
             logMessage("No clear path to destination.");
+            playSfx('error');
         }
     }
 
@@ -1756,6 +2509,7 @@
     function triggerAutoExplore() {
         if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
             logMessage("Cannot auto-explore while enemies are in sight.");
+            playSfx('error');
             isAutoExploring = false;
             return;
         }
@@ -1770,10 +2524,12 @@
                 executeAutoRunStep();
             } else {
                 logMessage("No reachable unexplored areas or items.");
+                playSfx('error');
                 isAutoExploring = false;
             }
         } else {
             logMessage("Fully explored!");
+            playSfx('error');
             isAutoExploring = false;
         }
     }
@@ -1836,6 +2592,36 @@
         return null;
     }
 
+    function emitFlavorText() {
+        if (initialEnemyCount === 0) return;
+        let pct = enemies.length / initialEnemyCount;
+        let msg = "";
+        if (enemies.length === 0) {
+            msg = "Total silence. You are completely alone in the dark.";
+        } else if (pct < 0.1) {
+            msg = "The facility feels almost abandoned. Just a few stragglers remain.";
+        } else if (pct < 0.2) {
+            msg = "The ranks of your enemies are broken. Only scattered patrols echo in the halls.";
+        } else if (pct < 0.3) {
+            msg = "A strange quiet begins to settle, punctuated by the occasional mechanical whir.";
+        } else if (pct < 0.4) {
+            msg = "The opposition is thinning, yet danger still lurks just out of sight.";
+        } else if (pct < 0.5) {
+            msg = "Fewer hostiles roam the corridors now, but they are still actively hunting you.";
+        } else if (pct < 0.6) {
+            msg = "Distant chatter and heavy footsteps indicate a sizeable force still remains.";
+        } else if (pct < 0.7) {
+            msg = "The presence of hostiles is palpable, though slight gaps in their patrol routes appear.";
+        } else if (pct < 0.8) {
+            msg = "The perimeter is heavily guarded. Danger approaches from multiple vectors.";
+        } else if (pct < 0.9) {
+            msg = "Shadows shift constantly in the distance. They are everywhere.";
+        } else {
+            msg = "The complex hums with hostile activity. Footsteps echo from all directions.";
+        }
+        logMessage(msg, "yellow");
+    }
+
     function equipItem(index) {
         let item = inventory[index];
         let slot = item.type;
@@ -1851,8 +2637,11 @@
 
         if (currentEquipped) addItemToInventory(currentEquipped);
         logMessage(`Equipped ${item.name}.`);
+        playSfx('equip');
+        updateMaxHp();
         renderUI();
         tooltipEl.style.display = 'none';
+        processTurn(0, 0, true);
     }
 
     function unequipItem(slotName) {
@@ -1861,6 +2650,8 @@
             equipment[slotName] = null;
             addItemToInventory(item);
             logMessage(`Unequipped ${item.name}.`);
+            playSfx('equip');
+            updateMaxHp();
         } else {
             logMessage("Inventory full, cannot unequip.");
         }
@@ -1874,12 +2665,15 @@
             let heal = item.healAmount || 1;
             player.hp = Math.min(player.maxHp, player.hp + heal);
             logMessage(`Drank ${item.name}. Recovered ${heal} HP.`);
+            playSfx('potion');
             if (item.count > 1) item.count--;
             else inventory.splice(index, 1);
             renderUI();
             tooltipEl.style.display = 'none';
+            processTurn(0, 0, true);
         } else if (item.type === 'potion') {
             logMessage("HP already full.");
+            playSfx('error');
         }
     }
 
@@ -1915,8 +2709,10 @@
                 }
             }
             logMessage(`Equipped ${item.name}.`);
+            playSfx('equip');
+            updateMaxHp();
             renderUI();
-            drawBoard();
+            processTurn(0, 0, true);
         }
     }
 
@@ -1932,6 +2728,7 @@
         }
 
         logMessage(`Dropped ${item.name}.`);
+        playSfx('step');
         if (item.count > 1) item.count--;
         else inventory.splice(index, 1);
         
@@ -1952,6 +2749,7 @@
         }
 
         logMessage(`Dropped ${item.count}x ${item.name}.`);
+        playSfx('step');
         inventory.splice(index, 1);
         
         renderUI();
@@ -1959,30 +2757,39 @@
         tooltipEl.style.display = 'none';
     }
 
-    function pickUpItem(floorItem) {
+    function pickUpItem(floorItem, spendTurn = false) {
         let idx = floorItems.indexOf(floorItem);
         if (idx > -1) {
             let existingItem = inventory.find(i => i.name === floorItem.item.name && i.stackable);
             if (existingItem) {
                 existingItem.count += floorItem.item.count;
                 logMessage(`Picked up ${floorItem.item.count}x ${floorItem.item.name}.`);
+                playSfx('pickup');
                 floorItems.splice(idx, 1);
             } else if (inventory.length < INVENTORY_CAPACITY) {
                 inventory.push(floorItem.item);
                 logMessage(`Picked up ${floorItem.item.name}.`);
+                playSfx('pickup');
                 floorItems.splice(idx, 1);
             } else {
                 logMessage("Inventory is full! Cannot pick up.");
+                playSfx('error');
                 return;
             }
-            renderUI();
-            drawBoard();
+            
+            if (spendTurn) {
+                processTurn(0, 0, true);
+            } else {
+                renderUI();
+                drawBoard();
+            }
         }
     }
 
-    function dropLoot(x, y, chance = 0.75) {
-        if (Math.random() < chance) {
-            let droppedItem = { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", count: 1, stackable: true };
+    function dropLoot(x, y, baseAmmoRecoveryChance = 0.75) {
+        let ammoRecoveryChance = baseAmmoRecoveryChance + getRareStat('ammoRec');
+        if (Math.random() < ammoRecoveryChance) {
+            let droppedItem = createItem({ name: "Pebble", count: 1 });
             let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
             if (existingFloorItem) {
                 existingFloorItem.item.count += droppedItem.count;
@@ -1990,6 +2797,18 @@
                 floorItems.push({ x: x, y: y, item: droppedItem });
             }
             logMessage("A Pebble dropped to the floor.");
+        }
+
+        if (Math.random() < 0.675) {
+            let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
+            let droppedItem = createItem({ name: lootTemplate.name, count: lootTemplate.count });
+            let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
+            if (existingFloorItem) {
+                existingFloorItem.item.count += droppedItem.count;
+            } else {
+                floorItems.push({ x: x, y: y, item: droppedItem });
+            }
+            logMessage(`${droppedItem.name} dropped to the floor.`);
         }
     }
 
