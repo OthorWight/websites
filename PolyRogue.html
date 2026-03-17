@@ -360,7 +360,6 @@
                 <li><b>Mouse:</b> Left-click to move/attack. Left-click far away to auto-run. Right-click for context menu. Scroll to zoom.</li>
                 <li><b>Keyboard:</b> Q,W,E,A,S,D,Z,X,C for 8-way movement. Arrow keys to pan camera.</li>
                 <li><b>R:</b> Auto-explore the map.</li>
-                <li><b>V / H:</b> Toggle debug vision / hearing layers.</li>
             </ul>
         </div>
         <button id="start-btn">Start Game</button>
@@ -375,13 +374,21 @@
             <h1>Project Poly-Rogue</h1>
             <div class="stat" id="hp-display">HP: 3 / 3</div>
             <div class="stat" id="floor-display">Floor: 1</div>
-            <div style="margin-bottom: 10px;">
+            <div id="debug-controls" style="display: none; margin-bottom: 10px;">
                 <label style="cursor: pointer; font-size: 0.9rem; color: #ccc;">
                     <input type="checkbox" id="debug-vision-toggle"> Show Vision (V)
                 </label>
                 <br>
                 <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
                     <input type="checkbox" id="debug-hearing-toggle"> Show Hearing (H)
+                </label>
+                <br>
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
+                    <input type="checkbox" id="debug-god-toggle"> God Mode
+                </label>
+                <br>
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
+                    <input type="checkbox" id="debug-teleport-toggle"> Teleport Click
                 </label>
             </div>
             <button id="settings-btn" class="ui-btn">Settings</button>
@@ -476,6 +483,8 @@
     const hpEl = document.getElementById('hp-display');
     const debugToggleEl = document.getElementById('debug-vision-toggle');
     const debugHearingToggleEl = document.getElementById('debug-hearing-toggle');
+    const debugGodToggleEl = document.getElementById('debug-god-toggle');
+    const debugTeleportToggleEl = document.getElementById('debug-teleport-toggle');
     const equipmentListEl = document.getElementById('equipment-list');
     const inventoryGridEl = document.getElementById('inventory-grid');
     const contextMenu = document.getElementById('context-menu');
@@ -506,6 +515,9 @@
     let audibleTiles = new Map();
     let turnSounds = [];
     let projectiles = [];
+    let devMode = false;
+    let debugGodMode = false;
+    let debugTeleport = false;
 
     // --- Animation State ---
     let lastFrameTime = performance.now();
@@ -1015,6 +1027,16 @@
             debugHearing = e.target.checked;
             logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
             drawBoard();
+        });
+        debugGodToggleEl.addEventListener('change', (e) => {
+            debugGodMode = e.target.checked;
+            logMessage(debugGodMode ? "God mode ON" : "God mode OFF", "yellow");
+            updateLOS();
+            drawBoard();
+        });
+        debugTeleportToggleEl.addEventListener('change', (e) => {
+            debugTeleport = e.target.checked;
+            logMessage(debugTeleport ? "Teleport click ON" : "Teleport click OFF", "yellow");
         });
         board.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -2096,6 +2118,25 @@
         }
         let key = e.key.toLowerCase();
         
+        if (key === '`') {
+            devMode = !devMode;
+            document.getElementById('debug-controls').style.display = devMode ? 'block' : 'none';
+            logMessage(devMode ? "Developer mode ENABLED" : "Developer mode DISABLED", "yellow");
+            if (!devMode) {
+                debugVision = false;
+                debugHearing = false;
+                debugGodMode = false;
+                debugTeleport = false;
+                debugToggleEl.checked = false;
+                debugHearingToggleEl.checked = false;
+                debugGodToggleEl.checked = false;
+                debugTeleportToggleEl.checked = false;
+                updateLOS();
+                drawBoard();
+            }
+            return;
+        }
+
         if (key === 'arrowup') { cameraOffset.y -= TILE_SIZE * 2; drawBoard(); return; }
         if (key === 'arrowdown') { cameraOffset.y += TILE_SIZE * 2; drawBoard(); return; }
         if (key === 'arrowleft') { cameraOffset.x -= TILE_SIZE * 2; drawBoard(); return; }
@@ -2106,7 +2147,7 @@
             return;
         }
 
-        if (key === 'v') {
+        if (key === 'v' && devMode) {
             debugVision = !debugVision;
             debugToggleEl.checked = debugVision;
             logMessage(debugVision ? "Debug vision ON" : "Debug vision OFF");
@@ -2114,7 +2155,7 @@
             return;
         }
         
-        if (key === 'h') {
+        if (key === 'h' && devMode) {
             debugHearing = !debugHearing;
             debugHearingToggleEl.checked = debugHearing;
             logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
@@ -2143,6 +2184,19 @@
         
         let gridX = Math.floor(worldX / TILE_SIZE);
         let gridY = Math.floor(worldY / TILE_SIZE);
+
+        if (debugTeleport) {
+            if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && !mapData[gridX][gridY].isWall) {
+                player.x = gridX;
+                player.y = gridY;
+                player.renderX = gridX;
+                player.renderY = gridY;
+                logMessage(`Teleported to ${gridX}, ${gridY}`, "yellow");
+                updateLOS();
+                drawBoard();
+            }
+            return;
+        }
 
         let dx = gridX - player.x;
         let dy = gridY - player.y;
@@ -2709,6 +2763,8 @@
 
                 // Attack player
                 if (nextX === player.x && nextY === player.y) {
+                    if (debugGodMode) return;
+
                     let dodgeChance = getRareStat('dodge');
                     if (Math.random() < dodgeChance) {
                         logMessage(`A ${e.type} tried to strike you, but you dodged!`);
@@ -2818,6 +2874,13 @@
         });
 
         enemies.forEach(e => {
+            if (debugGodMode) {
+                e.hasLOS = false;
+                e.heardPlayer = false;
+                e.lastKnown = null;
+                e.searchTurns = 0;
+                return;
+            }
             if (inVisionCone(e, player.x, player.y)) {
                 e.hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
             } else {
