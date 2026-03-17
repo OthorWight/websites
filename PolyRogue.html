@@ -66,14 +66,12 @@
             height: 100vh;
         }
 
-        svg#game-board {
+        canvas#game-board {
             flex-grow: 1;
             height: 100%;
             background-color: #000;
-            border: none;
             cursor: crosshair;
-        user-select: none;
-        -webkit-user-select: none;
+            display: block;
         }
 
         #dust-overlay {
@@ -125,17 +123,6 @@
                     calc(16em + var(--cam-x, 0em)) calc(-16em + var(--cam-y, 0em)), 
                     calc(-21em + var(--cam-x, 0em)) calc(21em + var(--cam-y, 0em)); 
             }
-        }
-
-        @keyframes rippleAnim {
-            0% { transform: scale(0); opacity: 0.8; }
-            100% { transform: scale(1); opacity: 0; }
-        }
-
-        @keyframes projAnim {
-            0% { transform: translate(var(--start-x), var(--start-y)); opacity: 1; }
-            90% { opacity: 1; }
-            100% { transform: translate(var(--end-x), var(--end-y)); opacity: 0; }
         }
 
         #ui-panel {
@@ -380,7 +367,7 @@
     </div>
 
     <div id="game-wrapper">
-        <svg id="game-board"></svg>
+        <canvas id="game-board"></canvas>
         <div id="dust-overlay">
             <div id="dust-pattern"></div>
         </div>
@@ -484,6 +471,7 @@
     let levels = {};
     
     const board = document.getElementById('game-board');
+    const ctx = board.getContext('2d');
     const logEl = document.getElementById('log');
     const hpEl = document.getElementById('hp-display');
     const debugToggleEl = document.getElementById('debug-vision-toggle');
@@ -537,16 +525,25 @@
         if (dt > 0.1) dt = 0.1; // clamp dt to prevent giant jumps if tab inactive
         
         let needsRedraw = false;
-        let speed = 20; // sliding speed in tiles per second
+        let speed = 15; // constant sliding speed in tiles per second
 
         // Interpolate player
         if (player.renderX === undefined) player.renderX = player.x;
         if (player.renderY === undefined) player.renderY = player.y;
         let pdx = player.x - player.renderX;
         let pdy = player.y - player.renderY;
-        if (Math.abs(pdx) > 0.02 || Math.abs(pdy) > 0.02) {
-            player.renderX += pdx * Math.min(1, dt * speed);
-            player.renderY += pdy * Math.min(1, dt * speed);
+        let pDist = Math.hypot(pdx, pdy);
+        
+        if (pDist > 0.01) {
+            let currentSpeed = pDist > 1.5 ? speed * (pDist / 1.5) : speed; // Catch up if trailing behind
+            let moveDist = currentSpeed * dt;
+            if (moveDist >= pDist) {
+                player.renderX = player.x;
+                player.renderY = player.y;
+            } else {
+                player.renderX += (pdx / pDist) * moveDist;
+                player.renderY += (pdy / pDist) * moveDist;
+            }
             needsRedraw = true;
         } else {
             if (player.renderX !== player.x || player.renderY !== player.y) needsRedraw = true;
@@ -560,9 +557,18 @@
             if (e.renderY === undefined) e.renderY = e.y;
             let edx = e.x - e.renderX;
             let edy = e.y - e.renderY;
-            if (Math.abs(edx) > 0.02 || Math.abs(edy) > 0.02) {
-                e.renderX += edx * Math.min(1, dt * speed);
-                e.renderY += edy * Math.min(1, dt * speed);
+            let eDist = Math.hypot(edx, edy);
+            
+            if (eDist > 0.01) {
+                let currentSpeed = eDist > 1.5 ? speed * (eDist / 1.5) : speed;
+                let moveDist = currentSpeed * dt;
+                if (moveDist >= eDist) {
+                    e.renderX = e.x;
+                    e.renderY = e.y;
+                } else {
+                    e.renderX += (edx / eDist) * moveDist;
+                    e.renderY += (edy / eDist) * moveDist;
+                }
                 needsRedraw = true;
             } else {
                 if (e.renderX !== e.x || e.renderY !== e.y) needsRedraw = true;
@@ -570,6 +576,12 @@
                 e.renderY = e.y;
             }
         });
+
+        let now = performance.now();
+        projectiles = projectiles.filter(p => now < p.startTime + p.duration);
+        turnSounds = turnSounds.filter(s => now < s.startTime + s.duration);
+
+        if (projectiles.length > 0 || turnSounds.length > 0) needsRedraw = true;
 
         if (needsRedraw) {
             drawBoard();
@@ -732,9 +744,6 @@
     };
     const INVENTORY_CAPACITY = 16;
     
-    let allCreatedItems = [];
-    let identifiedItemsHistory = [];
-
     const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
     
     const possibleLoot = [
@@ -797,7 +806,6 @@
             item.rarity = "normal";
             item.identified = true;
         }
-        allCreatedItems.push(item);
         return item;
     }
 
@@ -982,7 +990,6 @@
     }
 
     function init() {
-        allCreatedItems.push(equipment.weapon); // Track the starting weapon
         currentFloorNum = null;
         goToFloor(1, null, null);
         
@@ -992,6 +999,7 @@
             if (gameSettings.audio && !audioCtx) {
                 initAudio();
             }
+            drawBoard();
         });
 
         document.addEventListener('keydown', handleInput);
@@ -1034,14 +1042,21 @@
         document.getElementById('setting-auto-potion').addEventListener('change', (e) => gameSettings.autoPickupPotion = e.target.checked);
 
         window.addEventListener('resize', () => {
-            drawBoard();
+            resizeCanvas();
         });
+        resizeCanvas();
+    }
+
+    function resizeCanvas() {
+        let rect = board.parentElement.getBoundingClientRect();
+        board.width = rect.width - 300; // Account for UI panel width
+        board.height = rect.height;
+        if (gameStarted) drawBoard();
     }
 
     function updateCamera() {
-        let rect = board.getBoundingClientRect();
-        let w = rect.width || window.innerWidth;
-        let h = rect.height || window.innerHeight;
+        let w = board.width;
+        let h = board.height;
 
         let vw = w / currentZoom;
         let vh = h / currentZoom;
@@ -1054,8 +1069,6 @@
 
         let vx = cx - vw / 2;
         let vy = cy - vh / 2;
-
-        board.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`);
 
         camBounds.startX = Math.max(0, Math.floor(vx / TILE_SIZE) - 2);
         camBounds.startY = Math.max(0, Math.floor(vy / TILE_SIZE) - 2);
@@ -1419,8 +1432,10 @@
     function drawBoard() {
         updateCamera();
         
-        let mapFragment = document.createDocumentFragment();
-        let entityFragment = document.createDocumentFragment();
+        ctx.clearRect(0, 0, board.width, board.height);
+        ctx.save();
+        ctx.scale(currentZoom, currentZoom);
+        ctx.translate(-camView.vx, -camView.vy);
 
         // Draw Map Tiles (Floors, Walls, and Fog)
         for(let x = camBounds.startX; x <= camBounds.endX; x++) {
@@ -1431,49 +1446,33 @@
                     continue; // Skip rendering completely unexplored tiles to save performance and hide floor lines
                 }
 
-                let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                rect.setAttribute("x", x * TILE_SIZE);
-                rect.setAttribute("y", y * TILE_SIZE);
-                rect.setAttribute("width", TILE_SIZE);
-                rect.setAttribute("height", TILE_SIZE);
-                
                 if (tile.isWall) {
-                    rect.setAttribute("fill", tile.color || "#555");
+                    ctx.fillStyle = tile.color || "#555";
                 } else {
-                    rect.setAttribute("fill", tile.color || "#111");
-                    rect.setAttribute("stroke", "#1a1a1a");
+                    ctx.fillStyle = tile.color || "#111";
                 }
-                mapFragment.appendChild(rect);
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                 
+                if (!tile.isWall) {
+                    ctx.strokeStyle = "#1a1a1a";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+
                 if (tile.isStairsDown || tile.isStairsUp) {
-                    let stair = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    stair.setAttribute("x", x * TILE_SIZE + 4);
-                    stair.setAttribute("y", y * TILE_SIZE + 4);
-                    stair.setAttribute("width", TILE_SIZE - 8);
-                    stair.setAttribute("height", TILE_SIZE - 8);
-                    stair.setAttribute("fill", tile.isStairsDown ? "purple" : "indigo");
-                    mapFragment.appendChild(stair);
-                    let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                    text.setAttribute("x", x * TILE_SIZE + TILE_SIZE / 2);
-                    text.setAttribute("y", y * TILE_SIZE + TILE_SIZE / 2 + 2);
-                    text.setAttribute("fill", "white");
-                    text.setAttribute("font-size", "20");
-                    text.setAttribute("text-anchor", "middle");
-                    text.setAttribute("dominant-baseline", "middle");
-                    text.textContent = tile.isStairsDown ? ">" : "<";
-                    mapFragment.appendChild(text);
+                    ctx.fillStyle = tile.isStairsDown ? "purple" : "indigo";
+                    ctx.fillRect(x * TILE_SIZE + 4, y * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                    ctx.fillStyle = "white";
+                    ctx.font = "20px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(tile.isStairsDown ? ">" : "<", x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2 + 2);
                 }
                 
                 // Draw Fog of War
                 if (!tile.isVisible && !debugVision) {
-                    let fog = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    fog.setAttribute("x", x * TILE_SIZE);
-                    fog.setAttribute("y", y * TILE_SIZE);
-                    fog.setAttribute("width", TILE_SIZE + 1);
-                    fog.setAttribute("height", TILE_SIZE + 1);
-                    fog.setAttribute("fill", "rgba(0, 0, 0, 0.7)"); // Tile is definitely explored if we reach here
-                    fog.setAttribute("pointer-events", "none");
-                    mapFragment.appendChild(fog);
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
                 }
             }
         }
@@ -1483,46 +1482,16 @@
 
         // Setup light gradient for player
         let currentVisionRange = getPlayerVisionRange();
-        let defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-        let grad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
-        grad.setAttribute("id", "playerLight");
-        grad.setAttribute("gradientUnits", "userSpaceOnUse");
         let cx = pRenderX * TILE_SIZE + TILE_SIZE / 2;
         let cy = pRenderY * TILE_SIZE + TILE_SIZE / 2;
-        grad.setAttribute("cx", cx);
-        grad.setAttribute("cy", cy);
-        grad.setAttribute("r", currentVisionRange * TILE_SIZE);
         
-        let stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-        stop1.setAttribute("offset", "0%");
-        stop1.setAttribute("stop-color", "rgba(0, 255, 255, 0.3)");
-        let stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-        stop2.setAttribute("offset", "100%");
-        stop2.setAttribute("stop-color", "rgba(0, 255, 255, 0)");
-        
-        grad.appendChild(stop1);
-        grad.appendChild(stop2);
-        defs.appendChild(grad);
+        let playerLightGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentVisionRange * TILE_SIZE);
+        playerLightGrad.addColorStop(0, "rgba(0, 255, 255, 0.3)");
+        playerLightGrad.addColorStop(1, "rgba(0, 255, 255, 0)");
 
-        let rareGrad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-        rareGrad.setAttribute("id", "rareBeamGrad");
-        rareGrad.setAttribute("x1", "0%");
-        rareGrad.setAttribute("y1", "0%");
-        rareGrad.setAttribute("x2", "0%");
-        rareGrad.setAttribute("y2", "100%");
-        
-        let rs1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-        rs1.setAttribute("offset", "0%");
-        rs1.setAttribute("stop-color", "rgba(80, 250, 123, 0)");
-        let rs2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-        rs2.setAttribute("offset", "100%");
-        rs2.setAttribute("stop-color", "rgba(80, 250, 123, 0.6)");
-        
-        rareGrad.appendChild(rs1);
-        rareGrad.appendChild(rs2);
-        defs.appendChild(rareGrad);
-        
-        mapFragment.appendChild(defs);
+        let rareBeamGrad = ctx.createLinearGradient(0, 0, 0, TILE_SIZE * 2);
+        rareBeamGrad.addColorStop(0, "rgba(80, 250, 123, 0)");
+        rareBeamGrad.addColorStop(1, "rgba(80, 250, 123, 0.6)");
 
         // Draw Player Light (Raycasted)
         let pts = [];
@@ -1564,11 +1533,17 @@
             pts.push(`${rayX},${rayY}`);
         }
         
-        let playerLight = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-        playerLight.setAttribute("points", pts.join(" "));
-        playerLight.setAttribute("fill", "url(#playerLight)");
-        playerLight.setAttribute("pointer-events", "none");
-        mapFragment.appendChild(playerLight);
+        if (pts.length > 0) {
+            ctx.beginPath();
+            pts.forEach((ptStr, i) => {
+                let [px, py] = ptStr.split(',').map(Number);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.fillStyle = playerLightGrad;
+            ctx.fill();
+        }
 
         let dustOverlay = document.getElementById('dust-overlay');
         if (debugVision) {
@@ -1591,14 +1566,8 @@
             audibleTiles.forEach((dist, posStr) => {
                 let [ax, ay] = posStr.split(',').map(Number);
                 if (ax < camBounds.startX || ax > camBounds.endX || ay < camBounds.startY || ay > camBounds.endY) return;
-                let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                rect.setAttribute("x", ax * TILE_SIZE);
-                rect.setAttribute("y", ay * TILE_SIZE);
-                rect.setAttribute("width", TILE_SIZE);
-                rect.setAttribute("height", TILE_SIZE);
-                rect.setAttribute("fill", "rgba(255, 165, 0, 0.2)");
-                rect.setAttribute("pointer-events", "none");
-                mapFragment.appendChild(rect);
+                ctx.fillStyle = "rgba(255, 165, 0, 0.2)";
+                ctx.fillRect(ax * TILE_SIZE, ay * TILE_SIZE, TILE_SIZE, TILE_SIZE);
             });
         }
 
@@ -1615,28 +1584,20 @@
 
             let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && (itemFi.item.rarity === 'rare' || itemFi.item.rarity === 'cursed'));
             if (hasRare && (mapData[fi.x][fi.y].isVisible || debugVision)) {
-                let beam = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                beam.setAttribute("x", fi.x * TILE_SIZE + TILE_SIZE / 2 - 4);
-                beam.setAttribute("y", fi.y * TILE_SIZE - TILE_SIZE * 1.5);
-                beam.setAttribute("width", 8);
-                beam.setAttribute("height", TILE_SIZE * 2);
-                beam.setAttribute("fill", "url(#rareBeamGrad)");
-                beam.setAttribute("pointer-events", "none");
-                mapFragment.appendChild(beam);
+                ctx.save();
+                ctx.translate(fi.x * TILE_SIZE + TILE_SIZE / 2 - 4, fi.y * TILE_SIZE - TILE_SIZE * 1.5);
+                ctx.fillStyle = rareBeamGrad;
+                ctx.fillRect(0, 0, 8, TILE_SIZE * 2);
+                ctx.restore();
             }
 
-            let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", fi.x * TILE_SIZE + TILE_SIZE / 2);
-            text.setAttribute("y", fi.y * TILE_SIZE + TILE_SIZE / 2 + 2);
-            text.setAttribute("fill", fi.item.color || "#ccc");
-            text.setAttribute("font-size", "20");
-            text.setAttribute("text-anchor", "middle");
-            text.setAttribute("dominant-baseline", "middle");
-            if (!mapData[fi.x][fi.y].isVisible && !debugVision) {
-                text.setAttribute("opacity", "0.4");
-            }
-            text.textContent = fi.item.icon || fi.item.name.charAt(0);
-            mapFragment.appendChild(text);
+            ctx.fillStyle = fi.item.color || "#ccc";
+            ctx.font = "20px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.globalAlpha = (!mapData[fi.x][fi.y].isVisible && !debugVision) ? 0.4 : 1.0;
+            ctx.fillText(fi.item.icon || fi.item.name.charAt(0), fi.x * TILE_SIZE + TILE_SIZE / 2, fi.y * TILE_SIZE + TILE_SIZE / 2 + 2);
+            ctx.globalAlpha = 1.0;
         }
 
         // Draw debug vision
@@ -1692,11 +1653,17 @@
                     }
                     pts.push(`${rayX},${rayY}`);
                 }
-                let poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-                poly.setAttribute("points", pts.join(" "));
-                poly.setAttribute("fill", "rgba(255, 0, 0, 0.15)");
-                poly.setAttribute("pointer-events", "none");
-                mapFragment.appendChild(poly);
+                if (pts.length > 0) {
+                    ctx.beginPath();
+                    pts.forEach((ptStr, i) => {
+                        let [px, py] = ptStr.split(',').map(Number);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    });
+                    ctx.closePath();
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.15)";
+                    ctx.fill();
+                }
             });
         }
 
@@ -1708,152 +1675,126 @@
             if (eRenderX < camBounds.startX || eRenderX > camBounds.endX || eRenderY < camBounds.startY || eRenderY > camBounds.endY) return;
             if (!mapData[e.x][e.y].isVisible && !debugVision) return;
 
-            let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-
-            let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-            rect.setAttribute("x", eRenderX * TILE_SIZE + 5);
-            rect.setAttribute("y", eRenderY * TILE_SIZE + 5);
-            rect.setAttribute("width", TILE_SIZE - 10);
-            rect.setAttribute("height", TILE_SIZE - 10);
-            rect.setAttribute("fill", e.type === 'Seeker' ? "orange" : "red");
-            
-            if (e.type === 'Seeker') {
-                rect.setAttribute("transform", `rotate(45, ${eRenderX * TILE_SIZE + TILE_SIZE / 2}, ${eRenderY * TILE_SIZE + TILE_SIZE / 2})`);
-            }
-            
-            if (e.hasLOS) {
-                rect.setAttribute("stroke", "white");
-                rect.setAttribute("stroke-width", "2");
-            } else if (e.lastKnown) {
-                rect.setAttribute("stroke", "orange");
-                rect.setAttribute("stroke-width", "2");
-            }
-            g.appendChild(rect);
-
-            // Draw facing indicator
-            let mag = Math.hypot(e.dx, e.dy) || 1;
-            let nx = e.dx / mag;
-            let ny = e.dy / mag;
+            ctx.save();
             let ecx = eRenderX * TILE_SIZE + TILE_SIZE / 2;
             let ecy = eRenderY * TILE_SIZE + TILE_SIZE / 2;
 
-            let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", ecx);
-            line.setAttribute("y1", ecy);
-            line.setAttribute("x2", ecx + nx * (TILE_SIZE / 2 - 5));
-            line.setAttribute("y2", ecy + ny * (TILE_SIZE / 2 - 5));
-            line.setAttribute("stroke", "#111");
-            line.setAttribute("stroke-width", "3");
-            line.setAttribute("stroke-linecap", "round");
-            g.appendChild(line);
+            ctx.translate(ecx, ecy);
+            if (e.type === 'Seeker') {
+                ctx.rotate(45 * Math.PI / 180);
+            }
 
-            entityFragment.appendChild(g);
+            ctx.fillStyle = e.type === 'Seeker' ? "orange" : "red";
+            let rectSize = TILE_SIZE - 10;
+            ctx.fillRect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+
+            if (e.hasLOS) {
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+            } else if (e.lastKnown) {
+                ctx.strokeStyle = "orange";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+            }
+            ctx.restore();
+
+            // Draw facing indicator
+            let mag = Math.hypot(e.dx, e.dy) || 1;
+            ctx.strokeStyle = "#111";
+            ctx.lineWidth = 3;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(ecx, ecy);
+            ctx.lineTo(ecx + (e.dx / mag) * (TILE_SIZE / 2 - 5), ecy + (e.dy / mag) * (TILE_SIZE / 2 - 5));
+            ctx.stroke();
         });
 
         // Draw Player (Triangle)
-        let poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        ctx.save();
         let px_screen = pRenderX * TILE_SIZE;
         let py_screen = pRenderY * TILE_SIZE;
+        let pangle = Math.atan2(player.dy, player.dx) + Math.PI / 2;
+
+        ctx.translate(px_screen + 20, py_screen + 20);
+        ctx.rotate(pangle);
+        
+        ctx.beginPath();
 
         if (getRareStat('flavor_ugly') > 0) {
-            poly.setAttribute("points", `${px_screen+15},${py_screen+10} ${px_screen+38},${py_screen+32} ${px_screen+2},${py_screen+38}`);
-            poly.setAttribute("fill", "#55aaaa");
+            ctx.moveTo(-5, -10);
+            ctx.lineTo(18, 12);
+            ctx.lineTo(-18, 18);
+            ctx.fillStyle = "#55aaaa";
         } else {
-            poly.setAttribute("points", `${px_screen+20},${py_screen+5} ${px_screen+35},${py_screen+35} ${px_screen+5},${py_screen+35}`);
-            poly.setAttribute("fill", "cyan");
+            ctx.moveTo(0, -15);
+            ctx.lineTo(15, 15);
+            ctx.lineTo(-15, 15);
+            ctx.fillStyle = "cyan";
         }
+        ctx.closePath();
+        ctx.fill();
 
         if (getRareStat("flavor_shiny") > 0 || getRareStat("flavor_glowing") > 0) {
-            poly.setAttribute("stroke", "yellow");
-            poly.setAttribute("stroke-width", "2");
+            ctx.strokeStyle = "yellow";
+            ctx.lineWidth = 2;
+            ctx.stroke();
         } else if (getRareStat("flavor_cold") > 0) {
-            poly.setAttribute("stroke", "white");
-            poly.setAttribute("stroke-width", "2");
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.stroke();
         } else if (getRareStat("flavor_warm") > 0) {
-            poly.setAttribute("stroke", "orange");
-            poly.setAttribute("stroke-width", "2");
+            ctx.strokeStyle = "orange";
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
-
-        let pangle = Math.atan2(player.dy, player.dx) * 180 / Math.PI + 90;
-        poly.setAttribute("transform", `rotate(${pangle}, ${px_screen+20}, ${py_screen+20})`);
-
-        entityFragment.appendChild(poly);
-
-        let mapLayer = document.getElementById('map-layer');
-        let entityLayer = document.getElementById('entity-layer');
-        let effectLayer = document.getElementById('effect-layer');
-
-        if (!mapLayer) {
-            board.innerHTML = `
-                <g id="map-layer"></g>
-                <g id="entity-layer"></g>
-                <g id="effect-layer"></g>
-            `;
-            mapLayer = document.getElementById('map-layer');
-            entityLayer = document.getElementById('entity-layer');
-            effectLayer = document.getElementById('effect-layer');
-        }
-
-        mapLayer.innerHTML = '';
-        mapLayer.appendChild(mapFragment);
-        entityLayer.innerHTML = '';
-        entityLayer.appendChild(entityFragment);
+        ctx.restore();
 
         // Draw Projectiles
+        let nowTime = performance.now();
         projectiles.forEach(p => {
-            if (p.drawn) return;
-            
+            let t = (nowTime - p.startTime) / p.duration;
+            if (t > 1) t = 1;
+            if (t < 0) return;
+
             let startPx = p.startX * TILE_SIZE + TILE_SIZE / 2;
             let startPy = p.startY * TILE_SIZE + TILE_SIZE / 2;
             let endPx = p.endX * TILE_SIZE + TILE_SIZE / 2;
             let endPy = p.endY * TILE_SIZE + TILE_SIZE / 2;
 
-            let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            circle.setAttribute("cx", 0);
-            circle.setAttribute("cy", 0);
-            circle.setAttribute("r", 6);
-            circle.setAttribute("fill", p.color);
-            circle.setAttribute("stroke", "#fff");
-            circle.setAttribute("stroke-width", "1");
-            circle.setAttribute("pointer-events", "none");
+            let projX = startPx + (endPx - startPx) * t;
+            let projY = startPy + (endPy - startPy) * t;
 
-            circle.style.setProperty('--start-x', `${startPx}px`);
-            circle.style.setProperty('--start-y', `${startPy}px`);
-            circle.style.setProperty('--end-x', `${endPx}px`);
-            circle.style.setProperty('--end-y', `${endPy}px`);
-            circle.style.animation = `projAnim 0.15s linear forwards`;
-
-            effectLayer.appendChild(circle);
-            
-            p.drawn = true;
-            setTimeout(() => { if (circle.parentNode) circle.remove(); }, 150);
+            ctx.beginPath();
+            ctx.arc(projX, projY, 6, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 1;
+            ctx.stroke();
         });
         
         // Draw Sound Ripples
         turnSounds.forEach(snd => {
-            if (!snd.color || snd.drawn) return;
-            if (snd.x < camBounds.startX || snd.x > camBounds.endX || snd.y < camBounds.startY || snd.y > camBounds.endY) return;
+            if (nowTime < snd.startTime) return;
+            let t = (nowTime - snd.startTime) / snd.duration;
+            if (t > 1) t = 1;
 
-            for (let i = 0; i < 2; i++) {
-                let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                circle.setAttribute("cx", snd.x * TILE_SIZE + TILE_SIZE / 2);
-                circle.setAttribute("cy", snd.y * TILE_SIZE + TILE_SIZE / 2);
-                circle.setAttribute("r", snd.volume * TILE_SIZE / 2);
-                circle.setAttribute("fill", "none");
-                circle.setAttribute("stroke", snd.color);
-                circle.setAttribute("stroke-width", snd.color === "orange" ? "4" : "2");
-                circle.setAttribute("opacity", "0");
-                circle.setAttribute("pointer-events", "none");
+            let maxRadius = snd.volume * TILE_SIZE / 2;
+            let radius = maxRadius * t;
+            let opacity = 0.8 * (1 - t);
 
-                circle.style.transformOrigin = `${snd.x * TILE_SIZE + TILE_SIZE / 2}px ${snd.y * TILE_SIZE + TILE_SIZE / 2}px`;
-                circle.style.animation = `rippleAnim 0.6s ease-out ${i * 0.2}s forwards`;
-
-                effectLayer.appendChild(circle);
-                setTimeout(() => { if (circle.parentNode) circle.remove(); }, 600 + i * 200);
-            }
-            snd.drawn = true;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(snd.x * TILE_SIZE + TILE_SIZE / 2, snd.y * TILE_SIZE + TILE_SIZE / 2, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = snd.color;
+            ctx.lineWidth = snd.color === "orange" ? 4 : 2;
+            ctx.globalAlpha = opacity;
+            ctx.stroke();
+            ctx.restore();
         });
 
+        ctx.restore(); // Restore camera transform
         renderUI();
     }
 
@@ -1871,6 +1812,15 @@
             }
         }
         renderUI();
+    }
+
+    function dropItemToFloor(x, y, item) {
+        let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === item.name && fi.item.stackable);
+        if (existingFloorItem) {
+            existingFloorItem.item.count += (item.count || 1);
+        } else {
+            floorItems.push({ x: x, y: y, item: { ...item } });
+        }
     }
 
     function bindTooltip(el, text) {
@@ -1982,6 +1932,20 @@
         return bonus;
     }
 
+    function calculatePlayerDamage(wpn, enemy, isRanged) {
+        let damage = 1;
+        if (wpn) {
+            let minDmg = wpn.damageMin !== undefined ? wpn.damageMin : (wpn.damage || 1);
+            let maxDmg = wpn.damageMax !== undefined ? wpn.damageMax : (wpn.damage || 1);
+            damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+        }
+        damage += getPlayerDamageBonus();
+        damage += getRareStat(isRanged ? 'rangedDmg' : 'meleeDmg');
+        if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
+        if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+        return Math.max(0, damage);
+    }
+
     function handleInput(e) {
         if (!gameStarted) return;
         if (isAutoRunning || isAutoExploring) {
@@ -2029,13 +1993,15 @@
             return;
         }
 
-        let pt = board.createSVGPoint();
-        pt.x = e.clientX;
-        pt.y = e.clientY;
-        let svgP = pt.matrixTransform(board.getScreenCTM().inverse());
+        let rect = board.getBoundingClientRect();
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+
+        let worldX = (mouseX / currentZoom) + camView.vx;
+        let worldY = (mouseY / currentZoom) + camView.vy;
         
-        let gridX = Math.floor(svgP.x / TILE_SIZE);
-        let gridY = Math.floor(svgP.y / TILE_SIZE);
+        let gridX = Math.floor(worldX / TILE_SIZE);
+        let gridY = Math.floor(worldY / TILE_SIZE);
 
         let dx = gridX - player.x;
         let dy = gridY - player.y;
@@ -2105,14 +2071,15 @@
         if (inventory[ammoIndex].count <= 0) inventory.splice(ammoIndex, 1);
         
         let enemyIndex = enemies.findIndex(e => e.x === x && e.y === y);
-        turnSounds = [];
-        projectiles = [];
+        let now = performance.now();
         projectiles.push({
             startX: player.x,
             startY: player.y,
             endX: x,
             endY: y,
-            color: '#a9a9a9'
+            color: '#a9a9a9',
+            startTime: now,
+            duration: 150
         });
         if (enemyIndex !== -1) {
             let enemy = enemies[enemyIndex];
@@ -2121,21 +2088,16 @@
 
             if (roll < accuracy) {
                 logMessage(`Fired ${wpn.ammoType} at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
-                turnSounds.push({ x: x, y: y, volume: 4, color: "white" });
+                turnSounds.push({ x: x, y: y, volume: 4, color: "white", startTime: now, duration: 600 });
+                turnSounds.push({ x: x, y: y, volume: 4, color: "white", startTime: now + 200, duration: 600 });
                 setTimeout(() => playSfx('miss'), 100);
             } else {
-                let minDmg = wpn.damageMin !== undefined ? wpn.damageMin : (wpn.damage || 1);
-                let maxDmg = wpn.damageMax !== undefined ? wpn.damageMax : (wpn.damage || 1);
-                let damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
-                damage += getPlayerDamageBonus();
-                damage += getRareStat('rangedDmg');
-                if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
-                if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
-                damage = Math.max(0, damage);
+                let damage = calculatePlayerDamage(wpn, enemy, true);
                 
                 enemy.hp -= damage;
                 logMessage(`Fired ${wpn.ammoType} at ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
-                turnSounds.push({ x: x, y: y, volume: 8, color: "white" });
+                turnSounds.push({ x: x, y: y, volume: 8, color: "white", startTime: now, duration: 600 });
+                turnSounds.push({ x: x, y: y, volume: 8, color: "white", startTime: now + 200, duration: 600 });
                 setTimeout(() => playSfx('hit'), 100);
                 if (enemy.hp <= 0) {
                     dropLoot(x, y, 0.75); // 75% chance to recover ammo on ranged kill
@@ -2160,13 +2122,15 @@
     function handleRightClick(e) {
         e.preventDefault(); 
 
-        let pt = board.createSVGPoint();
-        pt.x = e.clientX;
-        pt.y = e.clientY;
-        let svgP = pt.matrixTransform(board.getScreenCTM().inverse());
+        let rect = board.getBoundingClientRect();
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+
+        let worldX = (mouseX / currentZoom) + camView.vx;
+        let worldY = (mouseY / currentZoom) + camView.vy;
         
-        let gridX = Math.floor(svgP.x / TILE_SIZE);
-        let gridY = Math.floor(svgP.y / TILE_SIZE);
+        let gridX = Math.floor(worldX / TILE_SIZE);
+        let gridY = Math.floor(worldY / TILE_SIZE);
 
         let title = "Empty Tile";
         let desc = "Safe to traverse.";
@@ -2268,7 +2232,6 @@
             item.identified = true;
             if (item.trueName) item.name = item.trueName;
             identifiedItem = true;
-            identifiedItemsHistory.push(item);
         }
 
         cmTitle.style.color = item.color || "cyan";
@@ -2354,8 +2317,8 @@
         cameraOffset = { x: 0, y: 0 }; // Re-center camera on player action
 
         if (player.hp <= 0) return;
-        turnSounds = [];
-        projectiles = [];
+        
+        let now = performance.now();
 
         for (let slot in equipment) {
             if (equipment[slot] && equipment[slot].rarity === 'cursed' && equipment[slot].curseTurns > 0) {
@@ -2388,24 +2351,16 @@
 
                 if (roll < accuracy) {
                     logMessage(`Struck at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
-                    turnSounds.push({ x: newX, y: newY, volume: 4, color: "white" });
+                    turnSounds.push({ x: newX, y: newY, volume: 4, color: "white", startTime: now, duration: 600 });
+                    turnSounds.push({ x: newX, y: newY, volume: 4, color: "white", startTime: now + 200, duration: 600 });
                     playSfx('miss');
                 } else {
-                    let damage = 1;
-                    if (wpn) {
-                        let minDmg = wpn.damageMin !== undefined ? wpn.damageMin : (wpn.damage || 1);
-                        let maxDmg = wpn.damageMax !== undefined ? wpn.damageMax : (wpn.damage || 1);
-                        damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
-                    }
-                    damage += getPlayerDamageBonus();
-                    damage += getRareStat('meleeDmg');
-                    if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
-                    if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
-                    damage = Math.max(0, damage);
+                    let damage = calculatePlayerDamage(wpn, enemy, false);
                     
                     enemy.hp -= damage;
                     logMessage(`Struck ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
-                    turnSounds.push({ x: newX, y: newY, volume: 8, color: "white" });
+                    turnSounds.push({ x: newX, y: newY, volume: 8, color: "white", startTime: now, duration: 600 });
+                    turnSounds.push({ x: newX, y: newY, volume: 8, color: "white", startTime: now + 200, duration: 600 });
                     playSfx('hit');
                     if (enemy.hp <= 0) {
                         dropLoot(newX, newY, 0.05); // 5% chance to find ammo on melee kill
@@ -2430,7 +2385,8 @@
                     } else if (getRareStat('flavor_squeaky') > 0 && Math.random() < 0.3) {
                         playSfx('squeak');
                         logMessage("Your equipment squeaks loudly.", "gray");
-                        turnSounds.push({ x: player.x, y: player.y, volume: 5, color: "gray" });
+                        turnSounds.push({ x: player.x, y: player.y, volume: 5, color: "gray", startTime: now, duration: 600 });
+                        turnSounds.push({ x: player.x, y: player.y, volume: 5, color: "gray", startTime: now + 200, duration: 600 });
                     } else if (getRareStat('flavor_damp') > 0 && Math.random() < 0.2) {
                         playSfx('squish');
                         logMessage("Squish... squelch...", "lightblue");
@@ -2504,7 +2460,9 @@
             if (e.hasLOS) {
                 if (e.type === 'Seeker' && !e.wasSeeingPlayer) {
                     logMessage("A Seeker spotted you and shrieked!");
-                    turnSounds.push({ x: e.x, y: e.y, volume: 15, color: "orange" });
+                    let now = performance.now();
+                    turnSounds.push({ x: e.x, y: e.y, volume: 15, color: "orange", startTime: now, duration: 600 });
+                    turnSounds.push({ x: e.x, y: e.y, volume: 15, color: "orange", startTime: now + 200, duration: 600 });
                     playSfx('shriek');
                 }
                 e.wasSeeingPlayer = true;
@@ -3155,12 +3113,7 @@
                 } else if (inventory.length < INVENTORY_CAPACITY) {
                     inventory.push(currentEquipped);
                 } else {
-                    let existingFloorItem = floorItems.find(fi => fi.x === player.x && fi.y === player.y && fi.item.name === currentEquipped.name && fi.item.stackable);
-                    if (existingFloorItem) {
-                        existingFloorItem.item.count += (currentEquipped.count || 1);
-                    } else {
-                        floorItems.push({ x: player.x, y: player.y, item: currentEquipped });
-                    }
+                    dropItemToFloor(player.x, player.y, currentEquipped);
                     logMessage(`Inventory full, dropped ${currentEquipped.name} to the floor.`);
                 }
             }
@@ -3176,12 +3129,7 @@
         let item = inventory[index];
         let droppedItem = { ...item, count: 1 };
         
-        let existingFloorItem = floorItems.find(fi => fi.x === player.x && fi.y === player.y && fi.item.name === droppedItem.name && fi.item.stackable);
-        if (existingFloorItem) {
-            existingFloorItem.item.count++;
-        } else {
-            floorItems.push({ x: player.x, y: player.y, item: droppedItem });
-        }
+        dropItemToFloor(player.x, player.y, droppedItem);
 
         logMessage(`Dropped ${item.name}.`);
         playSfx('step');
@@ -3197,12 +3145,7 @@
         let item = inventory[index];
         let droppedItem = { ...item };
         
-        let existingFloorItem = floorItems.find(fi => fi.x === player.x && fi.y === player.y && fi.item.name === droppedItem.name && fi.item.stackable);
-        if (existingFloorItem) {
-            existingFloorItem.item.count += droppedItem.count;
-        } else {
-            floorItems.push({ x: player.x, y: player.y, item: droppedItem });
-        }
+        dropItemToFloor(player.x, player.y, droppedItem);
 
         logMessage(`Dropped ${item.count}x ${item.name}.`);
         playSfx('step');
@@ -3246,24 +3189,14 @@
         let ammoRecoveryChance = baseAmmoRecoveryChance + getRareStat('ammoRec');
         if (Math.random() < ammoRecoveryChance) {
             let droppedItem = createItem({ name: "Pebble", count: 1 }, currentFloorNum);
-            let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
-            if (existingFloorItem) {
-                existingFloorItem.item.count += droppedItem.count;
-            } else {
-                floorItems.push({ x: x, y: y, item: droppedItem });
-            }
+            dropItemToFloor(x, y, droppedItem);
             logMessage("A Pebble dropped to the floor.");
         }
 
         if (Math.random() < 0.675) {
             let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
             let droppedItem = createItem({ name: lootTemplate.name, count: lootTemplate.count }, currentFloorNum);
-            let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
-            if (existingFloorItem) {
-                existingFloorItem.item.count += droppedItem.count;
-            } else {
-                floorItems.push({ x: x, y: y, item: droppedItem });
-            }
+            dropItemToFloor(x, y, droppedItem);
             logMessage(`${droppedItem.name} dropped to the floor.`);
         }
     }
