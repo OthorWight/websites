@@ -549,7 +549,30 @@
         { name: "Savage", desc: "+1 Melee Damage", stat: "meleeDmg", value: 1 },
         { name: "Sniper", desc: "+1 Ranged Damage", stat: "rangedDmg", value: 1 },
         { name: "Sturdy", desc: "+1 Defense", stat: "defense", value: 1 },
-        { name: "Lethal", desc: "+1 Damage", stat: "allDmg", value: 1 }
+        { name: "Lethal", desc: "+1 Damage", stat: "allDmg", value: 1 },
+        { name: "Shiny", desc: "Gleams in the dark", stat: "flavor_shiny", value: 1 },
+        { name: "Dusty", desc: "Covered in ancient dust", stat: "flavor_dusty", value: 1 },
+        { name: "Squeaky", desc: "Makes a weird squeaking noise", stat: "flavor_squeaky", value: 1 },
+        { name: "Sticky", desc: "Slightly sticky to the touch", stat: "flavor_sticky", value: 1 },
+        { name: "Smelly", desc: "Smells faintly of old cheese", stat: "flavor_smelly", value: 1 },
+        { name: "Ugly", desc: "Aesthetically displeasing", stat: "flavor_ugly", value: 1 },
+        { name: "Engraved", desc: "Has unknown initials carved into it", stat: "flavor_engraved", value: 1 },
+        { name: "Warm", desc: "Strangely warm to the touch", stat: "flavor_warm", value: 1 },
+        { name: "Cold", desc: "Chilly, like ice", stat: "flavor_cold", value: 1 },
+        { name: "Glowing", desc: "Emits a faint, useless light", stat: "flavor_glowing", value: 1 },
+        { name: "Heavy", desc: "Feels heavier than it looks", stat: "flavor_heavy", value: 1 },
+        { name: "Fragile", desc: "Looks like it might break (it won't)", stat: "flavor_fragile", value: 1 },
+        { name: "Itchy", desc: "Makes you want to scratch", stat: "flavor_itchy", value: 1 },
+        { name: "Damp", desc: "Perpetually moist", stat: "flavor_damp", value: 1 },
+        { name: "Haunted", desc: "Gives you the creeps", stat: "flavor_haunted", value: 1 }
+    ];
+
+    const cursedModifiers = [
+        { name: "Blinding", desc: "-4 Vision Range", stat: "vision", value: -4 },
+        { name: "Noisy", desc: "-1 Stealth", stat: "stealthBonusRare", value: -1 },
+        { name: "Frail", desc: "-5 Max HP", stat: "maxHp", value: -5 },
+        { name: "Clumsy", desc: "-2 Accuracy", stat: "accBonus", value: -2 },
+        { name: "Weak", desc: "-1 Damage", stat: "allDmg", value: -1 }
     ];
 
     const enemyTemplates = {
@@ -560,7 +583,7 @@
     function getRareStat(statName) {
         let total = 0;
         for (let slot in equipment) {
-            if (equipment[slot] && equipment[slot].rarity === 'rare' && equipment[slot].rareMod && equipment[slot].rareMod.stat === statName) {
+            if (equipment[slot] && (equipment[slot].rarity === 'rare' || equipment[slot].rarity === 'cursed') && equipment[slot].rareMod && equipment[slot].rareMod.stat === statName) {
                 total += equipment[slot].rareMod.value;
             }
         }
@@ -568,12 +591,12 @@
     }
 
     function getPlayerVisionRange() {
-        return 7 + getRareStat('vision');
+        return Math.max(1, 7 + getRareStat('vision'));
     }
 
     function updateMaxHp() {
         let baseMaxHp = 20;
-        player.maxHp = baseMaxHp + getRareStat('maxHp');
+        player.maxHp = Math.max(1, baseMaxHp + getRareStat('maxHp'));
         if (player.hp > player.maxHp) player.hp = player.maxHp;
     }
 
@@ -584,7 +607,7 @@
         body: null, 
         hands: null, 
         feet: null, 
-        weapon: { ...itemTemplates["Sling"], count: 1, rarity: "normal" } 
+        weapon: { ...itemTemplates["Sling"], count: 1, rarity: "normal", identified: true } 
     };
     const INVENTORY_CAPACITY = 16;
     
@@ -607,16 +630,28 @@
         let item = { ...template, count: config.count || 1 };
         
         if (equippableTypes.includes(item.type)) {
-            if (Math.random() < 0.3) {
+            let roll = Math.random();
+            if (roll < 0.05) {
+                item.rarity = "cursed";
+                let mod = cursedModifiers[Math.floor(Math.random() * cursedModifiers.length)];
+                item.rareMod = mod;
+                item.trueName = `${mod.name} Rare ${item.name}`; 
+                item.name = `Rare ${item.name}`;
+                item.identified = false;
+            } else if (roll < 0.25) {
                 item.rarity = "rare";
                 let mod = rareModifiers[Math.floor(Math.random() * rareModifiers.length)];
                 item.rareMod = mod;
-                item.name = `Rare ${item.name}`; 
+                item.trueName = `${mod.name} Rare ${item.name}`; 
+                item.name = `Rare ${item.name}`;
+                item.identified = false;
             } else {
                 item.rarity = "normal";
+                item.identified = true;
             }
         } else {
             item.rarity = "normal";
+            item.identified = true;
         }
         return item;
     }
@@ -768,6 +803,9 @@
             'potion': { t: 'sine', f1: 400, f2: 800, d: 0.2, v: 0.05 },
             'player_hurt': { t: 'sawtooth', f1: 150, f2: 20, d: 0.3, v: 0.15 },
             'error': { t: 'sawtooth', f1: 100, f2: null, d: 0.1, v: 0.05 },
+            'squeak': { t: 'sine', f1: 1200, f2: 1600, d: 0.1, v: 0.05 },
+            'squish': { t: 'triangle', f1: 300, f2: 100, d: 0.15, v: 0.08 },
+            'heavy_step': { t: 'square', f1: 60, f2: 10, d: 0.15, v: 0.15 },
             'shriek': { t: 'sawtooth', f1: 400, f2: 1200, d: 0.2, v: 0.05 }
         };
 
@@ -1359,7 +1397,7 @@
             if (drawnTiles.has(posStr)) continue;
             drawnTiles.add(posStr);
 
-            let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && itemFi.item.rarity === 'rare');
+            let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && (itemFi.item.rarity === 'rare' || itemFi.item.rarity === 'cursed'));
             if (hasRare && (mapData[fi.x][fi.y].isVisible || debugVision)) {
                 let beam = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 beam.setAttribute("x", fi.x * TILE_SIZE + TILE_SIZE / 2 - 4);
@@ -1494,8 +1532,25 @@
         let poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
         let px = player.x * TILE_SIZE;
         let py = player.y * TILE_SIZE;
-        poly.setAttribute("points", `${px+20},${py+5} ${px+35},${py+35} ${px+5},${py+35}`);
-        poly.setAttribute("fill", "cyan");
+
+        if (getRareStat('flavor_ugly') > 0) {
+            poly.setAttribute("points", `${px+15},${py+10} ${px+38},${py+32} ${px+2},${py+38}`);
+            poly.setAttribute("fill", "#55aaaa");
+        } else {
+            poly.setAttribute("points", `${px+20},${py+5} ${px+35},${py+35} ${px+5},${py+35}`);
+            poly.setAttribute("fill", "cyan");
+        }
+
+        if (getRareStat("flavor_shiny") > 0 || getRareStat("flavor_glowing") > 0) {
+            poly.setAttribute("stroke", "yellow");
+            poly.setAttribute("stroke-width", "2");
+        } else if (getRareStat("flavor_cold") > 0) {
+            poly.setAttribute("stroke", "white");
+            poly.setAttribute("stroke-width", "2");
+        } else if (getRareStat("flavor_warm") > 0) {
+            poly.setAttribute("stroke", "orange");
+            poly.setAttribute("stroke-width", "2");
+        }
 
         let pangle = Math.atan2(player.dy, player.dx) * 180 / Math.PI + 90;
         poly.setAttribute("transform", `rotate(${pangle}, ${px+20}, ${py+20})`);
@@ -1613,7 +1668,7 @@
                 });
             }
             
-            if (item && item.rarity === 'rare') {
+            if (item && (item.rarity === 'rare' || item.rarity === 'cursed')) {
                 slot.style.borderColor = '#50fa7b';
                 slot.style.boxShadow = 'inset 0 0 5px rgba(80, 250, 123, 0.2)';
             }
@@ -1642,7 +1697,7 @@
                     slot.style.textShadow = `0 0 6px ${item.color}`;
                 }
 
-                if (item.rarity === 'rare') {
+                if (item.rarity === 'rare' || item.rarity === 'cursed') {
                     slot.style.borderColor = '#50fa7b';
                     slot.style.boxShadow = 'inset 0 0 8px rgba(80, 250, 123, 0.4)';
                 }
@@ -1829,6 +1884,7 @@
                 damage += getRareStat('rangedDmg');
                 if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
                 if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+                damage = Math.max(0, damage);
                 
                 enemy.hp -= damage;
                 logMessage(`Fired ${wpn.ammoType} at ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
@@ -1887,7 +1943,16 @@
         }
 
         let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isExplored || debugVision));
+        let identifiedItem = false;
         if (itemsHere.length > 0 && title === "Empty Tile") {
+            itemsHere.forEach(fi => {
+                if (!fi.item.identified) {
+                    fi.item.identified = true;
+                    if (fi.item.trueName) fi.item.name = fi.item.trueName;
+                    identifiedItem = true;
+                }
+            });
+
             title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
             if (itemsHere.length === 1) {
                 let item = itemsHere[0].item;
@@ -1900,6 +1965,13 @@
                 if (item.defense) desc += `<br>Defense: ${item.defense}`;
                 if (item.stealth) desc += `<br>Stealth: ${item.stealth}`;
                 if (item.damageBonus) desc += `<br>Bonus Damage: +${item.damageBonus}`;
+                if (item.rarity === 'rare' && item.rareMod) {
+                    desc += `<br><span style="color: #50fa7b;">Rare: ${item.rareMod.desc}</span>`;
+                }
+                if (item.rarity === 'cursed' && item.rareMod) {
+                    desc += `<br><span style="color: #ff4444;">Cursed: ${item.rareMod.desc}</span>`;
+                    if (item.curseTurns > 0) desc += `<br><span style="color: #ff4444;">Stuck for ${item.curseTurns} turns</span>`;
+                }
             } else {
                 desc = "Multiple items scattered here.";
             }
@@ -1946,6 +2018,11 @@
             });
         }
 
+        if (identifiedItem) {
+            renderUI();
+            drawBoard();
+        }
+
         contextMenu.style.display = 'block';
 
         let menuWidth = contextMenu.offsetWidth;
@@ -1961,6 +2038,13 @@
     }
 
     function showItemContextMenu(e, item, source, slotName, index) {
+        let identifiedItem = false;
+        if (!item.identified) {
+            item.identified = true;
+            if (item.trueName) item.name = item.trueName;
+            identifiedItem = true;
+        }
+
         cmTitle.style.color = item.color || "cyan";
         cmTitle.innerHTML = item.name;
         
@@ -1977,6 +2061,10 @@
         if (item.count > 1) descHtml += `<br>Quantity: ${item.count}`;
         if (item.rarity === 'rare' && item.rareMod) {
             descHtml += `<br><span style="color: #50fa7b;">Rare: ${item.rareMod.desc}</span>`;
+        }
+        if (item.rarity === 'cursed' && item.rareMod) {
+            descHtml += `<br><span style="color: #ff4444;">Cursed: ${item.rareMod.desc}</span>`;
+            if (item.curseTurns > 0) descHtml += `<br><span style="color: #ff4444;">Stuck for ${item.curseTurns} turns</span>`;
         }
         cmDesc.innerHTML = descHtml;
 
@@ -2013,6 +2101,11 @@
             cmActions.appendChild(li);
         }
 
+        if (identifiedItem) {
+            renderUI();
+            drawBoard();
+        }
+
         contextMenu.style.display = 'block';
 
         let menuWidth = contextMenu.offsetWidth;
@@ -2035,6 +2128,15 @@
         if (player.hp <= 0) return;
         turnSounds = [];
         projectiles = [];
+
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].rarity === 'cursed' && equipment[slot].curseTurns > 0) {
+                equipment[slot].curseTurns--;
+                if (equipment[slot].curseTurns === 0) {
+                    logMessage(`The curse on your ${equipment[slot].name} has faded. It can now be removed.`, "#50fa7b");
+                }
+            }
+        }
 
         if (dx !== 0 || dy !== 0) {
             player.dx = dx;
@@ -2071,6 +2173,7 @@
                     damage += getRareStat('meleeDmg');
                     if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
                     if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+                    damage = Math.max(0, damage);
                     
                     enemy.hp -= damage;
                     logMessage(`Struck ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
@@ -2091,7 +2194,39 @@
                 player.x = newX;
                 player.y = newY;
                 checkAutoPickup();
-                if (!isAutoRunning && !isAutoExploring) playSfx('step');
+                if (!isAutoRunning && !isAutoExploring) {
+                    if (getRareStat('flavor_heavy') > 0) {
+                        playSfx('heavy_step');
+                        board.style.transform = `translate(${(Math.random() - 0.5) * 4}px, ${(Math.random() - 0.5) * 4}px)`;
+                        setTimeout(() => board.style.transform = 'none', 50);
+                    } else if (getRareStat('flavor_squeaky') > 0 && Math.random() < 0.3) {
+                        playSfx('squeak');
+                        logMessage("Your equipment squeaks loudly.", "gray");
+                        turnSounds.push({ x: player.x, y: player.y, volume: 5, color: "gray" });
+                    } else if (getRareStat('flavor_damp') > 0 && Math.random() < 0.2) {
+                        playSfx('squish');
+                        logMessage("Squish... squelch...", "lightblue");
+                    } else {
+                        playSfx('step');
+                    }
+
+                    if (getRareStat('flavor_dusty') > 0 && Math.random() < 0.1) {
+                        logMessage("A puff of ancient dust falls from your gear.", "gray");
+                    }
+                    if (getRareStat('flavor_itchy') > 0 && Math.random() < 0.05) {
+                        logMessage("You pause to aggressively scratch an itch.", "orange");
+                    }
+                    if (getRareStat('flavor_haunted') > 0 && Math.random() < 0.05) {
+                        logMessage("You feel an icy breath on your neck...", "purple");
+                        playSfx('shriek');
+                    }
+                    if (getRareStat('flavor_sticky') > 0 && Math.random() < 0.1) {
+                        logMessage("Your boot sticks to the floor for a moment.", "yellow");
+                    }
+                    if (getRareStat('flavor_smelly') > 0 && Math.random() < 0.05) {
+                        logMessage("A pungent odor wafts from your inventory.", "green");
+                    }
+                }
             }
         } else {
             if (!silentWait) {
@@ -2230,6 +2365,9 @@
                         playSfx('equip');
                     }
                     
+                    if (getRareStat('flavor_fragile') > 0 && Math.random() < 0.1) {
+                        logMessage("You hear an unsettling crack from your fragile gear!", "gray");
+                    }
                     if (player.hp <= 0) {
                         logMessage("CRITICAL FAILURE. Run ended.");
                     }
@@ -2627,6 +2765,16 @@
         let slot = item.type;
         let currentEquipped = equipment[slot];
         
+        if (currentEquipped && currentEquipped.rarity === 'cursed' && currentEquipped.curseTurns > 0) {
+            logMessage(`Cannot equip: ${currentEquipped.name} is cursed and stuck for ${currentEquipped.curseTurns} more turns!`, "#ff4444");
+            playSfx('error');
+            return;
+        }
+
+        if (item.rarity === 'cursed') {
+            item.curseTurns = 20;
+        }
+
         if (item.count > 1) {
             item.count--;
             equipment[slot] = {...item, count: 1};
@@ -2646,6 +2794,12 @@
 
     function unequipItem(slotName) {
         let item = equipment[slotName];
+        if (item.rarity === 'cursed' && item.curseTurns > 0) {
+            logMessage(`Cannot unequip: ${item.name} is cursed and stuck for ${item.curseTurns} more turns!`, "#ff4444");
+            playSfx('error');
+            return;
+        }
+
         if (inventory.length < INVENTORY_CAPACITY) {
             equipment[slotName] = null;
             addItemToInventory(item);
@@ -2684,6 +2838,16 @@
             let slot = item.type;
             let currentEquipped = equipment[slot];
             
+            if (currentEquipped && currentEquipped.rarity === 'cursed' && currentEquipped.curseTurns > 0) {
+                logMessage(`Cannot equip: ${currentEquipped.name} is cursed and stuck for ${currentEquipped.curseTurns} more turns!`, "#ff4444");
+                playSfx('error');
+                return;
+            }
+
+            if (item.rarity === 'cursed') {
+                item.curseTurns = 20;
+            }
+
             if (item.count > 1) {
                 item.count--;
                 equipment[slot] = {...item, count: 1};
