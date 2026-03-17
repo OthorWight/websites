@@ -611,6 +611,9 @@
     };
     const INVENTORY_CAPACITY = 16;
     
+    let allCreatedItems = [];
+    let identifiedItemsHistory = [];
+
     const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
     
     const possibleLoot = [
@@ -653,6 +656,7 @@
             item.rarity = "normal";
             item.identified = true;
         }
+        allCreatedItems.push(item);
         return item;
     }
 
@@ -827,6 +831,7 @@
     }
 
     function init() {
+        allCreatedItems.push(equipment.weapon); // Track the starting weapon
         generateLevel();
         updateLOS();
         renderUI();
@@ -1943,35 +1948,12 @@
         }
 
         let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isExplored || debugVision));
-        let identifiedItem = false;
         if (itemsHere.length > 0 && title === "Empty Tile") {
-            itemsHere.forEach(fi => {
-                if (!fi.item.identified) {
-                    fi.item.identified = true;
-                    if (fi.item.trueName) fi.item.name = fi.item.trueName;
-                    identifiedItem = true;
-                }
-            });
 
             title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
             if (itemsHere.length === 1) {
                 let item = itemsHere[0].item;
-                desc = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
-                if (item.damageMin !== undefined && item.damageMax !== undefined) desc += `<br>Damage: ${item.damageMin}-${item.damageMax}`;
-                else if (item.damage !== undefined) desc += `<br>Damage: ${item.damage}`;
-                if (item.accuracy !== undefined) desc += `<br>Accuracy: ${item.accuracy}+`;
-                if (item.range) desc += `<br>Range: ${item.range}`;
-                if (item.ammoType) desc += `<br>Ammo: ${item.ammoType}`;
-                if (item.defense) desc += `<br>Defense: ${item.defense}`;
-                if (item.stealth) desc += `<br>Stealth: ${item.stealth}`;
-                if (item.damageBonus) desc += `<br>Bonus Damage: +${item.damageBonus}`;
-                if (item.rarity === 'rare' && item.rareMod) {
-                    desc += `<br><span style="color: #50fa7b;">Rare: ${item.rareMod.desc}</span>`;
-                }
-                if (item.rarity === 'cursed' && item.rareMod) {
-                    desc += `<br><span style="color: #ff4444;">Cursed: ${item.rareMod.desc}</span>`;
-                    if (item.curseTurns > 0) desc += `<br><span style="color: #ff4444;">Stuck for ${item.curseTurns} turns</span>`;
-                }
+                desc = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}<br>Pick it up to view stats.`;
             } else {
                 desc = "Multiple items scattered here.";
             }
@@ -2018,11 +2000,6 @@
             });
         }
 
-        if (identifiedItem) {
-            renderUI();
-            drawBoard();
-        }
-
         contextMenu.style.display = 'block';
 
         let menuWidth = contextMenu.offsetWidth;
@@ -2043,6 +2020,7 @@
             item.identified = true;
             if (item.trueName) item.name = item.trueName;
             identifiedItem = true;
+            identifiedItemsHistory.push(item);
         }
 
         cmTitle.style.color = item.color || "cyan";
