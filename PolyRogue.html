@@ -634,6 +634,13 @@
         { name: "Precise", desc: "+2 Accuracy", stat: "accBonus", value: 2 },
         { name: "Sentry Guard", desc: "+1 Defense vs Sentries", stat: "defSentry", value: 1 },
         { name: "Seeker Guard", desc: "+1 Defense vs Seekers", stat: "defSeeker", value: 1 },
+        { name: "Sniper Slayer", desc: "+1 Damage vs Snipers", stat: "dmgSniper", value: 1 },
+        { name: "Brute Bane", desc: "+1 Damage vs Brutes", stat: "dmgBrute", value: 1 },
+        { name: "Shade Slayer", desc: "+1 Damage vs Shades", stat: "dmgShade", value: 1 },
+        { name: "Sniper Guard", desc: "+1 Defense vs Snipers", stat: "defSniper", value: 1 },
+        { name: "Brute Guard", desc: "+1 Defense vs Brutes", stat: "defBrute", value: 1 },
+        { name: "Shade Guard", desc: "+1 Defense vs Shades", stat: "defShade", value: 1 },
+        { name: "Illuminating", desc: "Reveals cloaked Shades", stat: "trueSight", value: 1 },
         { name: "Vampiric", desc: "Heal 1 HP on kill", stat: "healOnKill", value: 1 },
         { name: "Savage", desc: "+1 Melee Damage", stat: "meleeDmg", value: 1 },
         { name: "Sniper", desc: "+1 Ranged Damage", stat: "rangedDmg", value: 1 },
@@ -666,7 +673,10 @@
 
     const enemyTemplates = {
         "Sentry": { type: "Sentry", hp: 1, damageMin: 1, damageMax: 2, searchTurns: 0 },
-        "Seeker": { type: "Seeker", hp: 3, damageMin: 3, damageMax: 5, searchTurns: 0, wanderTarget: null, wasSeeingPlayer: false }
+        "Seeker": { type: "Seeker", hp: 3, damageMin: 3, damageMax: 5, searchTurns: 0, wanderTarget: null, wasSeeingPlayer: false },
+        "Sniper": { type: "Sniper", hp: 1, damageMin: 2, damageMax: 4, searchTurns: 0, range: 5 },
+        "Brute":  { type: "Brute", hp: 8, damageMin: 4, damageMax: 6, searchTurns: 0, moveTick: 0 },
+        "Shade":  { type: "Shade", hp: 2, damageMin: 3, damageMax: 5, searchTurns: 0 }
     };
 
     function getRareStat(statName) {
@@ -1395,10 +1405,22 @@
                 let pos = emptySpaces.splice(idx, 1)[0];
                 let dir = enemyDirs[Math.floor(Math.random() * enemyDirs.length)];
                 let hearingLevel = Math.floor(Math.random() * 4); // 0 to 3
-                if (Math.random() < 0.01) {
-                    enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
+                
+                let roll = Math.random();
+                if (floorNum === 1) {
+                    if (roll < 0.01) enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
+                    else enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
+                } else if (floorNum === 2) {
+                    if (roll < 0.10) enemies.push({ ...enemyTemplates["Sniper"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 1, hp: enemyTemplates["Sniper"].hp + scale, damageMin: enemyTemplates["Sniper"].damageMin + scale, damageMax: enemyTemplates["Sniper"].damageMax + scale });
+                    else if (roll < 0.20) enemies.push({ ...enemyTemplates["Shade"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 3, hp: enemyTemplates["Shade"].hp + scale, damageMin: enemyTemplates["Shade"].damageMin + scale, damageMax: enemyTemplates["Shade"].damageMax + scale });
+                    else if (roll < 0.30) enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
+                    else enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
                 } else {
-                    enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
+                    if (roll < 0.15) enemies.push({ ...enemyTemplates["Sniper"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 1, hp: enemyTemplates["Sniper"].hp + scale, damageMin: enemyTemplates["Sniper"].damageMin + scale, damageMax: enemyTemplates["Sniper"].damageMax + scale });
+                    else if (roll < 0.25) enemies.push({ ...enemyTemplates["Brute"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: Math.max(0, hearingLevel - 1), hp: enemyTemplates["Brute"].hp + scale * 2, damageMin: enemyTemplates["Brute"].damageMin + scale, damageMax: enemyTemplates["Brute"].damageMax + scale });
+                    else if (roll < 0.35) enemies.push({ ...enemyTemplates["Shade"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 3, hp: enemyTemplates["Shade"].hp + scale, damageMin: enemyTemplates["Shade"].damageMin + scale, damageMax: enemyTemplates["Shade"].damageMax + scale });
+                    else if (roll < 0.50) enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
+                    else enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
                 }
             }
         }
@@ -1807,6 +1829,9 @@
             if (eRenderX < camBounds.startX || eRenderX > camBounds.endX || eRenderY < camBounds.startY || eRenderY > camBounds.endY) return;
             if (!mapData[e.x][e.y].isVisible && !debugVision) return;
 
+            let pDist = Math.hypot(player.x - e.x, player.y - e.y);
+            if (e.type === 'Shade' && pDist > 2.5 && !debugVision && getRareStat('trueSight') === 0) return;
+
             ctx.save();
             let ecx = eRenderX * TILE_SIZE + TILE_SIZE / 2;
             let ecy = eRenderY * TILE_SIZE + TILE_SIZE / 2;
@@ -1814,32 +1839,55 @@
             ctx.translate(ecx, ecy);
             if (e.type === 'Seeker') {
                 ctx.rotate(45 * Math.PI / 180);
+            } else if (e.type === 'Shade') {
+                ctx.rotate(Math.atan2(e.dy, e.dx));
             }
 
-            ctx.fillStyle = e.type === 'Seeker' ? "orange" : "red";
+            ctx.beginPath();
             let rectSize = TILE_SIZE - 10;
-            ctx.fillRect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+            
+            if (e.type === 'Sniper') {
+                ctx.fillStyle = "purple";
+                for(let i=0; i<6; i++) ctx.lineTo(15 * Math.cos(i * Math.PI / 3), 15 * Math.sin(i * Math.PI / 3));
+                ctx.closePath();
+            } else if (e.type === 'Brute') {
+                ctx.fillStyle = "cornflowerblue";
+                for(let i=0; i<8; i++) ctx.lineTo(18 * Math.cos(i * Math.PI / 4 + Math.PI/8), 18 * Math.sin(i * Math.PI / 4 + Math.PI/8));
+                ctx.closePath();
+            } else if (e.type === 'Shade') {
+                ctx.fillStyle = "#444";
+                ctx.moveTo(15, 0);
+                ctx.lineTo(-10, 10);
+                ctx.lineTo(-10, -10);
+                ctx.closePath();
+            } else {
+                ctx.fillStyle = e.type === 'Seeker' ? "orange" : "red";
+                ctx.rect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+            }
+            ctx.fill();
 
             if (e.hasLOS) {
                 ctx.strokeStyle = "white";
                 ctx.lineWidth = 2;
-                ctx.strokeRect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+                ctx.stroke();
             } else if (e.lastKnown) {
                 ctx.strokeStyle = "orange";
                 ctx.lineWidth = 2;
-                ctx.strokeRect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+                ctx.stroke();
             }
             ctx.restore();
 
             // Draw facing indicator
-            let mag = Math.hypot(e.dx, e.dy) || 1;
-            ctx.strokeStyle = "#111";
-            ctx.lineWidth = 3;
-            ctx.lineCap = "round";
-            ctx.beginPath();
-            ctx.moveTo(ecx, ecy);
-            ctx.lineTo(ecx + (e.dx / mag) * (TILE_SIZE / 2 - 5), ecy + (e.dy / mag) * (TILE_SIZE / 2 - 5));
-            ctx.stroke();
+            if (e.type !== 'Shade') {
+                let mag = Math.hypot(e.dx, e.dy) || 1;
+                ctx.strokeStyle = "#111";
+                ctx.lineWidth = 3;
+                ctx.lineCap = "round";
+                ctx.beginPath();
+                ctx.moveTo(ecx, ecy);
+                ctx.lineTo(ecx + (e.dx / mag) * (TILE_SIZE / 2 - 5), ecy + (e.dy / mag) * (TILE_SIZE / 2 - 5));
+                ctx.stroke();
+            }
         });
 
         // Draw Player (Triangle)
@@ -2106,6 +2154,9 @@
         damage += getRareStat(isRanged ? 'rangedDmg' : 'meleeDmg');
         if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
         if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+        if (enemy.type === 'Sniper') damage += getRareStat('dmgSniper');
+        if (enemy.type === 'Brute') damage += getRareStat('dmgBrute');
+        if (enemy.type === 'Shade') damage += getRareStat('dmgShade');
         return Math.max(0, damage);
     }
 
@@ -2345,12 +2396,25 @@
         } else {
             let enemy = enemies.find(en => en.x === gridX && en.y === gridY);
             if (enemy && (mapData[enemy.x][enemy.y].isVisible || debugVision)) {
-                title = enemy.type === 'Seeker' ? "Seeker (Orange Diamond)" : "Sentry (Red Square)";
-                let minDmg = enemy.damageMin !== undefined ? enemy.damageMin : (enemy.damage || 1);
-                let maxDmg = enemy.damageMax !== undefined ? enemy.damageMax : (enemy.damage || 1);
-                let threat = enemy.type === 'Seeker' ? "High" : "Low";
-                let behavior = enemy.type === 'Seeker' ? "Patrols until it spots you, then shrieks." : "Stands guard until it spots you.";
-                desc = `Threat: ${threat}<br>Behavior: ${behavior}<br>HP: ${enemy.hp}<br>Damage: ${minDmg}-${maxDmg}<br>Hearing: ${enemy.hearing}`;
+                let pDist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                if (enemy.type === 'Shade' && pDist > 2.5 && !debugVision && getRareStat('trueSight') === 0) {
+                    // Cloaked, do not reveal in context menu
+                } else {
+                    title = enemy.type === 'Seeker' ? "Seeker (Orange Diamond)" : 
+                            enemy.type === 'Sniper' ? "Sniper (Purple Hexagon)" :
+                            enemy.type === 'Brute'  ? "Brute (Blue Octagon)" :
+                            enemy.type === 'Shade'  ? "Shade (Dark Triangle)" :
+                            "Sentry (Red Square)";
+                    let minDmg = enemy.damageMin !== undefined ? enemy.damageMin : (enemy.damage || 1);
+                    let maxDmg = enemy.damageMax !== undefined ? enemy.damageMax : (enemy.damage || 1);
+                    let threat = enemy.type === 'Brute' || enemy.type === 'Seeker' || enemy.type === 'Sniper' ? "High" : "Medium";
+                    let behavior = enemy.type === 'Seeker' ? "Patrols until it spots you, then shrieks." : 
+                                   enemy.type === 'Sniper' ? "Keeps distance and fires ranged shots." :
+                                   enemy.type === 'Brute' ? "Moves and attacks at half speed, but hits incredibly hard." :
+                                   enemy.type === 'Shade' ? "Cloaked until close. Actively hunts noises." :
+                                   "Stands guard until it spots you.";
+                    desc = `Threat: ${threat}<br>Behavior: ${behavior}<br>HP: ${enemy.hp}<br>Damage: ${minDmg}-${maxDmg}<br>Hearing: ${enemy.hearing}`;
+                }
             }
         }
 
@@ -2366,7 +2430,13 @@
             }
         }
 
-        cmTitle.style.color = title === "Player" ? "cyan" : (title.includes("Sentry") ? "red" : (title.includes("Seeker") ? "orange" : (itemsHere.length === 1 ? itemsHere[0].item.color : "#ccc")));
+        cmTitle.style.color = title === "Player" ? "cyan" : 
+                              title.includes("Sentry") ? "red" : 
+                              title.includes("Seeker") ? "orange" : 
+                              title.includes("Sniper") ? "purple" :
+                              title.includes("Brute") ? "cornflowerblue" :
+                              title.includes("Shade") ? "#888" :
+                              (itemsHere.length === 1 ? itemsHere[0].item.color : "#ccc");
         cmTitle.innerHTML = title;
         cmDesc.innerHTML = desc;
 
@@ -2650,6 +2720,11 @@
 
     function updateEnemies() {
         enemies.forEach(e => {
+            if (e.type === 'Brute') {
+                e.moveTick = (e.moveTick || 0) + 1;
+                if (e.moveTick % 2 === 0) return; // Skip turn (half speed)
+            }
+
             let targetX, targetY;
 
             if (e.hasLOS) {
@@ -2744,6 +2819,45 @@
                 }
             }
 
+            if (e.type === 'Sniper' && e.hasLOS) {
+                let pDistToE = Math.hypot(player.x - e.x, player.y - e.y);
+                if (pDistToE > 1.5 && pDistToE <= e.range) {
+                    let minDmg = e.damageMin !== undefined ? e.damageMin : (e.damage || 1);
+                    let maxDmg = e.damageMax !== undefined ? e.damageMax : (e.damage || 1);
+                    let baseDamage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                    let defense = getPlayerDefense();
+                    defense += getRareStat('defSniper');
+                    let actualDamage = Math.max(0, baseDamage - defense);
+                    
+                    let now = performance.now();
+                    projectiles.push({
+                        startX: e.x, startY: e.y, endX: player.x, endY: player.y,
+                        color: 'purple', startTime: now, duration: 150
+                    });
+                    turnSounds.push({ x: e.x, y: e.y, volume: 8, color: "purple", startTime: now, duration: 600 });
+                    
+                    e.dx = player.x - e.x;
+                    e.dy = player.y - e.y;
+                    
+                    setTimeout(() => {
+                        player.hp -= actualDamage;
+                        if (actualDamage > 0) {
+                            logMessage(`A Sniper shot you for ${actualDamage} damage! HP left: ${player.hp}`);
+                            playSfx('player_hurt');
+                        } else {
+                            logMessage(`A Sniper shot hit you, but your armor blocked it!`);
+                            playSfx('equip');
+                        }
+                        if (player.hp <= 0) logMessage("CRITICAL FAILURE. Run ended.");
+                        renderUI();
+                    }, 150);
+                    return; // Turn ends here
+                } else if (pDistToE <= 1.5) {
+                    targetX = Math.max(0, Math.min(GRID_W - 1, e.x + Math.round(e.x - player.x) * 4));
+                    targetY = Math.max(0, Math.min(GRID_H - 1, e.y + Math.round(e.y - player.y) * 4));
+                }
+            }
+
             let path = findPath(e.x, e.y, targetX, targetY, 'enemy');
             
             // If pathfinding failed (likely due to other enemies blocking the way), replot ignoring them
@@ -2778,6 +2892,8 @@
                     let defense = getPlayerDefense();
                     if (e.type === 'Sentry') defense += getRareStat('defSentry');
                     if (e.type === 'Seeker') defense += getRareStat('defSeeker');
+                    if (e.type === 'Brute') defense += getRareStat('defBrute');
+                    if (e.type === 'Shade') defense += getRareStat('defShade');
                     
                     let actualDamage = Math.max(0, baseDamage - defense);
                     
