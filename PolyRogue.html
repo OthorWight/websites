@@ -1413,6 +1413,39 @@
                     let g = Math.min(255, Math.max(0, Math.floor(gBase + noise * 12 + grit)));
                     let b = Math.min(255, Math.max(0, Math.floor(bBase + noise * 10 + grit)));
                     mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
+
+                    // Add floor decorations
+                    if (!mapData[x][y].isStairsDown && !mapData[x][y].isStairsUp && Math.random() < 0.15) {
+                        let decType = Math.floor(Math.random() * 3);
+                        if (decType === 0) { // Rubble / Pebbles
+                            let dots = [];
+                            let numDots = Math.floor(Math.random() * 4) + 1;
+                            for (let i = 0; i < numDots; i++) {
+                                dots.push({
+                                    dx: Math.random() * TILE_SIZE,
+                                    dy: Math.random() * TILE_SIZE,
+                                    s: Math.random() * 3 + 1,
+                                    c: Math.random() > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.08)'
+                                });
+                            }
+                            mapData[x][y].decoration = { type: 'dots', data: dots };
+                        } else if (decType === 1) { // Cracks / Scratches
+                            mapData[x][y].decoration = { 
+                                type: 'crack', 
+                                x1: Math.random() * TILE_SIZE, y1: Math.random() * TILE_SIZE,
+                                x2: Math.random() * TILE_SIZE, y2: Math.random() * TILE_SIZE,
+                                xm: Math.random() * TILE_SIZE, ym: Math.random() * TILE_SIZE,
+                                c: 'rgba(0,0,0,0.5)'
+                            };
+                        } else if (decType === 2) { // Stains (Blood or Coolant)
+                            mapData[x][y].decoration = {
+                                type: 'stain',
+                                dx: Math.random() * (TILE_SIZE - 10) + 5, dy: Math.random() * (TILE_SIZE - 10) + 5,
+                                r: Math.random() * 6 + 2,
+                                c: Math.random() > 0.7 ? 'rgba(120, 20, 20, 0.35)' : 'rgba(20, 100, 120, 0.25)'
+                            };
+                        }
+                    }
                 }
             }
         }
@@ -1457,6 +1490,32 @@
                     ctx.strokeStyle = "#1a1a1a";
                     ctx.lineWidth = 1;
                     ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+
+                    if (tile.decoration) {
+                        let d = tile.decoration;
+                        let tx = x * TILE_SIZE;
+                        let ty = y * TILE_SIZE;
+                        
+                        if (d.type === 'dots') {
+                            d.data.forEach(dot => {
+                                ctx.fillStyle = dot.c;
+                                ctx.fillRect(tx + dot.dx, ty + dot.dy, dot.s, dot.s);
+                            });
+                        } else if (d.type === 'crack') {
+                            ctx.strokeStyle = d.c;
+                            ctx.lineWidth = 1.5;
+                            ctx.beginPath();
+                            ctx.moveTo(tx + d.x1, ty + d.y1);
+                            ctx.lineTo(tx + d.xm, ty + d.ym);
+                            ctx.lineTo(tx + d.x2, ty + d.y2);
+                            ctx.stroke();
+                        } else if (d.type === 'stain') {
+                            ctx.fillStyle = d.c;
+                            ctx.beginPath();
+                            ctx.arc(tx + d.dx, ty + d.dy, d.r, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
                 }
 
                 if (tile.isStairsDown || tile.isStairsUp) {
@@ -1825,7 +1884,9 @@
             ctx.stroke();
         });
         
-        // Draw Sound Ripples
+        ctx.restore(); // Restore camera transform EARLY for screen-space distortion
+
+        // Draw Sound Ripples with screen-space refraction
         turnSounds.forEach(snd => {
             if (nowTime < snd.startTime) return;
             let t = (nowTime - snd.startTime) / snd.duration;
@@ -1835,17 +1896,46 @@
             let radius = maxRadius * t;
             let opacity = 0.8 * (1 - t);
 
+            // Convert world center to screen coordinates
+            let cx = snd.x * TILE_SIZE + TILE_SIZE / 2;
+            let cy = snd.y * TILE_SIZE + TILE_SIZE / 2;
+            let screenCx = (cx - camView.vx) * currentZoom;
+            let screenCy = (cy - camView.vy) * currentZoom;
+            let screenR = radius * currentZoom;
+
+            // 1. Refraction/Distortion pass
+            let ringWidth = TILE_SIZE * 1.5 * currentZoom * (1 - t); 
+            if (screenR > 0 && ringWidth > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(screenCx, screenCy, screenR + ringWidth / 2, 0, Math.PI * 2);
+                ctx.arc(screenCx, screenCy, Math.max(0, screenR - ringWidth / 2), 0, Math.PI * 2, true);
+                ctx.clip();
+
+                // Bulge effect based on animation progress
+                let scaleDistort = 1.0 + 0.15 * Math.sin(t * Math.PI) * opacity; 
+                
+                ctx.translate(screenCx, screenCy);
+                ctx.scale(scaleDistort, scaleDistort);
+                ctx.translate(-screenCx, -screenCy);
+                
+                // Draw the board onto itself to displace the pixels
+                ctx.drawImage(board, 0, 0);
+                
+                ctx.restore();
+            }
+
+            // 2. Color Stroke pass
             ctx.save();
             ctx.beginPath();
-            ctx.arc(snd.x * TILE_SIZE + TILE_SIZE / 2, snd.y * TILE_SIZE + TILE_SIZE / 2, radius, 0, Math.PI * 2);
+            ctx.arc(screenCx, screenCy, screenR, 0, Math.PI * 2);
             ctx.strokeStyle = snd.color;
-            ctx.lineWidth = snd.color === "orange" ? 4 : 2;
+            ctx.lineWidth = (snd.color === "orange" ? 4 : 2) * currentZoom;
             ctx.globalAlpha = opacity;
             ctx.stroke();
             ctx.restore();
         });
 
-        ctx.restore(); // Restore camera transform
         renderUI();
     }
 
