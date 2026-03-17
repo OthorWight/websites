@@ -1874,8 +1874,8 @@
         });
         if (enemyIndex !== -1) {
             let enemy = enemies[enemyIndex];
-            let accuracy = ((wpn.accuracy !== undefined) ? wpn.accuracy : 1) + getRareStat('accBonus');
-            let roll = Math.floor(Math.random() * 20) + 1;
+            let accuracy = (wpn.accuracy !== undefined) ? wpn.accuracy : 1;
+            let roll = Math.floor(Math.random() * 20) + 1 + getRareStat('accBonus');
 
             if (roll < accuracy) {
                 logMessage(`Fired ${wpn.ammoType} at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
@@ -2133,8 +2133,8 @@
             if (enemyIndex !== -1) {
                 let enemy = enemies[enemyIndex];
                 let wpn = equipment.weapon;
-                let accuracy = ((wpn && wpn.accuracy !== undefined) ? wpn.accuracy : 1) + getRareStat('accBonus');
-                let roll = Math.floor(Math.random() * 20) + 1;
+                let accuracy = (wpn && wpn.accuracy !== undefined) ? wpn.accuracy : 1;
+                let roll = Math.floor(Math.random() * 20) + 1 + getRareStat('accBonus');
 
                 if (roll < accuracy) {
                     logMessage(`Struck at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
