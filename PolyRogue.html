@@ -371,7 +371,7 @@
             <h3 style="color: cyan; margin-top: 0;">Controls</h3>
             <ul style="margin-bottom: 0; padding-left: 20px;">
                 <li><b>Mouse:</b> Left-click to move/attack. Left-click far away to auto-run. Right-click for context menu. Scroll to zoom.</li>
-                <li><b>Keyboard:</b> Q,W,E,A,S,D,Z,X,C for 8-way movement.</li>
+                <li><b>Keyboard:</b> Q,W,E,A,S,D,Z,X,C for 8-way movement. Arrow keys to pan camera.</li>
                 <li><b>R:</b> Auto-explore the map.</li>
                 <li><b>V / H:</b> Toggle debug vision / hearing layers.</li>
             </ul>
@@ -479,6 +479,9 @@
     const visitedPass = new Uint32Array(GRID_W * GRID_H);
     const enemyPositionsMap = new Uint8Array(GRID_W * GRID_H);
     let visibleTiles = [];
+
+    let currentFloorNum = 1;
+    let levels = {};
     
     const board = document.getElementById('game-board');
     const logEl = document.getElementById('log');
@@ -506,6 +509,7 @@
     let currentZoom = 1.0;
     const MIN_ZOOM = 0.8;
     const MAX_ZOOM = 2.5;
+    let cameraOffset = { x: 0, y: 0 };
     let camBounds = { startX: 0, startY: 0, endX: 0, endY: 0 };
     let camView = { vx: 0, vy: 0, vw: 0, vh: 0 };
     
@@ -600,6 +604,59 @@
         if (player.hp > player.maxHp) player.hp = player.maxHp;
     }
 
+    function saveCurrentFloor() {
+        if (!currentFloorNum) return;
+        levels[currentFloorNum] = {
+            mapData: mapData,
+            enemies: enemies,
+            floorItems: floorItems,
+            initialEnemyCount: initialEnemyCount
+        };
+    }
+
+    function goToFloor(floorNum, stairId, direction) {
+        if (currentFloorNum) {
+            saveCurrentFloor();
+        }
+        currentFloorNum = floorNum;
+        document.getElementById('floor-display').textContent = `Floor: ${currentFloorNum}`;
+        if (!levels[floorNum]) {
+            generateLevel(floorNum);
+            saveCurrentFloor();
+        }
+        let level = levels[floorNum];
+        mapData = level.mapData;
+        enemies = level.enemies;
+        floorItems = level.floorItems;
+        initialEnemyCount = level.initialEnemyCount;
+        audibleTiles = new Map();
+        turnSounds = [];
+        projectiles = [];
+        if (stairId !== null) {
+            let spawnStairs = null;
+            for (let x = 0; x < GRID_W; x++) {
+                for (let y = 0; y < GRID_H; y++) {
+                    if (direction === 'down' && mapData[x][y].isStairsUp && mapData[x][y].stairId === stairId) {
+                        spawnStairs = {x, y};
+                    } else if (direction === 'up' && mapData[x][y].isStairsDown && mapData[x][y].stairId === stairId) {
+                        spawnStairs = {x, y};
+                    }
+                }
+            }
+            if (spawnStairs) {
+                player.x = spawnStairs.x;
+                player.y = spawnStairs.y;
+            }
+        }
+        isAutoRunning = false;
+        isAutoExploring = false;
+        autoRunPath = [];
+        updateLOS();
+        renderUI();
+        drawBoard();
+        if (floorNum > 1 || direction !== null) logMessage(`Arrived at Floor ${currentFloorNum}.`, "cyan");
+    }
+
     // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
     let inventory = [];
     let equipment = { 
@@ -628,22 +685,42 @@
         { name: "Pebble", count: 3 }
     ];
     
-    function createItem(config) {
+    function createItem(config, floorNum = 1) {
         let template = itemTemplates[config.name];
         let item = { ...template, count: config.count || 1 };
+        let scale = Math.max(0, floorNum - 1);
+        
+        if (item.damageMin !== undefined) item.damageMin += scale;
+        if (item.damageMax !== undefined) item.damageMax += scale;
+        if (item.defense !== undefined) item.defense += scale;
+        if (item.damageBonus !== undefined) item.damageBonus += scale;
+        if (item.stealth !== undefined) item.stealth += scale;
+        if (item.healAmount !== undefined) item.healAmount += scale;
         
         if (equippableTypes.includes(item.type)) {
             let roll = Math.random();
             if (roll < 0.05) {
                 item.rarity = "cursed";
-                let mod = cursedModifiers[Math.floor(Math.random() * cursedModifiers.length)];
+                let baseMod = cursedModifiers[Math.floor(Math.random() * cursedModifiers.length)];
+                let mod = { ...baseMod };
+                if (Number.isInteger(mod.value) && scale > 0) {
+                    let oldVal = mod.value;
+                    mod.value += (mod.value > 0 ? scale : -scale);
+                    mod.desc = mod.desc.replace(Math.abs(oldVal).toString(), Math.abs(mod.value).toString());
+                }
                 item.rareMod = mod;
                 item.trueName = `${mod.name} Rare ${item.name}`; 
                 item.name = `Rare ${item.name}`;
                 item.identified = false;
             } else if (roll < 0.25) {
                 item.rarity = "rare";
-                let mod = rareModifiers[Math.floor(Math.random() * rareModifiers.length)];
+                let baseMod = rareModifiers[Math.floor(Math.random() * rareModifiers.length)];
+                let mod = { ...baseMod };
+                if (Number.isInteger(mod.value) && scale > 0) {
+                    let oldVal = mod.value;
+                    mod.value += scale;
+                    mod.desc = mod.desc.replace(Math.abs(oldVal).toString(), Math.abs(mod.value).toString());
+                }
                 item.rareMod = mod;
                 item.trueName = `${mod.name} Rare ${item.name}`; 
                 item.name = `Rare ${item.name}`;
@@ -678,6 +755,16 @@
             name: "Auto-Explore",
             condition: (x, y) => x === player.x && y === player.y,
             execute: (x, y) => triggerAutoExplore()
+        },
+        {
+            name: "Descend Stairs",
+            condition: (x, y) => x === player.x && y === player.y && mapData[x][y].isStairsDown,
+            execute: (x, y) => processTurn(0, 0)
+        },
+        {
+            name: "Ascend Stairs",
+            condition: (x, y) => x === player.x && y === player.y && mapData[x][y].isStairsUp,
+            execute: (x, y) => processTurn(0, 0)
         },
         {
             name: "Move",
@@ -832,11 +919,8 @@
 
     function init() {
         allCreatedItems.push(equipment.weapon); // Track the starting weapon
-        generateLevel();
-        updateLOS();
-        renderUI();
-        drawBoard();
-        logMessage("Floor 1 initialized.");
+        currentFloorNum = null;
+        goToFloor(1, null, null);
         
         document.getElementById('start-btn').addEventListener('click', () => {
             document.getElementById('start-screen').style.display = 'none';
@@ -898,8 +982,8 @@
         let vw = w / currentZoom;
         let vh = h / currentZoom;
 
-        let cx = player.x * TILE_SIZE + TILE_SIZE / 2;
-        let cy = player.y * TILE_SIZE + TILE_SIZE / 2;
+        let cx = player.x * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.x;
+        let cy = player.y * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.y;
 
         let vx = cx - vw / 2;
         let vy = cy - vh / 2;
@@ -930,7 +1014,7 @@
         );
     }
 
-    function generateLevel() {
+    function generateLevel(floorNum) {
         initMap();
         enemies = [];
         visibleTiles = [];
@@ -1007,7 +1091,7 @@
         startingItems.forEach((itemCfg, i) => {
             if (i < startFloorTiles.length) {
                 let pos = startFloorTiles[i];
-                floorItems.push({ x: pos.x, y: pos.y, item: createItem(itemCfg) });
+                floorItems.push({ x: pos.x, y: pos.y, item: createItem(itemCfg, floorNum) });
             }
         });
         
@@ -1157,18 +1241,52 @@
             }
         }
 
+        let validWalls = [];
+        for (let x = 1; x < GRID_W - 1; x++) {
+            for (let y = 1; y < GRID_H - 1; y++) {
+                if (mapData[x][y].isWall) {
+                    let adjFloors = 0;
+                    for (let d of dirs) {
+                        if (mapData[x+d.dx] && !mapData[x+d.dx][y+d.dy].isWall) adjFloors++;
+                    }
+                    if (adjFloors > 0) validWalls.push({x, y});
+                }
+            }
+        }
+        validWalls.sort(() => Math.random() - 0.5);
+        
+        for (let i = 0; i < 5; i++) {
+            if (validWalls.length > 0) {
+                let w = validWalls.pop();
+                mapData[w.x][w.y].isWall = false;
+                mapData[w.x][w.y].isStairsDown = true;
+                mapData[w.x][w.y].stairId = i;
+            }
+        }
+        if (floorNum > 1) {
+            for (let i = 0; i < 5; i++) {
+                if (validWalls.length > 0) {
+                    let w = validWalls.pop();
+                    mapData[w.x][w.y].isWall = false;
+                    mapData[w.x][w.y].isStairsUp = true;
+                    mapData[w.x][w.y].stairId = i;
+                }
+            }
+        }
+
         let emptySpaces = [];
         for (let x = 0; x < GRID_W; x++) {
             for (let y = 0; y < GRID_H; y++) {
-                if (!mapData[x][y].isWall && (x !== player.x || y !== player.y)) {
+                if (!mapData[x][y].isWall && !mapData[x][y].isStairsDown && !mapData[x][y].isStairsUp && (x !== player.x || y !== player.y)) {
                     emptySpaces.push({ x, y });
                 }
             }
         }
         
         emptySpaces = emptySpaces.filter(p => Math.hypot(p.x - player.x, p.y - player.y) > 5);
-        let numEnemies = Math.floor((GRID_W * GRID_H) / 60); 
+        let numEnemies = Math.floor((GRID_W * GRID_H) / Math.max(20, 60 - floorNum * 5)); 
         let enemyDirs = [{x: 0, y: -1}, {x: 1, y: 0}, {x: 0, y: 1}, {x: -1, y: 0}];
+        let scale = Math.max(0, floorNum - 1);
         for (let i = 0; i < numEnemies; i++) {
             if (emptySpaces.length > 0) {
                 let idx = Math.floor(Math.random() * emptySpaces.length);
@@ -1176,41 +1294,44 @@
                 let dir = enemyDirs[Math.floor(Math.random() * enemyDirs.length)];
                 let hearingLevel = Math.floor(Math.random() * 4); // 0 to 3
                 if (Math.random() < 0.01) {
-                    enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2 });
+                    enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
                 } else {
-                    enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel });
+                    enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
                 }
             }
         }
         initialEnemyCount = enemies.length;
 
-        let numLoot = Math.floor((GRID_W * GRID_H) / 800); 
+        let numLoot = Math.floor((GRID_W * GRID_H) / (800 + floorNum * 50)); 
         for (let i = 0; i < numLoot; i++) {
             if (emptySpaces.length > 0) {
                 let idx = Math.floor(Math.random() * emptySpaces.length);
                 let pos = emptySpaces.splice(idx, 1)[0];
                 let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
-                floorItems.push({ x: pos.x, y: pos.y, item: createItem({ name: lootTemplate.name, count: lootTemplate.count }) });
+                floorItems.push({ x: pos.x, y: pos.y, item: createItem({ name: lootTemplate.name, count: lootTemplate.count }, floorNum) });
             }
         }
 
-        // Apply grimy smooth random tint
+        let rBase = Math.floor(Math.random() * 150);
+        let gBase = Math.floor(Math.random() * 150);
+        let bBase = Math.floor(Math.random() * 150);
+        
         for (let x = 0; x < GRID_W; x++) {
             for (let y = 0; y < GRID_H; y++) {
                 let n1 = Math.sin(x * 0.6) * Math.cos(y * 0.6);
                 let n2 = Math.sin((x - y) * 0.4);
                 let noise = n1 + n2;
-                let grit = Math.random() * 12 - 6; // chunkier static
+                let grit = Math.random() * 12 - 6; 
                 
                 if (mapData[x][y].isWall) {
-                    let r = Math.floor(65 + noise * 15 + grit);
-                    let g = Math.floor(60 + noise * 15 + grit);
-                    let b = Math.floor(55 + noise * 15 + grit);
+                    let r = Math.min(255, Math.max(0, Math.floor(rBase + 40 + noise * 15 + grit)));
+                    let g = Math.min(255, Math.max(0, Math.floor(gBase + 40 + noise * 15 + grit)));
+                    let b = Math.min(255, Math.max(0, Math.floor(bBase + 40 + noise * 15 + grit)));
                     mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
                 } else {
-                    let r = Math.floor(22 + noise * 10 + grit);
-                    let g = Math.floor(28 + noise * 12 + grit); // Slightly greener
-                    let b = Math.floor(20 + noise * 10 + grit);
+                    let r = Math.min(255, Math.max(0, Math.floor(rBase + noise * 10 + grit)));
+                    let g = Math.min(255, Math.max(0, Math.floor(gBase + noise * 12 + grit)));
+                    let b = Math.min(255, Math.max(0, Math.floor(bBase + noise * 10 + grit)));
                     mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
                 }
             }
@@ -1255,6 +1376,25 @@
                     rect.setAttribute("stroke", "#1a1a1a");
                 }
                 fragment.appendChild(rect);
+                
+                if (tile.isStairsDown || tile.isStairsUp) {
+                    let stair = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    stair.setAttribute("x", x * TILE_SIZE + 4);
+                    stair.setAttribute("y", y * TILE_SIZE + 4);
+                    stair.setAttribute("width", TILE_SIZE - 8);
+                    stair.setAttribute("height", TILE_SIZE - 8);
+                    stair.setAttribute("fill", tile.isStairsDown ? "purple" : "indigo");
+                    fragment.appendChild(stair);
+                    let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", x * TILE_SIZE + TILE_SIZE / 2);
+                    text.setAttribute("y", y * TILE_SIZE + TILE_SIZE / 2 + 2);
+                    text.setAttribute("fill", "white");
+                    text.setAttribute("font-size", "20");
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("dominant-baseline", "middle");
+                    text.textContent = tile.isStairsDown ? ">" : "<";
+                    fragment.appendChild(text);
+                }
                 
                 // Draw Fog of War
                 if (!tile.isVisible && !debugVision) {
@@ -1754,6 +1894,11 @@
         }
         let key = e.key.toLowerCase();
         
+        if (key === 'arrowup') { cameraOffset.y -= TILE_SIZE * 2; drawBoard(); return; }
+        if (key === 'arrowdown') { cameraOffset.y += TILE_SIZE * 2; drawBoard(); return; }
+        if (key === 'arrowleft') { cameraOffset.x -= TILE_SIZE * 2; drawBoard(); return; }
+        if (key === 'arrowright') { cameraOffset.x += TILE_SIZE * 2; drawBoard(); return; }
+
         if (key === 'r') {
             triggerAutoExplore();
             return;
@@ -1935,6 +2080,12 @@
         } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isWall) {
             title = "Wall";
             desc = "Solid matter. Impassable.";
+        } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isStairsDown) {
+            title = "Stairs Down";
+            desc = "Descend deeper into the facility.";
+        } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isStairsUp) {
+            title = "Stairs Up";
+            desc = "Ascend to the previous floor.";
         } else {
             let enemy = enemies.find(en => en.x === gridX && en.y === gridY);
             if (enemy && (mapData[enemy.x][enemy.y].isVisible || debugVision)) {
@@ -2103,6 +2254,8 @@
     }
 
     function processTurn(dx, dy, silentWait = false) {
+        cameraOffset = { x: 0, y: 0 }; // Re-center camera on player action
+
         if (player.hp <= 0) return;
         turnSounds = [];
         projectiles = [];
@@ -2215,9 +2368,20 @@
         updateLOS();
         updateEnemies();
         updateLOS();
-        drawBoard();
 
-        if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring) {
+        let changedFloor = false;
+        if (mapData[player.x][player.y].isStairsDown) {
+            let id = mapData[player.x][player.y].stairId;
+            goToFloor(currentFloorNum + 1, id, 'down');
+            changedFloor = true;
+        } else if (mapData[player.x][player.y].isStairsUp) {
+            let id = mapData[player.x][player.y].stairId;
+            goToFloor(currentFloorNum - 1, id, 'up');
+            changedFloor = true;
+        }
+        if (!changedFloor) drawBoard();
+
+        if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring && !changedFloor) {
             emitFlavorText();
         }
     }
@@ -2305,7 +2469,38 @@
                 }
             }
 
+            // If the destination point is occupied by another enemy, pick a new nearby empty point
+            if (!e.hasLOS && enemies.some(other => other !== e && other.x === targetX && other.y === targetY)) {
+                let nearby = [];
+                for (let key in keyMap) {
+                    let dx = keyMap[key].x;
+                    let dy = keyMap[key].y;
+                    if (dx === 0 && dy === 0) continue;
+                    let nx = targetX + dx;
+                    let ny = targetY + dy;
+                    if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H && !mapData[nx][ny].isWall && !enemies.some(other => other.x === nx && other.y === ny) && (nx !== player.x || ny !== player.y)) {
+                        nearby.push({x: nx, y: ny});
+                    }
+                }
+                if (nearby.length > 0) {
+                    let newPoint = nearby[Math.floor(Math.random() * nearby.length)];
+                    if (e.lastKnown && targetX === e.lastKnown.x && targetY === e.lastKnown.y) {
+                        e.lastKnown = newPoint;
+                    } else if (e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
+                        e.wanderTarget = newPoint;
+                    }
+                    targetX = newPoint.x;
+                    targetY = newPoint.y;
+                }
+            }
+
             let path = findPath(e.x, e.y, targetX, targetY, 'enemy');
+            
+            // If pathfinding failed (likely due to other enemies blocking the way), replot ignoring them
+            if (!path || path.length === 0) {
+                path = findPath(e.x, e.y, targetX, targetY, 'ignore');
+            }
+
             if (path && path.length > 0) {
                 let dx = path[0].x;
                 let dy = path[0].y;
@@ -2357,6 +2552,28 @@
                     !enemies.some(other => other !== e && other.x === nextX && other.y === nextY)) {
                     e.x = nextX;
                     e.y = nextY;
+                } else {
+                    // Stuck! Try to move to any adjacent free tile that lowers the distance to the target
+                    let bestDist = Math.hypot(targetX - e.x, targetY - e.y);
+                    let bestMove = null;
+                    for (let key in keyMap) {
+                        let kdx = keyMap[key].x;
+                        let kdy = keyMap[key].y;
+                        if (kdx === 0 && kdy === 0) continue;
+                        let kx = e.x + kdx;
+                        let ky = e.y + kdy;
+                        if (kx >= 0 && kx < GRID_W && ky >= 0 && ky < GRID_H && !mapData[kx][ky].isWall && !enemies.some(other => other !== e && other.x === kx && other.y === ky) && (kx !== player.x || ky !== player.y)) {
+                            let dist = Math.hypot(targetX - kx, targetY - ky);
+                            if (dist < bestDist) {
+                                bestDist = dist;
+                                bestMove = {x: kx, y: ky};
+                            }
+                        }
+                    }
+                    if (bestMove) {
+                        e.x = bestMove.x;
+                        e.y = bestMove.y;
+                    }
                 }
             } else if (e.type === 'Seeker' && e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
                 e.wanderTarget = null;
@@ -2931,7 +3148,7 @@
     function dropLoot(x, y, baseAmmoRecoveryChance = 0.75) {
         let ammoRecoveryChance = baseAmmoRecoveryChance + getRareStat('ammoRec');
         if (Math.random() < ammoRecoveryChance) {
-            let droppedItem = createItem({ name: "Pebble", count: 1 });
+            let droppedItem = createItem({ name: "Pebble", count: 1 }, currentFloorNum);
             let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
             if (existingFloorItem) {
                 existingFloorItem.item.count += droppedItem.count;
@@ -2943,7 +3160,7 @@
 
         if (Math.random() < 0.675) {
             let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
-            let droppedItem = createItem({ name: lootTemplate.name, count: lootTemplate.count });
+            let droppedItem = createItem({ name: lootTemplate.name, count: lootTemplate.count }, currentFloorNum);
             let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === droppedItem.name && fi.item.stackable);
             if (existingFloorItem) {
                 existingFloorItem.item.count += droppedItem.count;
