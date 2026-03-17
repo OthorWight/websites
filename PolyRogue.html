@@ -519,6 +519,67 @@
     let turnSounds = [];
     let projectiles = [];
 
+    // --- Animation State ---
+    let lastFrameTime = performance.now();
+    let isAnimating = false;
+
+    function triggerAnimation() {
+        if (!isAnimating) {
+            lastFrameTime = performance.now();
+            isAnimating = true;
+            requestAnimationFrame(animLoop);
+        }
+    }
+
+    function animLoop(time) {
+        let dt = (time - lastFrameTime) / 1000;
+        lastFrameTime = time;
+        if (dt > 0.1) dt = 0.1; // clamp dt to prevent giant jumps if tab inactive
+        
+        let needsRedraw = false;
+        let speed = 20; // sliding speed in tiles per second
+
+        // Interpolate player
+        if (player.renderX === undefined) player.renderX = player.x;
+        if (player.renderY === undefined) player.renderY = player.y;
+        let pdx = player.x - player.renderX;
+        let pdy = player.y - player.renderY;
+        if (Math.abs(pdx) > 0.02 || Math.abs(pdy) > 0.02) {
+            player.renderX += pdx * Math.min(1, dt * speed);
+            player.renderY += pdy * Math.min(1, dt * speed);
+            needsRedraw = true;
+        } else {
+            if (player.renderX !== player.x || player.renderY !== player.y) needsRedraw = true;
+            player.renderX = player.x;
+            player.renderY = player.y;
+        }
+
+        // Interpolate enemies
+        enemies.forEach(e => {
+            if (e.renderX === undefined) e.renderX = e.x;
+            if (e.renderY === undefined) e.renderY = e.y;
+            let edx = e.x - e.renderX;
+            let edy = e.y - e.renderY;
+            if (Math.abs(edx) > 0.02 || Math.abs(edy) > 0.02) {
+                e.renderX += edx * Math.min(1, dt * speed);
+                e.renderY += edy * Math.min(1, dt * speed);
+                needsRedraw = true;
+            } else {
+                if (e.renderX !== e.x || e.renderY !== e.y) needsRedraw = true;
+                e.renderX = e.x;
+                e.renderY = e.y;
+            }
+        });
+
+        if (needsRedraw) {
+            drawBoard();
+            requestAnimationFrame(animLoop);
+        } else {
+            isAnimating = false;
+            drawBoard(); // snap exact integer positioning
+        }
+    }
+
     let gameSettings = {
         audio: true,
         autoPickupAmmo: true,
@@ -648,6 +709,9 @@
                 player.y = spawnStairs.y;
             }
         }
+        player.renderX = player.x; // Snap visual coords on floor change
+        player.renderY = player.y;
+        enemies.forEach(e => { e.renderX = e.x; e.renderY = e.y; });
         isAutoRunning = false;
         isAutoExploring = false;
         autoRunPath = [];
@@ -982,8 +1046,11 @@
         let vw = w / currentZoom;
         let vh = h / currentZoom;
 
-        let cx = player.x * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.x;
-        let cy = player.y * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.y;
+        let px = player.renderX !== undefined ? player.renderX : player.x;
+        let py = player.renderY !== undefined ? player.renderY : player.y;
+
+        let cx = px * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.x;
+        let cy = py * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.y;
 
         let vx = cx - vw / 2;
         let vy = cy - vh / 2;
@@ -1352,7 +1419,8 @@
     function drawBoard() {
         updateCamera();
         
-        let fragment = document.createDocumentFragment();
+        let mapFragment = document.createDocumentFragment();
+        let entityFragment = document.createDocumentFragment();
 
         // Draw Map Tiles (Floors, Walls, and Fog)
         for(let x = camBounds.startX; x <= camBounds.endX; x++) {
@@ -1375,7 +1443,7 @@
                     rect.setAttribute("fill", tile.color || "#111");
                     rect.setAttribute("stroke", "#1a1a1a");
                 }
-                fragment.appendChild(rect);
+                mapFragment.appendChild(rect);
                 
                 if (tile.isStairsDown || tile.isStairsUp) {
                     let stair = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -1384,7 +1452,7 @@
                     stair.setAttribute("width", TILE_SIZE - 8);
                     stair.setAttribute("height", TILE_SIZE - 8);
                     stair.setAttribute("fill", tile.isStairsDown ? "purple" : "indigo");
-                    fragment.appendChild(stair);
+                    mapFragment.appendChild(stair);
                     let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
                     text.setAttribute("x", x * TILE_SIZE + TILE_SIZE / 2);
                     text.setAttribute("y", y * TILE_SIZE + TILE_SIZE / 2 + 2);
@@ -1393,7 +1461,7 @@
                     text.setAttribute("text-anchor", "middle");
                     text.setAttribute("dominant-baseline", "middle");
                     text.textContent = tile.isStairsDown ? ">" : "<";
-                    fragment.appendChild(text);
+                    mapFragment.appendChild(text);
                 }
                 
                 // Draw Fog of War
@@ -1405,10 +1473,13 @@
                     fog.setAttribute("height", TILE_SIZE + 1);
                     fog.setAttribute("fill", "rgba(0, 0, 0, 0.7)"); // Tile is definitely explored if we reach here
                     fog.setAttribute("pointer-events", "none");
-                    fragment.appendChild(fog);
+                    mapFragment.appendChild(fog);
                 }
             }
         }
+
+        let pRenderX = player.renderX !== undefined ? player.renderX : player.x;
+        let pRenderY = player.renderY !== undefined ? player.renderY : player.y;
 
         // Setup light gradient for player
         let currentVisionRange = getPlayerVisionRange();
@@ -1416,8 +1487,8 @@
         let grad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
         grad.setAttribute("id", "playerLight");
         grad.setAttribute("gradientUnits", "userSpaceOnUse");
-        let cx = player.x * TILE_SIZE + TILE_SIZE / 2;
-        let cy = player.y * TILE_SIZE + TILE_SIZE / 2;
+        let cx = pRenderX * TILE_SIZE + TILE_SIZE / 2;
+        let cy = pRenderY * TILE_SIZE + TILE_SIZE / 2;
         grad.setAttribute("cx", cx);
         grad.setAttribute("cy", cy);
         grad.setAttribute("r", currentVisionRange * TILE_SIZE);
@@ -1451,7 +1522,7 @@
         rareGrad.appendChild(rs2);
         defs.appendChild(rareGrad);
         
-        fragment.appendChild(defs);
+        mapFragment.appendChild(defs);
 
         // Draw Player Light (Raycasted)
         let pts = [];
@@ -1497,7 +1568,7 @@
         playerLight.setAttribute("points", pts.join(" "));
         playerLight.setAttribute("fill", "url(#playerLight)");
         playerLight.setAttribute("pointer-events", "none");
-        fragment.appendChild(playerLight);
+        mapFragment.appendChild(playerLight);
 
         let dustOverlay = document.getElementById('dust-overlay');
         if (debugVision) {
@@ -1527,7 +1598,7 @@
                 rect.setAttribute("height", TILE_SIZE);
                 rect.setAttribute("fill", "rgba(255, 165, 0, 0.2)");
                 rect.setAttribute("pointer-events", "none");
-                fragment.appendChild(rect);
+                mapFragment.appendChild(rect);
             });
         }
 
@@ -1551,7 +1622,7 @@
                 beam.setAttribute("height", TILE_SIZE * 2);
                 beam.setAttribute("fill", "url(#rareBeamGrad)");
                 beam.setAttribute("pointer-events", "none");
-                fragment.appendChild(beam);
+                mapFragment.appendChild(beam);
             }
 
             let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -1565,18 +1636,21 @@
                 text.setAttribute("opacity", "0.4");
             }
             text.textContent = fi.item.icon || fi.item.name.charAt(0);
-            fragment.appendChild(text);
+            mapFragment.appendChild(text);
         }
 
         // Draw debug vision
         if (debugVision) {
             // Draw enemy vision
             enemies.forEach(e => {
-                if (e.x < camBounds.startX || e.x > camBounds.endX || e.y < camBounds.startY || e.y > camBounds.endY) return;
+                let eRenderX = e.renderX !== undefined ? e.renderX : e.x;
+                let eRenderY = e.renderY !== undefined ? e.renderY : e.y;
+
+                if (eRenderX < camBounds.startX || eRenderX > camBounds.endX || eRenderY < camBounds.startY || eRenderY > camBounds.endY) return;
                 
                 let pts = [];
-                let ecx = e.x * TILE_SIZE + TILE_SIZE / 2;
-                let ecy = e.y * TILE_SIZE + TILE_SIZE / 2;
+                let ecx = eRenderX * TILE_SIZE + TILE_SIZE / 2;
+                let ecy = eRenderY * TILE_SIZE + TILE_SIZE / 2;
                 let baseAngle = Math.atan2(e.dy, e.dx);
                 pts.push(`${ecx},${ecy}`);
                 
@@ -1622,26 +1696,29 @@
                 poly.setAttribute("points", pts.join(" "));
                 poly.setAttribute("fill", "rgba(255, 0, 0, 0.15)");
                 poly.setAttribute("pointer-events", "none");
-                fragment.appendChild(poly);
+                mapFragment.appendChild(poly);
             });
         }
 
         // Draw Enemies
         enemies.forEach(e => {
-            if (e.x < camBounds.startX || e.x > camBounds.endX || e.y < camBounds.startY || e.y > camBounds.endY) return;
+            let eRenderX = e.renderX !== undefined ? e.renderX : e.x;
+            let eRenderY = e.renderY !== undefined ? e.renderY : e.y;
+
+            if (eRenderX < camBounds.startX || eRenderX > camBounds.endX || eRenderY < camBounds.startY || eRenderY > camBounds.endY) return;
             if (!mapData[e.x][e.y].isVisible && !debugVision) return;
 
             let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
             let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-            rect.setAttribute("x", e.x * TILE_SIZE + 5);
-            rect.setAttribute("y", e.y * TILE_SIZE + 5);
+            rect.setAttribute("x", eRenderX * TILE_SIZE + 5);
+            rect.setAttribute("y", eRenderY * TILE_SIZE + 5);
             rect.setAttribute("width", TILE_SIZE - 10);
             rect.setAttribute("height", TILE_SIZE - 10);
             rect.setAttribute("fill", e.type === 'Seeker' ? "orange" : "red");
             
             if (e.type === 'Seeker') {
-                rect.setAttribute("transform", `rotate(45, ${e.x * TILE_SIZE + TILE_SIZE / 2}, ${e.y * TILE_SIZE + TILE_SIZE / 2})`);
+                rect.setAttribute("transform", `rotate(45, ${eRenderX * TILE_SIZE + TILE_SIZE / 2}, ${eRenderY * TILE_SIZE + TILE_SIZE / 2})`);
             }
             
             if (e.hasLOS) {
@@ -1657,8 +1734,8 @@
             let mag = Math.hypot(e.dx, e.dy) || 1;
             let nx = e.dx / mag;
             let ny = e.dy / mag;
-            let ecx = e.x * TILE_SIZE + TILE_SIZE / 2;
-            let ecy = e.y * TILE_SIZE + TILE_SIZE / 2;
+            let ecx = eRenderX * TILE_SIZE + TILE_SIZE / 2;
+            let ecy = eRenderY * TILE_SIZE + TILE_SIZE / 2;
 
             let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
             line.setAttribute("x1", ecx);
@@ -1670,19 +1747,19 @@
             line.setAttribute("stroke-linecap", "round");
             g.appendChild(line);
 
-            fragment.appendChild(g);
+            entityFragment.appendChild(g);
         });
 
         // Draw Player (Triangle)
         let poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-        let px = player.x * TILE_SIZE;
-        let py = player.y * TILE_SIZE;
+        let px_screen = pRenderX * TILE_SIZE;
+        let py_screen = pRenderY * TILE_SIZE;
 
         if (getRareStat('flavor_ugly') > 0) {
-            poly.setAttribute("points", `${px+15},${py+10} ${px+38},${py+32} ${px+2},${py+38}`);
+            poly.setAttribute("points", `${px_screen+15},${py_screen+10} ${px_screen+38},${py_screen+32} ${px_screen+2},${py_screen+38}`);
             poly.setAttribute("fill", "#55aaaa");
         } else {
-            poly.setAttribute("points", `${px+20},${py+5} ${px+35},${py+35} ${px+5},${py+35}`);
+            poly.setAttribute("points", `${px_screen+20},${py_screen+5} ${px_screen+35},${py_screen+35} ${px_screen+5},${py_screen+35}`);
             poly.setAttribute("fill", "cyan");
         }
 
@@ -1698,9 +1775,29 @@
         }
 
         let pangle = Math.atan2(player.dy, player.dx) * 180 / Math.PI + 90;
-        poly.setAttribute("transform", `rotate(${pangle}, ${px+20}, ${py+20})`);
+        poly.setAttribute("transform", `rotate(${pangle}, ${px_screen+20}, ${py_screen+20})`);
 
-        fragment.appendChild(poly);
+        entityFragment.appendChild(poly);
+
+        let mapLayer = document.getElementById('map-layer');
+        let entityLayer = document.getElementById('entity-layer');
+        let effectLayer = document.getElementById('effect-layer');
+
+        if (!mapLayer) {
+            board.innerHTML = `
+                <g id="map-layer"></g>
+                <g id="entity-layer"></g>
+                <g id="effect-layer"></g>
+            `;
+            mapLayer = document.getElementById('map-layer');
+            entityLayer = document.getElementById('entity-layer');
+            effectLayer = document.getElementById('effect-layer');
+        }
+
+        mapLayer.innerHTML = '';
+        mapLayer.appendChild(mapFragment);
+        entityLayer.innerHTML = '';
+        entityLayer.appendChild(entityFragment);
 
         // Draw Projectiles
         projectiles.forEach(p => {
@@ -1726,9 +1823,10 @@
             circle.style.setProperty('--end-y', `${endPy}px`);
             circle.style.animation = `projAnim 0.15s linear forwards`;
 
-            fragment.appendChild(circle);
+            effectLayer.appendChild(circle);
             
             p.drawn = true;
+            setTimeout(() => { if (circle.parentNode) circle.remove(); }, 150);
         });
         
         // Draw Sound Ripples
@@ -1750,13 +1848,12 @@
                 circle.style.transformOrigin = `${snd.x * TILE_SIZE + TILE_SIZE / 2}px ${snd.y * TILE_SIZE + TILE_SIZE / 2}px`;
                 circle.style.animation = `rippleAnim 0.6s ease-out ${i * 0.2}s forwards`;
 
-                fragment.appendChild(circle);
+                effectLayer.appendChild(circle);
+                setTimeout(() => { if (circle.parentNode) circle.remove(); }, 600 + i * 200);
             }
             snd.drawn = true;
         });
 
-        board.innerHTML = '';
-        board.appendChild(fragment);
         renderUI();
     }
 
@@ -2057,7 +2154,7 @@
         updateEnemies();
         updateLOS();
         renderUI();
-        drawBoard();
+        triggerAnimation();
     }
 
     function handleRightClick(e) {
@@ -2379,7 +2476,7 @@
             goToFloor(currentFloorNum - 1, id, 'up');
             changedFloor = true;
         }
-        if (!changedFloor) drawBoard();
+        if (!changedFloor) triggerAnimation();
 
         if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring && !changedFloor) {
             emitFlavorText();
