@@ -495,7 +495,7 @@
     let gameStarted = false;
 
     let currentZoom = 1.0;
-    const MIN_ZOOM = 0.8;
+    const MIN_ZOOM = 0.3;
     const MAX_ZOOM = 2.5;
     let cameraOffset = { x: 0, y: 0 };
     let camBounds = { startX: 0, startY: 0, endX: 0, endY: 0 };
@@ -1460,13 +1460,64 @@
                 }
 
                 if (tile.isStairsDown || tile.isStairsUp) {
-                    ctx.fillStyle = tile.isStairsDown ? "purple" : "indigo";
-                    ctx.fillRect(x * TILE_SIZE + 4, y * TILE_SIZE + 4, TILE_SIZE - 8, TILE_SIZE - 8);
-                    ctx.fillStyle = "white";
-                    ctx.font = "20px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    ctx.fillText(tile.isStairsDown ? ">" : "<", x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2 + 2);
+                    let stX = x * TILE_SIZE;
+                    let stY = y * TILE_SIZE;
+                    
+                    if (tile.isStairsDown) {
+                        ctx.fillStyle = "#050505";
+                        ctx.fillRect(stX + 4, stY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        for (let s = 0; s < 5; s++) {
+                            let topW = 32 - s * 6;
+                            let botW = 32 - (s + 1) * 6;
+                            let ty = stY + 4 + s * 6;
+                            let by = ty + 6;
+                            let tx1 = stX + 20 - topW / 2;
+                            let tx2 = stX + 20 + topW / 2;
+                            let bx1 = stX + 20 - botW / 2;
+                            let bx2 = stX + 20 + botW / 2;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(tx1, ty);
+                            ctx.lineTo(tx2, ty);
+                            ctx.lineTo(bx2, by);
+                            ctx.lineTo(bx1, by);
+                            ctx.closePath();
+                            
+                            let shade = 120 - s * 20;
+                            ctx.fillStyle = `rgb(${shade + 30}, 10, 20)`;
+                            ctx.fill();
+                            
+                            ctx.fillStyle = "rgba(0,0,0,0.6)";
+                            ctx.fillRect(bx1, by - 2, botW, 2);
+                        }
+                    } else {
+                        ctx.fillStyle = "#111";
+                        ctx.fillRect(stX + 4, stY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        for (let s = 0; s < 5; s++) {
+                            let botW = 32 - s * 6;
+                            let topW = 32 - (s + 1) * 6;
+                            let by = stY + 36 - s * 6;
+                            let ty = by - 6;
+                            let bx1 = stX + 20 - botW / 2;
+                            let bx2 = stX + 20 + botW / 2;
+                            let tx1 = stX + 20 - topW / 2;
+                            let tx2 = stX + 20 + topW / 2;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(tx1, ty);
+                            ctx.lineTo(tx2, ty);
+                            ctx.lineTo(bx2, by);
+                            ctx.lineTo(bx1, by);
+                            ctx.closePath();
+                            
+                            let shade = 60 + s * 25;
+                            ctx.fillStyle = `rgb(10, ${shade}, ${shade + 50})`;
+                            ctx.fill();
+                            
+                            ctx.fillStyle = "rgba(255,255,255,0.15)";
+                            ctx.fillRect(bx1, by - 2, botW, 2);
+                        }
+                    }
                 }
                 
                 // Draw Fog of War
