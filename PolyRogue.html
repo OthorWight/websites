@@ -413,8 +413,16 @@
         <button id="shop-upgrade-btn" class="ui-btn">Upgrade</button>
 
         <div class="section-title">Copy Modifier (10 Gold)</div>
-        <select id="shop-mod-source" class="shop-select"></select>
-        <select id="shop-mod-target" class="shop-select"></select>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <select id="shop-mod-source" class="shop-select" style="margin-bottom: 0;"></select>
+            <div style="text-align: center;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="cyan" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="4" x2="12" y2="20"></line>
+                    <polyline points="18 14 12 20 6 14"></polyline>
+                </svg>
+            </div>
+            <select id="shop-mod-target" class="shop-select" style="margin-bottom: 0;"></select>
+        </div>
         <button id="shop-mod-btn" class="ui-btn">Imbue</button>
 
         <button id="close-shop-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
@@ -480,7 +488,7 @@
     let pathfindingPass = 0;
     const visitedG = new Float64Array(GRID_W * GRID_H);
     const visitedPass = new Uint32Array(GRID_W * GRID_H);
-    const enemyPositionsMap = new Uint8Array(GRID_W * GRID_H);
+    const enemyPositionsPass = new Uint32Array(GRID_W * GRID_H);
     let visibleTiles = [];
 
     let currentFloorNum = 1;
@@ -865,12 +873,18 @@
         {
             name: "Descend Stairs",
             condition: (x, y) => x === player.x && y === player.y && mapData[x][y].isStairsDown,
-            execute: (x, y) => processTurn(0, 0)
+            execute: (x, y) => {
+                let id = mapData[x][y].stairId;
+                goToFloor(currentFloorNum + 1, id, 'down');
+            }
         },
         {
             name: "Ascend Stairs",
             condition: (x, y) => x === player.x && y === player.y && mapData[x][y].isStairsUp,
-            execute: (x, y) => processTurn(0, 0)
+            execute: (x, y) => {
+                let id = mapData[x][y].stairId;
+                goToFloor(currentFloorNum - 1, id, 'up');
+            }
         },
         {
             name: "Move",
@@ -1642,9 +1656,20 @@
         }
         
         emptySpaces = emptySpaces.filter(p => Math.hypot(p.x - player.x, p.y - player.y) > 5);
-        let numEnemies = Math.floor((GRID_W * GRID_H) / Math.max(20, 60 - floorNum * 5)); 
+        let numEnemies = Math.floor((GRID_W * GRID_H) / 55); 
         let enemyDirs = [{x: 0, y: -1}, {x: 1, y: 0}, {x: 0, y: 1}, {x: -1, y: 0}];
         let scale = Math.max(0, floorNum - 1);
+
+        let sniperChance = Math.min(0.25, 0.05 * (floorNum - 1));
+        let bruteChance = Math.min(0.20, 0.05 * Math.max(0, floorNum - 2));
+        let shadeChance = Math.min(0.20, 0.05 * Math.max(0, floorNum - 1));
+        let seekerChance = Math.min(0.30, 0.01 + 0.05 * floorNum);
+
+        let threshSniper = sniperChance;
+        let threshBrute = threshSniper + bruteChance;
+        let threshShade = threshBrute + shadeChance;
+        let threshSeeker = threshShade + seekerChance;
+
         for (let i = 0; i < numEnemies; i++) {
             if (emptySpaces.length > 0) {
                 let idx = Math.floor(Math.random() * emptySpaces.length);
@@ -1653,21 +1678,18 @@
                 let hearingLevel = Math.floor(Math.random() * 4); // 0 to 3
                 
                 let roll = Math.random();
-                if (floorNum === 1) {
-                    if (roll < 0.01) enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
-                    else enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
-                } else if (floorNum === 2) {
-                    if (roll < 0.10) enemies.push({ ...enemyTemplates["Sniper"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 1, hp: enemyTemplates["Sniper"].hp + scale, damageMin: enemyTemplates["Sniper"].damageMin + scale, damageMax: enemyTemplates["Sniper"].damageMax + scale });
-                    else if (roll < 0.20) enemies.push({ ...enemyTemplates["Shade"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 3, hp: enemyTemplates["Shade"].hp + scale, damageMin: enemyTemplates["Shade"].damageMin + scale, damageMax: enemyTemplates["Shade"].damageMax + scale });
-                    else if (roll < 0.30) enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
-                    else enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
+                if (roll < threshSniper) {
+                    enemies.push({ ...enemyTemplates["Sniper"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 1, hp: enemyTemplates["Sniper"].hp + scale, damageMin: enemyTemplates["Sniper"].damageMin + scale, damageMax: enemyTemplates["Sniper"].damageMax + scale });
+                } else if (roll < threshBrute) {
+                    enemies.push({ ...enemyTemplates["Brute"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: Math.max(0, hearingLevel - 1), hp: enemyTemplates["Brute"].hp + scale * 2, damageMin: enemyTemplates["Brute"].damageMin + scale, damageMax: enemyTemplates["Brute"].damageMax + scale });
+                } else if (roll < threshShade) {
+                    enemies.push({ ...enemyTemplates["Shade"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 3, hp: enemyTemplates["Shade"].hp + scale, damageMin: enemyTemplates["Shade"].damageMin + scale, damageMax: enemyTemplates["Shade"].damageMax + scale });
+                } else if (roll < threshSeeker) {
+                    enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
                 } else {
-                    if (roll < 0.15) enemies.push({ ...enemyTemplates["Sniper"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 1, hp: enemyTemplates["Sniper"].hp + scale, damageMin: enemyTemplates["Sniper"].damageMin + scale, damageMax: enemyTemplates["Sniper"].damageMax + scale });
-                    else if (roll < 0.25) enemies.push({ ...enemyTemplates["Brute"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: Math.max(0, hearingLevel - 1), hp: enemyTemplates["Brute"].hp + scale * 2, damageMin: enemyTemplates["Brute"].damageMin + scale, damageMax: enemyTemplates["Brute"].damageMax + scale });
-                    else if (roll < 0.35) enemies.push({ ...enemyTemplates["Shade"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 3, hp: enemyTemplates["Shade"].hp + scale, damageMin: enemyTemplates["Shade"].damageMin + scale, damageMax: enemyTemplates["Shade"].damageMax + scale });
-                    else if (roll < 0.50) enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
-                    else enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
+                    enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
                 }
+
             }
         }
         initialEnemyCount = enemies.length;
@@ -2993,19 +3015,9 @@
         updateEnemies();
         updateLOS();
 
-        let changedFloor = false;
-        if (mapData[player.x][player.y].isStairsDown) {
-            let id = mapData[player.x][player.y].stairId;
-            goToFloor(currentFloorNum + 1, id, 'down');
-            changedFloor = true;
-        } else if (mapData[player.x][player.y].isStairsUp) {
-            let id = mapData[player.x][player.y].stairId;
-            goToFloor(currentFloorNum - 1, id, 'up');
-            changedFloor = true;
-        }
-        if (!changedFloor) triggerAnimation();
+        triggerAnimation();
 
-        if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring && !changedFloor) {
+        if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring) {
             emitFlavorText();
         }
     }
@@ -3025,7 +3037,13 @@
     }
 
     function updateEnemies() {
-        enemies.forEach(e => {
+        let enemyOccupied = new Int32Array(GRID_W * GRID_H);
+        enemyOccupied.fill(-1);
+        enemies.forEach((e, idx) => {
+            enemyOccupied[e.y * GRID_W + e.x] = idx;
+        });
+
+        enemies.forEach((e, idx) => {
             if (e.type === 'Brute') {
                 e.moveTick = (e.moveTick || 0) + 1;
                 if (e.moveTick % 2 === 0) return; // Skip turn (half speed)
@@ -3081,10 +3099,10 @@
                 if (e.type === 'Seeker') {
                     if (!e.wanderTarget || (e.x === e.wanderTarget.x && e.y === e.wanderTarget.y)) {
                         for (let i = 0; i < 20; i++) {
-                            let rx = Math.floor(Math.random() * GRID_W);
-                            let ry = Math.floor(Math.random() * GRID_H);
-                            if (!mapData[rx][ry].isWall) {
-                                e.wanderTarget = {x: rx, y: ry};
+                            let rx = e.x + Math.floor((Math.random() - 0.5) * 20);
+                            let ry = e.y + Math.floor((Math.random() - 0.5) * 20);
+                            if (rx > 0 && rx < GRID_W - 1 && ry > 0 && ry < GRID_H - 1 && !mapData[rx][ry].isWall) {
+                                e.wanderTarget = { x: rx, y: ry };
                                 break;
                             }
                         }
@@ -3101,27 +3119,30 @@
             }
 
             // If destination is occupied by another enemy, pick a new nearby empty point
-            if (!e.hasLOS && enemies.some(other => other !== e && other.x === targetX && other.y === targetY)) {
-                let nearby = [];
-                for (let key in keyMap) {
-                    let dx = keyMap[key].x;
-                    let dy = keyMap[key].y;
-                    if (dx === 0 && dy === 0) continue;
-                    let nx = targetX + dx;
-                    let ny = targetY + dy;
-                    if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H && !mapData[nx][ny].isWall && !enemies.some(other => other.x === nx && other.y === ny) && (nx !== player.x || ny !== player.y)) {
-                        nearby.push({x: nx, y: ny});
+            if (!e.hasLOS && targetX !== undefined && targetY !== undefined) {
+                let occ = enemyOccupied[targetY * GRID_W + targetX];
+                if (occ !== -1 && occ !== idx) {
+                    let nearby = [];
+                    for (let key in keyMap) {
+                        let dx = keyMap[key].x;
+                        let dy = keyMap[key].y;
+                        if (dx === 0 && dy === 0) continue;
+                        let nx = targetX + dx;
+                        let ny = targetY + dy;
+                        if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H && !mapData[nx][ny].isWall && enemyOccupied[ny * GRID_W + nx] === -1 && (nx !== player.x || ny !== player.y)) {
+                            nearby.push({x: nx, y: ny});
+                        }
                     }
-                }
-                if (nearby.length > 0) {
-                    let newPoint = nearby[Math.floor(Math.random() * nearby.length)];
-                    if (e.lastKnown && targetX === e.lastKnown.x && targetY === e.lastKnown.y) {
-                        e.lastKnown = newPoint;
-                    } else if (e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
-                        e.wanderTarget = newPoint;
+                    if (nearby.length > 0) {
+                        let newPoint = nearby[Math.floor(Math.random() * nearby.length)];
+                        if (e.lastKnown && targetX === e.lastKnown.x && targetY === e.lastKnown.y) {
+                            e.lastKnown = newPoint;
+                        } else if (e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
+                            e.wanderTarget = newPoint;
+                        }
+                        targetX = newPoint.x;
+                        targetY = newPoint.y;
                     }
-                    targetX = newPoint.x;
-                    targetY = newPoint.y;
                 }
             }
 
@@ -3220,10 +3241,12 @@
                     return;
                 }
 
-                if (!mapData[nextX][nextY].isWall && 
-                    !enemies.some(other => other !== e && other.x === nextX && other.y === nextY)) {
+                let nextOcc = enemyOccupied[nextY * GRID_W + nextX];
+                if (!mapData[nextX][nextY].isWall && (nextOcc === -1 || nextOcc === idx)) {
+                    enemyOccupied[e.y * GRID_W + e.x] = -1;
                     e.x = nextX;
                     e.y = nextY;
+                    enemyOccupied[e.y * GRID_W + e.x] = idx;
                 } else {
                     // Stuck! Try to move to any adjacent free tile that lowers the distance to the target
                     let bestDist = Math.hypot(targetX - e.x, targetY - e.y);
@@ -3234,7 +3257,8 @@
                         if (kdx === 0 && kdy === 0) continue;
                         let kx = e.x + kdx;
                         let ky = e.y + kdy;
-                        if (kx >= 0 && kx < GRID_W && ky >= 0 && ky < GRID_H && !mapData[kx][ky].isWall && !enemies.some(other => other !== e && other.x === kx && other.y === ky) && (kx !== player.x || ky !== player.y)) {
+                        let occ = enemyOccupied[ky * GRID_W + kx];
+                        if (kx >= 0 && kx < GRID_W && ky >= 0 && ky < GRID_H && !mapData[kx][ky].isWall && (occ === -1 || occ === idx) && (kx !== player.x || ky !== player.y)) {
                             let dist = Math.hypot(targetX - kx, targetY - ky);
                             if (dist < bestDist) {
                                 bestDist = dist;
@@ -3243,8 +3267,10 @@
                         }
                     }
                     if (bestMove) {
+                        enemyOccupied[e.y * GRID_W + e.x] = -1;
                         e.x = bestMove.x;
                         e.y = bestMove.y;
+                        enemyOccupied[e.y * GRID_W + e.x] = idx;
                     }
                 }
             } else if (e.type === 'Seeker' && e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
@@ -3413,6 +3439,7 @@
     }
 
     function findPath(startX, startY, endX, endY, pathingType = 'player') {
+        let maxNodes = pathingType === 'player' ? 50000 : 800;
         pathfindingPass++;
         let openSet = new MinHeap(n => n.f);
         openSet.push({x: startX, y: startY, parent: null, g: 0, f: 0});
@@ -3422,16 +3449,19 @@
         visitedG[startIdx] = 0;
 
         if (pathingType !== 'ignore') {
-            enemyPositionsMap.fill(0);
             for (let e of enemies) {
                 if (pathingType === 'enemy' || mapData[e.x][e.y].isVisible || debugVision) {
-                    enemyPositionsMap[e.y * GRID_W + e.x] = 1;
+                    enemyPositionsPass[e.y * GRID_W + e.x] = pathfindingPass;
                 }
             }
         }
 
+        let nodesExpanded = 0;
+
         while (!openSet.isEmpty()) {
             let current = openSet.pop();
+            nodesExpanded++;
+            if (nodesExpanded > maxNodes) return null;
             
             let currentIdx = current.y * GRID_W + current.x;
             if (visitedPass[currentIdx] === pathfindingPass && visitedG[currentIdx] < current.g - 1e-6) {
@@ -3459,7 +3489,7 @@
                 if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
                 if (mapData[nx][ny].isWall) continue;
                 let nIdx = ny * GRID_W + nx;
-                if (pathingType !== 'ignore' && enemyPositionsMap[nIdx] && !(nx === endX && ny === endY)) continue;
+                if (pathingType !== 'ignore' && enemyPositionsPass[nIdx] === pathfindingPass && !(nx === endX && ny === endY)) continue;
 
                 let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
                 let g = current.g + stepCost;
