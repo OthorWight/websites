@@ -691,8 +691,10 @@
     function getRareStat(statName) {
         let total = 0;
         for (let slot in equipment) {
-            if (equipment[slot] && (equipment[slot].rarity === 'rare' || equipment[slot].rarity === 'cursed') && equipment[slot].rareMod && equipment[slot].rareMod.stat === statName) {
-                total += equipment[slot].rareMod.value;
+            if (equipment[slot] && (equipment[slot].rarity === 'rare' || equipment[slot].rarity === 'cursed') && equipment[slot].mods) {
+                equipment[slot].mods.forEach(mod => {
+                    if (mod.stat === statName) total += mod.value;
+                });
             }
         }
         return total;
@@ -771,7 +773,7 @@
         body: null, 
         hands: null, 
         feet: null, 
-        weapon: { ...itemTemplates["Sling"], count: 1, rarity: "normal", identified: true } 
+        weapon: { ...itemTemplates["Sling"], count: 1, rarity: "normal", identified: true, baseName: "Sling" } 
     };
     const INVENTORY_CAPACITY = 16;
     
@@ -792,6 +794,7 @@
     function createItem(config, floorNum = 1) {
         let template = itemTemplates[config.name];
         let item = { ...template, count: config.count || 1 };
+        item.baseName = template.name;
         let scale = Math.max(0, floorNum - 1);
         
         if (item.damageMin !== undefined) item.damageMin += scale;
@@ -812,8 +815,8 @@
                     mod.value += (mod.value > 0 ? scale : -scale);
                     mod.desc = mod.desc.replace(Math.abs(oldVal).toString(), Math.abs(mod.value).toString());
                 }
-                item.rareMod = mod;
-                item.trueName = `${mod.name} Rare ${item.name}`; 
+                item.mods = [mod];
+                item.trueName = `${mod.name} Cursed ${item.name}`; 
                 item.name = `Rare ${item.name}`;
                 item.identified = false;
             } else if (roll < 0.10) {
@@ -825,7 +828,7 @@
                     mod.value += scale;
                     mod.desc = mod.desc.replace(Math.abs(oldVal).toString(), Math.abs(mod.value).toString());
                 }
-                item.rareMod = mod;
+                item.mods = [mod];
                 item.trueName = `${mod.name} Rare ${item.name}`; 
                 item.name = `Rare ${item.name}`;
                 item.identified = false;
@@ -1140,11 +1143,12 @@
 
         let sourceSelect = document.getElementById('shop-mod-source');
         sourceSelect.innerHTML = '';
-        let sourceItems = shopItems.filter(i => i.item.rareMod);
+        let sourceItems = shopItems.filter(i => i.item.mods && i.item.mods.length > 0);
         sourceItems.forEach((iObj, idx) => {
             let opt = document.createElement('option');
             opt.value = idx;
-            opt.textContent = `${iObj.item.name} [${iObj.item.rareMod.name}]`;
+            let modNames = iObj.item.mods.map(m => m.name).join(', ');
+            opt.textContent = `${iObj.item.name} [${modNames}]`;
             sourceSelect.appendChild(opt);
         });
 
@@ -1158,11 +1162,11 @@
 
         if (sourceSelect.value === '') return;
         
-        let sourceItems = shopItems.filter(i => i.item.rareMod);
+        let sourceItems = shopItems.filter(i => i.item.mods && i.item.mods.length > 0);
         let sourceObj = sourceItems[sourceSelect.value];
         if (!sourceObj) return;
 
-        let targetItems = shopItems.filter(i => i.item.type === sourceObj.item.type && i.item !== sourceObj.item);
+        let targetItems = shopItems.filter(i => i.item.baseName === sourceObj.item.baseName && i.item !== sourceObj.item);
         targetItems.forEach((iObj) => {
             let opt = document.createElement('option');
             opt.value = shopItems.indexOf(iObj);
@@ -1276,20 +1280,41 @@
             if (sourceIdx === '' || targetIdx === '') return;
             if (!spendGold(10)) { logMessage("Not enough gold to imbue!", "red"); playSfx('error'); return; }
 
-            let sourceItems = shopItems.filter(i => i.item.rareMod);
-            let sourceObj = sourceItems[sourceIdx].item;
-            let targetObj = shopItems[targetIdx].item;
+            let sourceItems = shopItems.filter(i => i.item.mods && i.item.mods.length > 0);
+            let sourceWrapper = sourceItems[sourceIdx];
+            let targetWrapper = shopItems[targetIdx];
+            let sourceObj = sourceWrapper.item;
+            let targetObj = targetWrapper.item;
 
-            if (!targetObj.rareMod || targetObj.rareMod.stat !== sourceObj.rareMod.stat) {
-                targetObj.rareMod = JSON.parse(JSON.stringify(sourceObj.rareMod));
-                targetObj.rarity = sourceObj.rarity;
-            } else {
-                targetObj.rareMod.value += sourceObj.rareMod.value;
-                targetObj.rareMod.desc = targetObj.rareMod.desc.replace(/-?\d+/, Math.abs(targetObj.rareMod.value));
-            }
+            if (!targetObj.mods) targetObj.mods = [];
+
+            sourceObj.mods.forEach(sMod => {
+                let existingMod = targetObj.mods.find(m => m.stat === sMod.stat);
+                if (existingMod) {
+                    existingMod.value += sMod.value;
+                    existingMod.desc = existingMod.desc.replace(/-?\d+/, Math.abs(existingMod.value));
+                } else {
+                    targetObj.mods.push(JSON.parse(JSON.stringify(sMod)));
+                }
+            });
+
+            targetObj.rarity = targetObj.mods.some(m => m.value < 0) ? 'cursed' : 'rare';
+
             let baseName = targetObj.baseName || targetObj.name.replace(/^(.*? )?(Rare|Cursed) /, '');
-            targetObj.baseName = baseName; targetObj.trueName = `${targetObj.rareMod.name} ${targetObj.rarity.charAt(0).toUpperCase() + targetObj.rarity.slice(1)} ${baseName}`; targetObj.name = targetObj.trueName; targetObj.identified = true;
-            logMessage(`Imbued ${targetObj.name} with ${sourceObj.rareMod.name}!`, "cyan");
+            targetObj.baseName = baseName;
+            let modNames = targetObj.mods.map(m => m.name).join(' ');
+            targetObj.trueName = `${modNames} ${targetObj.rarity.charAt(0).toUpperCase() + targetObj.rarity.slice(1)} ${baseName}`; 
+            targetObj.name = targetObj.trueName; 
+            targetObj.identified = true;
+            
+            if (sourceWrapper.loc === 'equip') {
+                equipment[sourceWrapper.slot] = null;
+            } else if (sourceWrapper.loc === 'inv') {
+                let currentInvIdx = inventory.indexOf(sourceObj);
+                if (currentInvIdx !== -1) inventory.splice(currentInvIdx, 1);
+            }
+
+            logMessage(`Imbued ${targetObj.name} with new modifiers and destroyed the source item!`, "cyan");
             playSfx('equip'); updateMaxHp(); renderUI(); populateShop();
         });
 
@@ -1984,12 +2009,20 @@
 
             let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && (itemFi.item.rarity === 'rare' || itemFi.item.rarity === 'cursed'));
             if (hasRare && (mapData[fi.x][fi.y].isVisible || debugVision)) {
-                let pulseY = Math.sin(performance.now() / 200) * 5;
+                triggerAnimation(); // Ensure continuous animation for the pulse effect
+
+                let now = performance.now();
+                let pulseY = Math.sin(now / 200) * 5;
+                let pulseScaleY = 0.75 + Math.sin(now / 150) * 0.25;
+                let pulseAlpha = 0.7 + Math.sin(now / 150) * 0.3;
                 ctx.save();
-                ctx.translate(fi.x * TILE_SIZE + TILE_SIZE / 2 - 4, fi.y * TILE_SIZE - TILE_SIZE * 1.5 + pulseY);
+                ctx.translate(fi.x * TILE_SIZE + TILE_SIZE / 2, fi.y * TILE_SIZE + TILE_SIZE / 2 + pulseY);
+                ctx.scale(1, pulseScaleY);
+                ctx.translate(0, -TILE_SIZE * 2);
                 ctx.globalCompositeOperation = "lighter";
+                ctx.globalAlpha = pulseAlpha;
                 ctx.fillStyle = rareBeamGrad;
-                ctx.fillRect(0, 0, 8, TILE_SIZE * 2);
+                ctx.fillRect(-4, 0, 8, TILE_SIZE * 2);
                 ctx.restore();
             }
 
@@ -2782,12 +2815,16 @@
         if (item.damageBonus) descHtml += `<br>Bonus Damage: +${item.damageBonus}`;
         if (item.healAmount) descHtml += `<br>Restores HP: ${item.healAmount}`;
         if (item.count > 1) descHtml += `<br>Quantity: ${item.count}`;
-        if (item.rarity === 'rare' && item.rareMod) {
-            descHtml += `<br><span style="color: #50fa7b;">Rare: ${item.rareMod.desc}</span>`;
+        if (item.mods) {
+            item.mods.forEach(mod => {
+                let isCursed = mod.value < 0;
+                let color = isCursed ? "#ff4444" : "#50fa7b";
+                let prefix = isCursed ? "Cursed" : "Rare";
+                descHtml += `<br><span style="color: ${color};">${prefix}: ${mod.desc}</span>`;
+            });
         }
-        if (item.rarity === 'cursed' && item.rareMod) {
-            descHtml += `<br><span style="color: #ff4444;">Cursed: ${item.rareMod.desc}</span>`;
-            if (item.curseTurns > 0) descHtml += `<br><span style="color: #ff4444;">Stuck for ${item.curseTurns} turns</span>`;
+        if (item.rarity === 'cursed' && item.curseTurns > 0) {
+            descHtml += `<br><span style="color: #ff4444;">Stuck for ${item.curseTurns} turns</span>`;
         }
         cmDesc.innerHTML = descHtml;
 
