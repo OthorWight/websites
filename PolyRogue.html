@@ -344,6 +344,36 @@
             background: cyan;
             color: #111;
         }
+        #shop-modal {
+            position: absolute;
+            background: rgba(20, 20, 20, 0.98);
+            border: 1px solid #777;
+            padding: 20px;
+            color: #fff;
+            font-family: sans-serif;
+            z-index: 200;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+            flex-direction: column;
+            gap: 10px;
+            width: 320px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #shop-modal h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: cyan;
+        }
+        .shop-select {
+            background: #111;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 5px;
+            font-family: sans-serif;
+            width: 100%;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -392,6 +422,7 @@
                 </label>
             </div>
             <button id="settings-btn" class="ui-btn">Settings</button>
+            <button id="shop-btn" class="ui-btn" style="margin-bottom: 20px;">Forge</button>
 
             <div class="section-title">Equipment</div>
             <div id="equipment-list"></div>
@@ -410,6 +441,27 @@
     </div>
 
     <div id="tooltip" style="display: none;"></div>
+
+    <div id="shop-modal" style="display: none;">
+        <h2>Forge</h2>
+        <div id="shop-gold-display" style="color: gold; margin-bottom: 15px; font-weight: bold;">Gold: 0</div>
+
+        <div class="section-title" style="margin-top: 0;">Upgrade Stat (5 Gold)</div>
+        <select id="shop-upgrade-item" class="shop-select"></select>
+        <select id="shop-upgrade-stat" class="shop-select">
+            <option value="damage">Damage (+1)</option>
+            <option value="defense">Defense (+1)</option>
+            <option value="accuracy">Accuracy (+1)</option>
+        </select>
+        <button id="shop-upgrade-btn" class="ui-btn">Upgrade</button>
+
+        <div class="section-title">Copy Modifier (10 Gold)</div>
+        <select id="shop-mod-source" class="shop-select"></select>
+        <select id="shop-mod-target" class="shop-select"></select>
+        <button id="shop-mod-btn" class="ui-btn">Imbue</button>
+
+        <button id="close-shop-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
+    </div>
 
     <div id="settings-modal" style="display: none;">
         <h2>Game Settings</h2>
@@ -794,7 +846,7 @@
         
         if (equippableTypes.includes(item.type)) {
             let roll = Math.random();
-            if (roll < 0.05) {
+            if (roll < 0.01) {
                 item.rarity = "cursed";
                 let baseMod = cursedModifiers[Math.floor(Math.random() * cursedModifiers.length)];
                 let mod = { ...baseMod };
@@ -807,7 +859,7 @@
                 item.trueName = `${mod.name} Rare ${item.name}`; 
                 item.name = `Rare ${item.name}`;
                 item.identified = false;
-            } else if (roll < 0.25) {
+            } else if (roll < 0.10) {
                 item.rarity = "rare";
                 let baseMod = rareModifiers[Math.floor(Math.random() * rareModifiers.length)];
                 let mod = { ...baseMod };
@@ -1011,6 +1063,84 @@
         osc.stop(now + config.d);
     }
 
+    // --- Shop & Forge System ---
+    function getGoldCount() {
+        let goldItem = inventory.find(i => i.name === "Gold Nugget");
+        return goldItem ? goldItem.count : 0;
+    }
+
+    function spendGold(amount) {
+        let goldItem = inventory.find(i => i.name === "Gold Nugget");
+        if (goldItem && goldItem.count >= amount) {
+            goldItem.count -= amount;
+            if (goldItem.count <= 0) {
+                inventory = inventory.filter(i => i !== goldItem);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function getAllItems() {
+        let items = [];
+        for (let slot in equipment) {
+            if (equipment[slot]) items.push({ loc: 'equip', slot: slot, item: equipment[slot] });
+        }
+        inventory.forEach((item, idx) => {
+            items.push({ loc: 'inv', index: idx, item: item });
+        });
+        return items;
+    }
+
+    let shopItems = [];
+    function populateShop() {
+        let gold = getGoldCount();
+        document.getElementById('shop-gold-display').textContent = `Gold: ${gold}`;
+
+        shopItems = getAllItems().filter(i => equippableTypes.includes(i.item.type));
+
+        let upgradeSelect = document.getElementById('shop-upgrade-item');
+        upgradeSelect.innerHTML = '';
+        shopItems.forEach((iObj, idx) => {
+            let opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = `${iObj.item.name} (${iObj.loc === 'equip' ? 'Equipped' : 'Inventory'})`;
+            upgradeSelect.appendChild(opt);
+        });
+
+        let sourceSelect = document.getElementById('shop-mod-source');
+        sourceSelect.innerHTML = '';
+        let sourceItems = shopItems.filter(i => i.item.rareMod);
+        sourceItems.forEach((iObj, idx) => {
+            let opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = `${iObj.item.name} [${iObj.item.rareMod.name}]`;
+            sourceSelect.appendChild(opt);
+        });
+
+        updateShopTargetSelect();
+    }
+
+    function updateShopTargetSelect() {
+        let sourceSelect = document.getElementById('shop-mod-source');
+        let targetSelect = document.getElementById('shop-mod-target');
+        targetSelect.innerHTML = '';
+
+        if (sourceSelect.value === '') return;
+        
+        let sourceItems = shopItems.filter(i => i.item.rareMod);
+        let sourceObj = sourceItems[sourceSelect.value];
+        if (!sourceObj) return;
+
+        let targetItems = shopItems.filter(i => i.item.type === sourceObj.item.type && i.item !== sourceObj.item);
+        targetItems.forEach((iObj) => {
+            let opt = document.createElement('option');
+            opt.value = shopItems.indexOf(iObj);
+            opt.textContent = `${iObj.item.name} (${iObj.loc === 'equip' ? 'Equipped' : 'Inventory'})`;
+            targetSelect.appendChild(opt);
+        });
+    }
+
     function init() {
         currentFloorNum = null;
         goToFloor(1, null, null);
@@ -1072,6 +1202,66 @@
         document.getElementById('setting-auto-ammo').addEventListener('change', (e) => gameSettings.autoPickupAmmo = e.target.checked);
         document.getElementById('setting-auto-gold').addEventListener('change', (e) => gameSettings.autoPickupGold = e.target.checked);
         document.getElementById('setting-auto-potion').addEventListener('change', (e) => gameSettings.autoPickupPotion = e.target.checked);
+
+        document.getElementById('shop-btn').addEventListener('click', () => {
+            populateShop();
+            document.getElementById('shop-modal').style.display = 'flex';
+        });
+        
+        document.getElementById('close-shop-btn').addEventListener('click', () => {
+            document.getElementById('shop-modal').style.display = 'none';
+        });
+
+        document.getElementById('shop-mod-source').addEventListener('change', updateShopTargetSelect);
+
+        document.getElementById('shop-upgrade-btn').addEventListener('click', () => {
+            let itemIdx = document.getElementById('shop-upgrade-item').value;
+            if (itemIdx === '') return;
+            if (!spendGold(5)) { logMessage("Not enough gold to upgrade!", "red"); playSfx('error'); return; }
+            
+            let itemObj = shopItems[itemIdx].item;
+            let stat = document.getElementById('shop-upgrade-stat').value;
+
+            if (stat === 'damage') {
+                if (itemObj.damageMin !== undefined) itemObj.damageMin++;
+                if (itemObj.damageMax !== undefined) itemObj.damageMax++;
+                if (itemObj.damageBonus !== undefined) itemObj.damageBonus++;
+                if (itemObj.damageMin === undefined && itemObj.damageMax === undefined && itemObj.damageBonus === undefined) itemObj.damageBonus = 1;
+                logMessage(`Upgraded ${itemObj.name} damage!`, "cyan");
+            } else if (stat === 'defense') {
+                if (itemObj.defense !== undefined) itemObj.defense++;
+                else itemObj.defense = 1;
+                logMessage(`Upgraded ${itemObj.name} defense!`, "cyan");
+            } else if (stat === 'accuracy') {
+                if (itemObj.accuracy !== undefined) itemObj.accuracy++;
+                else itemObj.accuracy = 1;
+                logMessage(`Upgraded ${itemObj.name} accuracy!`, "cyan");
+            }
+            playSfx('equip'); updateMaxHp(); renderUI(); populateShop();
+        });
+
+        document.getElementById('shop-mod-btn').addEventListener('click', () => {
+            let sourceIdx = document.getElementById('shop-mod-source').value;
+            let targetIdx = document.getElementById('shop-mod-target').value;
+            if (sourceIdx === '' || targetIdx === '') return;
+            if (!spendGold(10)) { logMessage("Not enough gold to imbue!", "red"); playSfx('error'); return; }
+
+            let sourceItems = shopItems.filter(i => i.item.rareMod);
+            let sourceObj = sourceItems[sourceIdx].item;
+            let targetObj = shopItems[targetIdx].item;
+
+            if (!targetObj.rareMod || targetObj.rareMod.stat !== sourceObj.rareMod.stat) {
+                targetObj.rareMod = JSON.parse(JSON.stringify(sourceObj.rareMod));
+                targetObj.rarity = sourceObj.rarity;
+            } else {
+                targetObj.rareMod.value += sourceObj.rareMod.value;
+                targetObj.rareMod.desc = targetObj.rareMod.desc.replace(/-?\d+/, Math.abs(targetObj.rareMod.value));
+            }
+            let baseName = targetObj.baseName || targetObj.name.replace(/^(.*? )?(Rare|Cursed) /, '');
+            targetObj.baseName = baseName; targetObj.trueName = `${targetObj.rareMod.name} ${targetObj.rarity.charAt(0).toUpperCase() + targetObj.rarity.slice(1)} ${baseName}`; targetObj.name = targetObj.trueName; targetObj.identified = true;
+            logMessage(`Imbued ${targetObj.name} with ${sourceObj.rareMod.name}!`, "cyan");
+            playSfx('equip'); updateMaxHp(); renderUI(); populateShop();
+        });
 
         window.addEventListener('resize', () => {
             resizeCanvas();
@@ -1440,6 +1630,11 @@
         let gBase = Math.floor(Math.random() * 150);
         let bBase = Math.floor(Math.random() * 150);
         
+        // Calculate a complementary, slightly darkened base for the walls
+        let wRBase = Math.floor((255 - rBase) * 0.5);
+        let wGBase = Math.floor((255 - gBase) * 0.5);
+        let wBBase = Math.floor((255 - bBase) * 0.5);
+        
         for (let x = 0; x < GRID_W; x++) {
             for (let y = 0; y < GRID_H; y++) {
                 let n1 = Math.sin(x * 0.6) * Math.cos(y * 0.6);
@@ -1448,9 +1643,9 @@
                 let grit = Math.random() * 12 - 6; 
                 
                 if (mapData[x][y].isWall) {
-                    let r = Math.min(255, Math.max(0, Math.floor(rBase + 40 + noise * 15 + grit)));
-                    let g = Math.min(255, Math.max(0, Math.floor(gBase + 40 + noise * 15 + grit)));
-                    let b = Math.min(255, Math.max(0, Math.floor(bBase + 40 + noise * 15 + grit)));
+                    let r = Math.min(255, Math.max(0, Math.floor(wRBase + 30 + noise * 15 + grit)));
+                    let g = Math.min(255, Math.max(0, Math.floor(wGBase + 30 + noise * 15 + grit)));
+                    let b = Math.min(255, Math.max(0, Math.floor(wBBase + 30 + noise * 15 + grit)));
                     mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
                 } else {
                     let r = Math.min(255, Math.max(0, Math.floor(rBase + noise * 10 + grit)));
