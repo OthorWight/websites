@@ -84,47 +84,6 @@
             z-index: 5;
         }
 
-        #dust-pattern {
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            right: -50%;
-            bottom: -50%;
-            font-size: 20px;
-            transform: scale(var(--dust-zoom, 1));
-            transform-origin: center;
-            background-image: 
-                radial-gradient(circle at 15% 25%, rgba(200, 220, 255, 0.25) 0.05em, transparent 0.05em),
-                radial-gradient(circle at 75% 15%, rgba(200, 220, 255, 0.2) 0.1em, transparent 0.1em),
-                radial-gradient(circle at 40% 65%, rgba(200, 220, 255, 0.15) 0.15em, transparent 0.15em),
-                radial-gradient(circle at 85% 85%, rgba(200, 220, 255, 0.1) 0.2em, transparent 0.2em),
-                radial-gradient(circle at 10% 80%, rgba(200, 220, 255, 0.08) 0.25em, transparent 0.25em),
-                radial-gradient(circle at 60% 40%, rgba(200, 220, 255, 0.05) 0.3em, transparent 0.3em);
-            background-size: 10em 10em, 18em 18em, 25em 25em, 13em 13em, 16em 16em, 21em 21em;
-            animation: dustFall 60s linear infinite;
-        }
-
-        @keyframes dustFall {
-            0% { 
-                background-position: 
-                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
-                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
-                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
-                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
-                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)), 
-                    calc(0em + var(--cam-x, 0em)) calc(0em + var(--cam-y, 0em)); 
-            }
-            100% { 
-                background-position: 
-                    calc(10em + var(--cam-x, 0em)) calc(10em + var(--cam-y, 0em)), 
-                    calc(-18em + var(--cam-x, 0em)) calc(18em + var(--cam-y, 0em)), 
-                    calc(25em + var(--cam-x, 0em)) calc(25em + var(--cam-y, 0em)), 
-                    calc(-13em + var(--cam-x, 0em)) calc(13em + var(--cam-y, 0em)), 
-                    calc(16em + var(--cam-x, 0em)) calc(-16em + var(--cam-y, 0em)), 
-                    calc(-21em + var(--cam-x, 0em)) calc(21em + var(--cam-y, 0em)); 
-            }
-        }
-
         #ui-panel {
             width: 300px;
             box-sizing: border-box;
@@ -397,9 +356,7 @@
 
     <div id="game-wrapper">
         <canvas id="game-board"></canvas>
-        <div id="dust-overlay">
-            <div id="dust-pattern"></div>
-        </div>
+        <canvas id="dust-overlay"></canvas>
         <div id="ui-panel">
             <h1>Project Poly-Rogue</h1>
             <div class="stat" id="hp-display">HP: 3 / 3</div>
@@ -883,14 +840,14 @@
         return item;
     }
 
-    // Direction mapping for QWEASDZXC
+    // Keyboard direction mapping
     const keyMap = {
         'q': {x:-1, y:-1}, 'w': {x:0, y:-1}, 'e': {x:1, y:-1},
         'a': {x:-1, y:0},  's': {x:0, y:0},  'd': {x:1, y:0},
         'z': {x:-1, y:1},  'x': {x:0, y:1},  'c': {x:1, y:1}
     };
     
-    // Easy to expand list of context menu actions
+    // Context menu actions
     const availableActions = [
         {
             name: "Wait",
@@ -1061,6 +1018,79 @@
         
         osc.start(now);
         osc.stop(now + config.d);
+    }
+
+    // --- Dust Particle System ---
+    const NUM_DUST = 250;
+    let dustParticles = [];
+    let dustCtx = null;
+
+    function initDust() {
+        let dustCanvas = document.getElementById('dust-overlay');
+        dustCtx = dustCanvas.getContext('2d');
+        for (let i = 0; i < NUM_DUST; i++) {
+            dustParticles.push({
+                x: Math.random() * 10000, 
+                y: Math.random() * 10000,
+                z: Math.random() * 0.6 + 0.7, // Depth for parallax
+                r: Math.random() * 2.5 + 1.5, // Increased base radius
+                op: Math.random() * 0.4 + 0.1, // Base Opacity
+                vx: (Math.random() - 0.5) * 15, // Drift X (pixels per sec)
+                vy: (Math.random() - 0.5) * 10 + 10, // Drift Y (mostly falling)
+                phase: Math.random() * Math.PI * 2, // Twinkle phase
+                pulseSpeed: Math.random() * 1.5 + 0.5,
+                isEmber: Math.random() > 0.95 // 5% chance to be an orange glowing ember
+            });
+        }
+        requestAnimationFrame(drawDust);
+    }
+
+    function drawDust(time) {
+        requestAnimationFrame(drawDust);
+        let dustCanvas = document.getElementById('dust-overlay');
+        if (!dustCanvas || !dustCtx) return;
+        
+        dustCtx.clearRect(0, 0, dustCanvas.width, dustCanvas.height);
+        let t = time / 1000;
+        
+        let screenW = dustCanvas.width;
+        let screenH = dustCanvas.height;
+        // Use a padded wrap domain to prevent popping when dust wraps around edges
+        let wrapW = screenW + 100;
+        let wrapH = screenH + 100;
+
+        let camWorldX = (camView.vx || 0) + (camView.vw || 0) / 2;
+        let camWorldY = (camView.vy || 0) + (camView.vh || 0) / 2;
+
+        dustParticles.forEach(p => {
+            let worldX = p.x + p.vx * t;
+            let worldY = p.y + p.vy * t;
+
+            // Correctly map parallax from the center of the camera outward
+            let screenX = (worldX - camWorldX) * p.z * currentZoom + screenW / 2;
+            let screenY = (worldY - camWorldY) * p.z * currentZoom + screenH / 2;
+
+            // Wrap with a 50px buffer on all sides so they disappear off-screen smoothly
+            let px = ((screenX % wrapW) + wrapW) % wrapW - 50;
+            let py = ((screenY % wrapH) + wrapH) % wrapH - 50;
+            let alpha = Math.max(0, Math.min(1, p.op + Math.sin(t * p.pulseSpeed + p.phase) * (p.isEmber ? 0.5 : 0.2)));
+
+            dustCtx.globalAlpha = alpha;
+            dustCtx.fillStyle = p.isEmber ? "#ffaa55" : "#c8dcff";
+            dustCtx.beginPath();
+            
+            let radius = p.r * currentZoom;
+            dustCtx.arc(px, py, radius, 0, Math.PI * 2);
+            
+            if (p.isEmber && alpha > 0.3) {
+                dustCtx.shadowBlur = 8 * currentZoom;
+                dustCtx.shadowColor = "#ffaa55";
+                dustCtx.fill();
+                dustCtx.shadowBlur = 0;
+            } else {
+                dustCtx.fill();
+            }
+        });
     }
 
     // --- Shop & Forge System ---
@@ -1267,12 +1297,20 @@
             resizeCanvas();
         });
         resizeCanvas();
+        initDust();
     }
 
     function resizeCanvas() {
         let rect = board.parentElement.getBoundingClientRect();
         board.width = rect.width - 300; // Account for UI panel width
         board.height = rect.height;
+        
+        let dustOverlay = document.getElementById('dust-overlay');
+        if (dustOverlay) {
+            dustOverlay.width = board.width;
+            dustOverlay.height = board.height;
+        }
+
         if (gameStarted) drawBoard();
     }
 
@@ -1301,13 +1339,6 @@
         camView.vy = vy;
         camView.vw = vw;
         camView.vh = vh;
-
-        let dustOffsetX = -cx / 10;
-        let dustOffsetY = -cy / 10;
-        let dustPattern = document.getElementById('dust-pattern');
-        dustPattern.style.setProperty('--dust-zoom', currentZoom);
-        dustPattern.style.setProperty('--cam-x', `${dustOffsetX}em`);
-        dustPattern.style.setProperty('--cam-y', `${dustOffsetY}em`);
     }
 
     function initMap() {
@@ -1709,54 +1740,62 @@
         ctx.scale(currentZoom, currentZoom);
         ctx.translate(-camView.vx, -camView.vy);
 
-        // Draw Map Tiles (Floors, Walls, and Fog)
+        // Draw Map Tiles (Floors and Walls)
         for(let x = camBounds.startX; x <= camBounds.endX; x++) {
             for(let y = camBounds.startY; y <= camBounds.endY; y++) {
                 let tile = mapData[x][y];
+                if (!tile.isExplored && !debugVision) continue;
 
-                if (!tile.isExplored && !debugVision) {
-                    continue; // Skip rendering completely unexplored tiles to save performance and hide floor lines
-                }
-
-                if (tile.isWall) {
-                    ctx.fillStyle = tile.color || "#555";
-                } else {
-                    ctx.fillStyle = tile.color || "#111";
-                }
-                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                ctx.fillStyle = tile.color || (tile.isWall ? "#555" : "#111");
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
                 
-                if (!tile.isWall) {
-                    ctx.strokeStyle = "#1a1a1a";
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-
-                    if (tile.decoration) {
-                        let d = tile.decoration;
-                        let tx = x * TILE_SIZE;
-                        let ty = y * TILE_SIZE;
-                        
-                        if (d.type === 'dots') {
-                            d.data.forEach(dot => {
-                                ctx.fillStyle = dot.c;
-                                ctx.fillRect(tx + dot.dx, ty + dot.dy, dot.s, dot.s);
-                            });
-                        } else if (d.type === 'crack') {
-                            ctx.strokeStyle = d.c;
-                            ctx.lineWidth = 1.5;
-                            ctx.beginPath();
-                            ctx.moveTo(tx + d.x1, ty + d.y1);
-                            ctx.lineTo(tx + d.xm, ty + d.ym);
-                            ctx.lineTo(tx + d.x2, ty + d.y2);
-                            ctx.stroke();
-                        } else if (d.type === 'stain') {
-                            ctx.fillStyle = d.c;
-                            ctx.beginPath();
-                            ctx.arc(tx + d.dx, ty + d.dy, d.r, 0, Math.PI * 2);
-                            ctx.fill();
-                        }
+                if (!tile.isWall && tile.decoration) {
+                    let d = tile.decoration;
+                    let tx = x * TILE_SIZE;
+                    let ty = y * TILE_SIZE;
+                    
+                    if (d.type === 'dots') {
+                        d.data.forEach(dot => {
+                            ctx.fillStyle = dot.c;
+                            ctx.fillRect(tx + dot.dx, ty + dot.dy, dot.s, dot.s);
+                        });
+                    } else if (d.type === 'crack') {
+                        ctx.strokeStyle = d.c;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(tx + d.x1, ty + d.y1);
+                        ctx.lineTo(tx + d.xm, ty + d.ym);
+                        ctx.lineTo(tx + d.x2, ty + d.y2);
+                        ctx.stroke();
+                    } else if (d.type === 'stain') {
+                        ctx.fillStyle = d.c;
+                        ctx.beginPath();
+                        ctx.arc(tx + d.dx, ty + d.dy, d.r, 0, Math.PI * 2);
+                        ctx.fill();
                     }
                 }
+            }
+        }
 
+        // Batch draw grid lines for floors
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+            for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                let tile = mapData[x][y];
+                if (!tile.isWall && (tile.isExplored || debugVision)) {
+                    ctx.rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+        ctx.stroke();
+
+        // Draw Stairs
+        for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+            for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                let tile = mapData[x][y];
+                if (!tile.isExplored && !debugVision) continue;
                 if (tile.isStairsDown || tile.isStairsUp) {
                     let stX = x * TILE_SIZE;
                     let stY = y * TILE_SIZE;
@@ -1817,13 +1856,22 @@
                         }
                     }
                 }
-                
-                // Draw Fog of War
-                if (!tile.isVisible && !debugVision) {
-                    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE + 1, TILE_SIZE + 1);
+            }
+        }
+
+        // Batch draw Fog of War
+        if (!debugVision) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            ctx.beginPath();
+            for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+                for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                    let tile = mapData[x][y];
+                    if (!tile.isVisible && tile.isExplored) {
+                        ctx.rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
+                    }
                 }
             }
+            ctx.fill();
         }
 
         let pRenderX = player.renderX !== undefined ? player.renderX : player.x;
@@ -1883,6 +1931,8 @@
         }
         
         if (pts.length > 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = "screen";
             ctx.beginPath();
             pts.forEach((ptStr, i) => {
                 let [px, py] = ptStr.split(',').map(Number);
@@ -1892,6 +1942,7 @@
             ctx.closePath();
             ctx.fillStyle = playerLightGrad;
             ctx.fill();
+            ctx.restore();
         }
 
         let dustOverlay = document.getElementById('dust-overlay');
@@ -1933,8 +1984,10 @@
 
             let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && (itemFi.item.rarity === 'rare' || itemFi.item.rarity === 'cursed'));
             if (hasRare && (mapData[fi.x][fi.y].isVisible || debugVision)) {
+                let pulseY = Math.sin(performance.now() / 200) * 5;
                 ctx.save();
-                ctx.translate(fi.x * TILE_SIZE + TILE_SIZE / 2 - 4, fi.y * TILE_SIZE - TILE_SIZE * 1.5);
+                ctx.translate(fi.x * TILE_SIZE + TILE_SIZE / 2 - 4, fi.y * TILE_SIZE - TILE_SIZE * 1.5 + pulseY);
+                ctx.globalCompositeOperation = "lighter";
                 ctx.fillStyle = rareBeamGrad;
                 ctx.fillRect(0, 0, 8, TILE_SIZE * 2);
                 ctx.restore();
@@ -2038,28 +2091,35 @@
                 ctx.rotate(Math.atan2(e.dy, e.dx));
             }
 
+            ctx.shadowBlur = 12;
+            ctx.lineJoin = "round";
             ctx.beginPath();
             let rectSize = TILE_SIZE - 10;
             
             if (e.type === 'Sniper') {
                 ctx.fillStyle = "purple";
+                ctx.shadowColor = "purple";
                 for(let i=0; i<6; i++) ctx.lineTo(15 * Math.cos(i * Math.PI / 3), 15 * Math.sin(i * Math.PI / 3));
                 ctx.closePath();
             } else if (e.type === 'Brute') {
                 ctx.fillStyle = "cornflowerblue";
+                ctx.shadowColor = "cornflowerblue";
                 for(let i=0; i<8; i++) ctx.lineTo(18 * Math.cos(i * Math.PI / 4 + Math.PI/8), 18 * Math.sin(i * Math.PI / 4 + Math.PI/8));
                 ctx.closePath();
             } else if (e.type === 'Shade') {
                 ctx.fillStyle = "#444";
+                ctx.shadowColor = "#444";
                 ctx.moveTo(15, 0);
                 ctx.lineTo(-10, 10);
                 ctx.lineTo(-10, -10);
                 ctx.closePath();
             } else {
                 ctx.fillStyle = e.type === 'Seeker' ? "orange" : "red";
+                ctx.shadowColor = ctx.fillStyle;
                 ctx.rect(-rectSize/2, -rectSize/2, rectSize, rectSize);
             }
             ctx.fill();
+            ctx.shadowBlur = 0; // Reset for crisp strokes
 
             if (e.hasLOS) {
                 ctx.strokeStyle = "white";
@@ -2094,21 +2154,25 @@
         ctx.translate(px_screen + 20, py_screen + 20);
         ctx.rotate(pangle);
         
-        ctx.beginPath();
+        ctx.lineJoin = "round";
+        let pColor = getRareStat('flavor_ugly') > 0 ? "#55aaaa" : "cyan";
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = pColor;
 
-        if (getRareStat('flavor_ugly') > 0) {
+        ctx.beginPath();
+        if (pColor === "#55aaaa") {
             ctx.moveTo(-5, -10);
             ctx.lineTo(18, 12);
             ctx.lineTo(-18, 18);
-            ctx.fillStyle = "#55aaaa";
         } else {
             ctx.moveTo(0, -15);
             ctx.lineTo(15, 15);
             ctx.lineTo(-15, 15);
-            ctx.fillStyle = "cyan";
         }
         ctx.closePath();
+        ctx.fillStyle = pColor;
         ctx.fill();
+        ctx.shadowBlur = 0;
 
         if (getRareStat("flavor_shiny") > 0 || getRareStat("flavor_glowing") > 0) {
             ctx.strokeStyle = "yellow";
@@ -2151,13 +2215,13 @@
         
         ctx.restore(); // Restore camera transform EARLY for screen-space distortion
 
-        // Draw Sound Ripples with screen-space refraction
+        // Draw Sound Ripples with screen-space visual warping
         turnSounds.forEach(snd => {
             if (nowTime < snd.startTime) return;
             let t = (nowTime - snd.startTime) / snd.duration;
             if (t > 1) t = 1;
 
-            let maxRadius = snd.volume * TILE_SIZE / 2;
+            let maxRadius = snd.volume * TILE_SIZE;
             let radius = maxRadius * t;
             let opacity = 0.8 * (1 - t);
 
@@ -2168,7 +2232,7 @@
             let screenCy = (cy - camView.vy) * currentZoom;
             let screenR = radius * currentZoom;
 
-            // 1. Refraction/Distortion pass
+            // Refraction/Distortion pass
             let ringWidth = TILE_SIZE * 1.5 * currentZoom * (1 - t); 
             if (screenR > 0 && ringWidth > 0) {
                 ctx.save();
@@ -2177,27 +2241,37 @@
                 ctx.arc(screenCx, screenCy, Math.max(0, screenR - ringWidth / 2), 0, Math.PI * 2, true);
                 ctx.clip();
 
-                // Bulge effect based on animation progress
                 let scaleDistort = 1.0 + 0.15 * Math.sin(t * Math.PI) * opacity; 
                 
                 ctx.translate(screenCx, screenCy);
                 ctx.scale(scaleDistort, scaleDistort);
                 ctx.translate(-screenCx, -screenCy);
                 
-                // Draw the board onto itself to displace the pixels
                 ctx.drawImage(board, 0, 0);
                 
                 ctx.restore();
             }
 
-            // 2. Color Stroke pass
+            // Color Stroke pass
             ctx.save();
+            ctx.globalCompositeOperation = "lighter";
             ctx.beginPath();
             ctx.arc(screenCx, screenCy, screenR, 0, Math.PI * 2);
             ctx.strokeStyle = snd.color;
             ctx.lineWidth = (snd.color === "orange" ? 4 : 2) * currentZoom;
             ctx.globalAlpha = opacity;
             ctx.stroke();
+            
+            // Inner echo ring
+            if (t > 0.2) {
+                let innerT = (t - 0.2) / 0.8;
+                let innerRadius = maxRadius * innerT;
+                ctx.beginPath();
+                ctx.arc(screenCx, screenCy, innerRadius * currentZoom, 0, Math.PI * 2);
+                ctx.lineWidth = 1 * currentZoom;
+                ctx.globalAlpha = opacity * 0.5;
+                ctx.stroke();
+            }
             ctx.restore();
         });
 
@@ -2989,7 +3063,7 @@
                 }
             }
 
-            // If the destination point is occupied by another enemy, pick a new nearby empty point
+            // If destination is occupied by another enemy, pick a new nearby empty point
             if (!e.hasLOS && enemies.some(other => other !== e && other.x === targetX && other.y === targetY)) {
                 let nearby = [];
                 for (let key in keyMap) {
@@ -3070,7 +3144,6 @@
                 let nextX = e.x + dx;
                 let nextY = e.y + dy;
 
-                // Attack player
                 if (nextX === player.x && nextY === player.y) {
                     if (debugGodMode) return;
 
@@ -3110,7 +3183,6 @@
                     return;
                 }
 
-                // Move if space is free
                 if (!mapData[nextX][nextY].isWall && 
                     !enemies.some(other => other !== e && other.x === nextX && other.y === nextY)) {
                     e.x = nextX;
