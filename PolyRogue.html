@@ -431,6 +431,14 @@
     <div id="settings-modal" style="display: none;">
         <h2>Game Settings</h2>
         <label class="settings-label"><input type="checkbox" id="setting-audio" checked> Enable Audio & Music</label>
+        <label class="settings-label" style="flex-direction: column; align-items: flex-start; margin-top: 5px;">
+            <span style="font-size: 0.85rem; color: #aaa;">Music Volume</span>
+            <input type="range" id="setting-bgm-volume" min="0" max="1" step="0.05" value="1" style="width: 100%; margin: 0;">
+        </label>
+        <label class="settings-label" style="flex-direction: column; align-items: flex-start; margin-bottom: 5px;">
+            <span style="font-size: 0.85rem; color: #aaa;">SFX Volume</span>
+            <input type="range" id="setting-sfx-volume" min="0" max="1" step="0.05" value="1" style="width: 100%; margin: 0;">
+        </label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-ammo" checked> Auto-Pickup Ammo</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-gold" checked> Auto-Pickup Gold</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-potion" checked> Auto-Pickup Potions</label>
@@ -623,6 +631,8 @@
 
     let gameSettings = {
         audio: true,
+        bgmVolume: 1.0,
+        sfxVolume: 1.0,
         autoPickupAmmo: true,
         autoPickupGold: true,
         autoPickupPotion: true
@@ -941,6 +951,7 @@
     let audioCtx = null;
     let bgmGain = null;
     let bgmOscillators = [];
+    let bgmTimeouts = [];
 
     function initAudio() {
         if (!audioCtx) {
@@ -954,33 +965,100 @@
 
     function startBGM() {
         if (bgmOscillators.length > 0) return;
+        
         bgmGain = audioCtx.createGain();
-        bgmGain.gain.value = 0.05;
+        bgmGain.gain.value = 0.4 * gameSettings.bgmVolume; // Master volume
         bgmGain.connect(audioCtx.destination);
 
+        // 1. Create a massive Cavern Reverb (Convolution)
+        let convolver = audioCtx.createConvolver();
+        
+        // Fetch a known good impulse response from Google Chrome Labs Web Audio Samples
+        fetch('https://googlechromelabs.github.io/web-audio-samples/samples/audio/impulse-responses/matrix-reverb2.wav')
+            .then(response => response.arrayBuffer())
+            .then(buffer => audioCtx.decodeAudioData(buffer))
+            .then(audioBuffer => {
+                if (convolver) convolver.buffer = audioBuffer;
+            })
+            .catch(e => {
+                console.warn("Failed to load external IR, falling back to synthetic reverb.");
+                let reverbLen = audioCtx.sampleRate * 4.0;
+                let impulse = audioCtx.createBuffer(2, reverbLen, audioCtx.sampleRate);
+                for (let c = 0; c < 2; c++) {
+                    let data = impulse.getChannelData(c);
+                    for (let i = 0; i < reverbLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLen, 3.0);
+                }
+                if (convolver) convolver.buffer = impulse;
+            });
+
+        // 2. Add a Low-pass filter to muffle the harsh digital tones
+        let masterFilter = audioCtx.createBiquadFilter();
+        masterFilter.type = 'lowpass';
+        masterFilter.frequency.value = 600; // Keep it dark and murky
+
+        // Route: Synths -> Filter -> Reverb -> Master Gain -> Destination
+        masterFilter.connect(convolver);
+        convolver.connect(bgmGain);
+        // Also route a dry signal to keep some clarity
+        masterFilter.connect(bgmGain);
+
+        // 3. The Deep Drone Layer (C1 & C1 slightly detuned)
         let osc1 = audioCtx.createOscillator();
-        osc1.type = 'sine';
-        osc1.frequency.value = 55;
-        osc1.connect(bgmGain);
+        osc1.type = 'sawtooth'; // Sawtooth run through a lowpass sounds like a warm synth pad
+        osc1.frequency.value = 32.70; // C1
+        let droneGain1 = audioCtx.createGain();
+        droneGain1.gain.value = 0.08;
+        osc1.connect(droneGain1);
+        droneGain1.connect(masterFilter);
         osc1.start();
         bgmOscillators.push(osc1);
 
         let osc2 = audioCtx.createOscillator();
-        osc2.type = 'triangle';
-        osc2.frequency.value = 55.5;
-        osc2.connect(bgmGain);
+        osc2.type = 'sawtooth';
+        osc2.frequency.value = 32.90; // Detuned C1 for a chorusing effect
+        let droneGain2 = audioCtx.createGain();
+        droneGain2.gain.value = 0.08;
+        osc2.connect(droneGain2);
+        droneGain2.connect(masterFilter);
         osc2.start();
         bgmOscillators.push(osc2);
 
-        let lfo = audioCtx.createOscillator();
-        lfo.type = 'sine';
-        lfo.frequency.value = 0.05;
-        let lfoGain = audioCtx.createGain();
-        lfoGain.gain.value = 0.03;
-        lfo.connect(lfoGain);
-        lfoGain.connect(bgmGain.gain);
-        lfo.start();
-        bgmOscillators.push(lfo);
+        // 4. Brian Eno-style ambient generative notes
+        // C Minor 9th chord tones: C, Eb, G, Bb, D
+        const notes = [130.81, 155.56, 196.00, 233.08, 293.66];
+        // Prime number intervals (in milliseconds) so they rarely overlap the same way
+        const intervals = [7300, 11300, 13700, 17900, 23300]; 
+
+        function playAmbientPad(freq, interval) {
+            if (bgmOscillators.length === 0) return; // Game stopped
+
+            let osc = audioCtx.createOscillator();
+            let noteGain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            
+            let now = audioCtx.currentTime;
+            // Very slow attack (4s) and release (4s)
+            noteGain.gain.setValueAtTime(0, now);
+            noteGain.gain.linearRampToValueAtTime(0.06, now + 4);
+            noteGain.gain.setValueAtTime(0.06, now + 5);
+            noteGain.gain.linearRampToValueAtTime(0, now + 9);
+            
+            osc.connect(noteGain);
+            noteGain.connect(masterFilter);
+            
+            osc.start(now);
+            osc.stop(now + 9);
+            
+            let timerId = setTimeout(() => playAmbientPad(freq, interval), interval);
+            bgmTimeouts.push(timerId);
+        }
+
+        // Start the generative note loops
+        notes.forEach((freq, index) => {
+            playAmbientPad(freq, intervals[index]);
+        });
     }
 
     function stopBGM() {
@@ -993,6 +1071,8 @@
             bgmGain.disconnect();
             bgmGain = null;
         }
+        bgmTimeouts.forEach(clearTimeout);
+        bgmTimeouts = [];
     }
 
     function playSfx(type) {
@@ -1029,7 +1109,7 @@
             else osc.frequency.exponentialRampToValueAtTime(config.f2, now + config.d);
         }
         
-        gain.gain.setValueAtTime(config.v, now);
+        gain.gain.setValueAtTime(config.v * gameSettings.sfxVolume, now);
         if (type === 'equip' || type === 'error') gain.gain.linearRampToValueAtTime(0.01, now + config.d);
         else gain.gain.exponentialRampToValueAtTime(0.01, now + config.d);
         
@@ -1246,6 +1326,15 @@
             gameSettings.audio = e.target.checked;
             if (gameSettings.audio) initAudio();
             else { stopBGM(); if (audioCtx) audioCtx.suspend(); }
+        });
+        document.getElementById('setting-bgm-volume').addEventListener('input', (e) => {
+            gameSettings.bgmVolume = parseFloat(e.target.value);
+            if (bgmGain && audioCtx) {
+                bgmGain.gain.setValueAtTime(0.4 * gameSettings.bgmVolume, audioCtx.currentTime);
+            }
+        });
+        document.getElementById('setting-sfx-volume').addEventListener('input', (e) => {
+            gameSettings.sfxVolume = parseFloat(e.target.value);
         });
         document.getElementById('setting-auto-ammo').addEventListener('change', (e) => gameSettings.autoPickupAmmo = e.target.checked);
         document.getElementById('setting-auto-gold').addEventListener('change', (e) => gameSettings.autoPickupGold = e.target.checked);
