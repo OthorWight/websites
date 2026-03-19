@@ -287,7 +287,7 @@
             border-radius: 5px;
             margin-bottom: 30px;
         }
-        #start-btn {
+        #start-btn, #continue-btn {
             padding: 15px 30px;
             font-size: 1.2rem;
             background: #111;
@@ -299,7 +299,7 @@
             font-weight: bold;
             transition: all 0.2s ease;
         }
-        #start-btn:hover {
+        #start-btn:hover, #continue-btn:hover {
             background: cyan;
             color: #111;
         }
@@ -351,6 +351,7 @@
                 <li><b>R:</b> Auto-explore the map.</li>
             </ul>
         </div>
+        <button id="continue-btn" style="display: none; margin-bottom: 15px;">Continue Game</button>
         <button id="start-btn">Start Game</button>
     </div>
 
@@ -443,6 +444,7 @@
         <label class="settings-label"><input type="checkbox" id="setting-auto-gold" checked> Auto-Pickup Gold</label>
         <label class="settings-label"><input type="checkbox" id="setting-auto-potion" checked> Auto-Pickup Potions</label>
         <button id="close-settings-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
+        <button id="save-quit-btn" class="ui-btn" style="margin-top: 5px; color: #ff4444; border-color: #ff4444;">Save & Quit</button>
     </div>
 
 <script>
@@ -527,6 +529,7 @@
     let isAutoExploring = false;
     let autoRunPath = [];
     let gameStarted = false;
+    let autoSaveTimeout = null;
 
     let currentZoom = 1.0;
     const MIN_ZOOM = 0.3;
@@ -540,6 +543,7 @@
     let audibleTiles = new Map();
     let turnSounds = [];
     let projectiles = [];
+    let floatingTexts = [];
     let devMode = false;
     let debugGodMode = false;
     let debugTeleport = false;
@@ -617,8 +621,9 @@
         let now = performance.now();
         projectiles = projectiles.filter(p => now < p.startTime + p.duration);
         turnSounds = turnSounds.filter(s => now < s.startTime + s.duration);
+        floatingTexts = floatingTexts.filter(ft => now < ft.startTime + ft.duration);
 
-        if (projectiles.length > 0 || turnSounds.length > 0) needsRedraw = true;
+        if (projectiles.length > 0 || turnSounds.length > 0 || floatingTexts.length > 0) needsRedraw = true;
 
         if (needsRedraw) {
             drawBoard();
@@ -627,6 +632,18 @@
             isAnimating = false;
             drawBoard(); // snap exact integer positioning
         }
+    }
+
+    function addFloatingText(x, y, text, color = "white") {
+        floatingTexts.push({
+            x: x,
+            y: y,
+            text: text,
+            color: color,
+            startTime: performance.now(),
+            duration: 1000 // 1 second float time
+        });
+        triggerAnimation();
     }
 
     let gameSettings = {
@@ -782,6 +799,7 @@
         renderUI();
         drawBoard();
         if (floorNum > 1 || direction !== null) logMessage(`Arrived at Floor ${currentFloorNum}.`, "cyan");
+        requestAutoSave();
     }
 
     // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
@@ -1059,6 +1077,43 @@
         notes.forEach((freq, index) => {
             playAmbientPad(freq, intervals[index]);
         });
+
+        // 5. Suspenseful eerie high notes (Tritone & minor 2nd intervals)
+        // F#4 (tritone), C5 (octave), Db5 (minor 9th)
+        const suspenseNotes = [369.99, 523.25, 554.37];
+        const suspenseIntervals = [29300, 37900, 43100]; // Very long, unpredictable intervals
+
+        function playSuspenseNote(freq, interval) {
+            if (bgmOscillators.length === 0) return; // Game stopped
+
+            let osc = audioCtx.createOscillator();
+            let noteGain = audioCtx.createGain();
+            
+            osc.type = 'triangle'; // Slightly more harmonic presence
+            // Slight pitch modulation for an eerie detuned effect
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(freq - 2, audioCtx.currentTime + 8);
+            
+            let now = audioCtx.currentTime;
+            noteGain.gain.setValueAtTime(0, now);
+            noteGain.gain.linearRampToValueAtTime(0.03, now + 3);
+            noteGain.gain.setValueAtTime(0.03, now + 4);
+            noteGain.gain.linearRampToValueAtTime(0, now + 8);
+            
+            osc.connect(noteGain);
+            noteGain.connect(masterFilter); // Still filtered so it doesn't pierce the ears
+            
+            osc.start(now);
+            osc.stop(now + 8);
+            
+            let timerId = setTimeout(() => playSuspenseNote(freq, interval), interval);
+            bgmTimeouts.push(timerId);
+        }
+
+        // Start the suspense notes
+        suspenseNotes.forEach((freq, index) => {
+            playSuspenseNote(freq, suspenseIntervals[index]);
+        });
     }
 
     function stopBGM() {
@@ -1269,7 +1324,75 @@
         });
     }
 
+    function saveGame(silent = false) {
+        saveCurrentFloor(); // Ensure the current floor's latest state is in the 'levels' map
+        const saveData = {
+            player,
+            equipment,
+            inventory,
+            gameSettings,
+            currentFloorNum,
+            levels,
+            initialEnemyCount
+        };
+        localStorage.setItem('polyRogueSave', JSON.stringify(saveData));
+        if (!silent) logMessage("Game saved.", "cyan");
+    }
+
+    function requestAutoSave() {
+        if (player.hp > 0 && gameStarted) {
+            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => saveGame(true), 500); // Wait 500ms after last action
+        }
+    }
+
+    function loadGame() {
+        const saved = localStorage.getItem('polyRogueSave');
+        if (!saved) return false;
+        try {
+            const data = JSON.parse(saved);
+            player = data.player;
+            equipment = data.equipment;
+            inventory = data.inventory;
+            gameSettings = data.gameSettings || gameSettings;
+            currentFloorNum = data.currentFloorNum;
+            levels = data.levels;
+            initialEnemyCount = data.initialEnemyCount;
+            
+            let level = levels[currentFloorNum];
+            mapData = level.mapData;
+            enemies = level.enemies;
+            floorItems = level.floorItems;
+            
+            projectiles = [];
+            turnSounds = [];
+            floatingTexts = [];
+            isAutoRunning = false;
+            isAutoExploring = false;
+            
+            // Restore render coordinates to prevent panning jump
+            player.renderX = player.x;
+            player.renderY = player.y;
+            enemies.forEach(e => { e.renderX = e.x; e.renderY = e.y; });
+            
+            document.getElementById('floor-display').textContent = `Floor: ${currentFloorNum}`;
+            updateMaxHp();
+            updateLOS();
+            renderUI();
+            drawBoard();
+            return true;
+        } catch (e) {
+            console.error("Save file corrupted", e);
+            return false;
+        }
+    }
+
     function init() {
+        if (localStorage.getItem('polyRogueSave')) {
+            document.getElementById('continue-btn').style.display = 'inline-block';
+            document.getElementById('start-btn').textContent = 'New Game';
+        }
+
         currentFloorNum = null;
         goToFloor(1, null, null);
         
@@ -1280,6 +1403,17 @@
                 initAudio();
             }
             drawBoard();
+        });
+
+        document.getElementById('continue-btn').addEventListener('click', () => {
+            if (loadGame()) {
+                document.getElementById('start-screen').style.display = 'none';
+                gameStarted = true;
+                if (gameSettings.audio && !audioCtx) initAudio();
+                updateSettingsUI();
+                logMessage("Game loaded successfully.", "cyan");
+                drawBoard();
+            }
         });
 
         document.addEventListener('keydown', handleInput);
@@ -1322,6 +1456,10 @@
         document.getElementById('close-settings-btn').addEventListener('click', () => {
             document.getElementById('settings-modal').style.display = 'none';
         });
+        document.getElementById('save-quit-btn').addEventListener('click', () => {
+            if (player.hp > 0) saveGame();
+            location.reload(); 
+        });
         document.getElementById('setting-audio').addEventListener('change', (e) => {
             gameSettings.audio = e.target.checked;
             if (gameSettings.audio) initAudio();
@@ -1339,6 +1477,15 @@
         document.getElementById('setting-auto-ammo').addEventListener('change', (e) => gameSettings.autoPickupAmmo = e.target.checked);
         document.getElementById('setting-auto-gold').addEventListener('change', (e) => gameSettings.autoPickupGold = e.target.checked);
         document.getElementById('setting-auto-potion').addEventListener('change', (e) => gameSettings.autoPickupPotion = e.target.checked);
+
+        function updateSettingsUI() {
+            document.getElementById('setting-audio').checked = gameSettings.audio;
+            document.getElementById('setting-bgm-volume').value = gameSettings.bgmVolume;
+            document.getElementById('setting-sfx-volume').value = gameSettings.sfxVolume;
+            document.getElementById('setting-auto-ammo').checked = gameSettings.autoPickupAmmo;
+            document.getElementById('setting-auto-gold').checked = gameSettings.autoPickupGold;
+            document.getElementById('setting-auto-potion').checked = gameSettings.autoPickupPotion;
+        }
 
         document.getElementById('shop-btn').addEventListener('click', () => {
             populateShop();
@@ -2419,6 +2566,30 @@
             ctx.restore();
         });
 
+        // Draw Floating Combat Text
+        ctx.save();
+        ctx.scale(currentZoom, currentZoom);
+        ctx.translate(-camView.vx, -camView.vy);
+        
+        floatingTexts.forEach(ft => {
+            let t = (nowTime - ft.startTime) / ft.duration;
+            if (t > 1) t = 1;
+            let worldX = ft.x * TILE_SIZE + TILE_SIZE / 2;
+            let worldY = ft.y * TILE_SIZE + TILE_SIZE / 2 - (t * TILE_SIZE); // float up 1 tile
+            let opacity = 1 - Math.pow(t, 2);
+
+            ctx.globalAlpha = opacity;
+            ctx.fillStyle = ft.color;
+            ctx.strokeStyle = "rgba(0,0,0,0.8)";
+            ctx.lineWidth = 4;
+            ctx.font = "bold 24px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.strokeText(ft.text, worldX, worldY);
+            ctx.fillText(ft.text, worldX, worldY);
+        });
+        ctx.restore();
+
         renderUI();
     }
 
@@ -2749,6 +2920,7 @@
                 logMessage(`Fired ${wpn.ammoType} at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
                 turnSounds.push({ x: x, y: y, volume: 4, color: "white", startTime: now, duration: 600 });
                 turnSounds.push({ x: x, y: y, volume: 4, color: "white", startTime: now + 200, duration: 600 });
+                addFloatingText(x, y, "Miss", "#aaa");
                 setTimeout(() => playSfx('miss'), 100);
             } else {
                 let damage = calculatePlayerDamage(wpn, enemy, true);
@@ -2757,6 +2929,7 @@
                 logMessage(`Fired ${wpn.ammoType} at ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
                 turnSounds.push({ x: x, y: y, volume: 8, color: "white", startTime: now, duration: 600 });
                 turnSounds.push({ x: x, y: y, volume: 8, color: "white", startTime: now + 200, duration: 600 });
+                addFloatingText(x, y, damage.toString(), "white");
                 setTimeout(() => playSfx('hit'), 100);
                 if (enemy.hp <= 0) {
                     dropLoot(x, y, 0.75); // 75% chance to recover ammo on ranged kill
@@ -2766,6 +2939,7 @@
                     if (heal > 0) {
                         player.hp = Math.min(player.maxHp, player.hp + heal);
                         logMessage(`Vampiric strike healed you for ${heal} HP.`);
+                        addFloatingText(player.x, player.y, "+" + heal, "#50fa7b");
                     }
                 }
             }
@@ -3035,6 +3209,7 @@
                     logMessage(`Struck at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
                     turnSounds.push({ x: newX, y: newY, volume: 4, color: "white", startTime: now, duration: 600 });
                     turnSounds.push({ x: newX, y: newY, volume: 4, color: "white", startTime: now + 200, duration: 600 });
+                    addFloatingText(newX, newY, "Miss", "#aaa");
                     playSfx('miss');
                 } else {
                     let damage = calculatePlayerDamage(wpn, enemy, false);
@@ -3043,6 +3218,7 @@
                     logMessage(`Struck ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
                     turnSounds.push({ x: newX, y: newY, volume: 8, color: "white", startTime: now, duration: 600 });
                     turnSounds.push({ x: newX, y: newY, volume: 8, color: "white", startTime: now + 200, duration: 600 });
+                    addFloatingText(newX, newY, damage.toString(), "white");
                     playSfx('hit');
                     if (enemy.hp <= 0) {
                         dropLoot(newX, newY, 0.05); // 5% chance to find ammo on melee kill
@@ -3052,6 +3228,7 @@
                         if (heal > 0) {
                             player.hp = Math.min(player.maxHp, player.hp + heal);
                             logMessage(`Vampiric strike healed you for ${heal} HP.`);
+                            addFloatingText(player.x, player.y, "+" + heal, "#50fa7b");
                         }
                     }
                 }
@@ -3108,6 +3285,11 @@
 
         if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring) {
             emitFlavorText();
+        }
+        
+        // Auto-save silently at the end of the turn
+        if (!isAutoRunning && !isAutoExploring) {
+            requestAutoSave();
         }
     }
 
@@ -3257,6 +3439,7 @@
                     
                     setTimeout(() => {
                         player.hp -= actualDamage;
+                        addFloatingText(player.x, player.y, actualDamage > 0 ? actualDamage.toString() : "Block", actualDamage > 0 ? "#ff4444" : "#aaa");
                         if (actualDamage > 0) {
                             logMessage(`A Sniper shot you for ${actualDamage} damage! HP left: ${player.hp}`);
                             playSfx('player_hurt');
@@ -3264,7 +3447,10 @@
                             logMessage(`A Sniper shot hit you, but your armor blocked it!`);
                             playSfx('equip');
                         }
-                        if (player.hp <= 0) logMessage("CRITICAL FAILURE. Run ended.");
+                        if (player.hp <= 0) {
+                            logMessage("CRITICAL FAILURE. Run ended.");
+                            localStorage.removeItem('polyRogueSave');
+                        }
                         renderUI();
                     }, 150);
                     return; // Turn ends here
@@ -3297,6 +3483,7 @@
                     let dodgeChance = getRareStat('dodge');
                     if (Math.random() < dodgeChance) {
                         logMessage(`A ${e.type} tried to strike you, but you dodged!`);
+                        addFloatingText(player.x, player.y, "Dodge", "#aaa");
                         playSfx('miss');
                         return;
                     }
@@ -3313,6 +3500,7 @@
                     let actualDamage = Math.max(0, baseDamage - defense);
                     
                     player.hp -= actualDamage;
+                    addFloatingText(player.x, player.y, actualDamage > 0 ? actualDamage.toString() : "Block", actualDamage > 0 ? "#ff4444" : "#aaa");
                     if (actualDamage > 0) {
                         logMessage(`A ${e.type} struck you for ${actualDamage} damage! HP left: ${player.hp}`);
                         playSfx('player_hurt');
@@ -3326,6 +3514,7 @@
                     }
                     if (player.hp <= 0) {
                         logMessage("CRITICAL FAILURE. Run ended.");
+                        localStorage.removeItem('polyRogueSave');
                     }
                     return;
                 }
@@ -3624,6 +3813,7 @@
             isAutoRunning = false;
             isAutoExploring = false;
             autoRunPath = [];
+            requestAutoSave();
             return;
         }
 
@@ -3633,6 +3823,8 @@
             isAutoRunning = false;
             if (isAutoExploring) {
                 setTimeout(triggerAutoExplore, 50);
+            } else {
+                requestAutoSave();
             }
         }
     }
@@ -3812,6 +4004,7 @@
             let heal = item.healAmount || 1;
             player.hp = Math.min(player.maxHp, player.hp + heal);
             logMessage(`Drank ${item.name}. Recovered ${heal} HP.`);
+            addFloatingText(player.x, player.y, "+" + heal, "#50fa7b");
             playSfx('potion');
             if (item.count > 1) item.count--;
             else inventory.splice(index, 1);
