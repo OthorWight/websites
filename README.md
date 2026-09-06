@@ -15,3 +15,16 @@ Or
 3. Your default browser will open the main page automatically.
 
 Enjoy!
+
+## Storyteller’s Grimoire
+
+Open `BOTC-StorytellersGrimoire.html` directly, or use the local server above. The Grimoire works offline and includes a September 6, 2026 snapshot of 181 characters, night order, reminder labels, and 131 jinxes from the [official Blood on the Clocktower script tool](https://script.bloodontheclocktower.com/).
+
+- Choose a base script, build a custom script, or import an official script JSON file. Homebrew character definitions are not supported.
+- Click an empty seat to assign a character, or drag a character from the library. Add Travellers separately; Fabled and Loric characters belong under Special rules.
+- Use **Manage** for alignment, seat order, conditions, private notes, and shown or gained characters. Changing an assigned character preserves its alignment; adjust alignment explicitly when needed.
+- Click a character’s reminder to choose its target, or drag it onto a seat. Click a placed reminder to remove it.
+- Track deaths, remaining dead votes, phases, and night actions. Setup counts show the base distribution before character modifiers. Conditional actions and rules remain the Storyteller’s responsibility.
+- Changes save in this browser. Use **Save game** for a JSON backup and **Import** to restore it. **Undo** reverses recent changes; **Hide grimoire** covers the table when sharing a screen.
+
+Run the Grimoire regression checks with `node --test tests/botc-grimoire.test.cjs` (no packages required).
