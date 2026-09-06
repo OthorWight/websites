@@ -1,0 +1,4143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Project Poly-Rogue Prototype</title>
+    <style>
+        /* ==========================================================================
+        GAME DESIGN DOCUMENT: PROJECT POLY-ROGUE
+        =============================================================================
+        Overview:
+        A browser-based, turn-based roguelike utilizing crisp, minimalist SVG geometry. 
+        Instant load times, clean modern aesthetic, no ASCII, no complex pixel art.
+
+        1. Visual Style & Interface:
+        - Player: Glowing cyan Triangle (rotates based on movement direction).
+        - Enemies: Red polygons with facing indicators (e.g., Red Square for Sentries).
+        - Environment: Minimalist grid lines, solid gray walls, true Line of Sight (LoS) fog of war.
+        - Context Menus: Right-clicking opens an info/action panel (move, attack, auto-walk, pick up, equip, use).
+        - UI Panel: Side panel tracking HP, Floor, Action Log, Equipment slots, and a 16-slot Inventory grid. Tooltips for items.
+
+        2. Core Game Loop:
+        - Turn-based: Time moves only when the player takes an action.
+        - Explore -> Assess -> Execute -> Advance -> Upgrade.
+
+        3. Mechanics & Controls:
+        - Movement: 8-way directional (orthogonal + diagonal).
+        - Auto-Run: Left-clicking a distant tile (or using Context Menu) auto-walks the player, halting automatically if an enemy is spotted.
+        - Combat: Bump-to-attack. HP system for player and enemies.
+        - Stealth & Senses: Player emits noise based on distance and stealth stats. Enemies investigate noises or chase if player enters their vision cone/LoS.
+        - Controls (Mouse): Left-click adjacent tile/enemy to move/attack. Left-click far tile to auto-run. Right-click for Context Menu. Scroll wheel to zoom.
+        - Controls (Keyboard): QWEASDZXC for movement. 'V' and 'H' for debug vision/hearing toggles.
+
+        4. Inventory & Equipment:
+        - Slots: Head, Body, Hands, Feet, Weapon.
+        - Stats: Items can grant Damage, Defense, and Stealth modifiers.
+        - Consumables & Loot: Potions for healing, Gold for currency, stackable items. Floor loot represented by icons.
+
+        5. Enemy Roster (Prototype):
+        - Sentry (Red Square): Stands still until it hears/spots the player, then chases. 
+          Uses 8-way pathfinding. Has individual hearing levels and HP stats.
+
+        6. World Generation:
+        - Procedural generation: Carves rooms and corridors, removes dead-ends, adds loops, and scatters loot/enemies.
+        - Fog of War: Explored areas remain dim, active vision uses raycasting.
+
+        7. Goals:
+        - Survive, clear enemies, collect loot, reach the warp portal (TBD).
+        =============================================================================
+        */
+
+        body {
+            background-color: #111;
+            color: #eee;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #game-wrapper {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas#game-board {
+            flex-grow: 1;
+            height: 100%;
+            background-color: #000;
+            cursor: crosshair;
+            display: block;
+        }
+
+        #dust-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 300px; /* Leave space for the UI panel */
+            bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #ui-panel {
+            width: 300px;
+            box-sizing: border-box;
+            background: #222;
+            padding: 20px;
+            border: none;
+            border-left: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 { font-size: 1.2rem; color: cyan; margin-top: 0; }
+        .stat { font-size: 1.1rem; margin-bottom: 10px; }
+        
+        #log {
+            flex-grow: 1;
+            background: #111;
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 0.9rem;
+            color: #aaa;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #context-menu {
+            position: absolute;
+            background: rgba(30, 30, 30, 0.95);
+            border: 1px solid #777;
+            padding: 15px;
+            color: #fff;
+            font-family: sans-serif;
+            font-size: 0.9rem;
+            z-index: 10;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .menu-title { font-weight: bold; margin-bottom: 5px; color: cyan; }
+
+        .section-title {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .ui-btn {
+            background: #111;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+        .ui-btn:hover {
+            border-color: cyan;
+            color: cyan;
+        }
+
+        .equipment-slot, .inventory-slot {
+            background: #111;
+            border: 1px solid #444;
+            padding: 5px;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+            color: #ccc;
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .equipment-slot:hover {
+            border-color: cyan;
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .inventory-slot {
+            aspect-ratio: 1 / 1;
+            margin-bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .inventory-slot:hover {
+            border-color: cyan;
+        }
+
+        .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 0.7rem;
+            color: cyan;
+            font-weight: bold;
+            text-shadow: none;
+        }
+        
+        #cm-actions {
+            list-style-type: none;
+            padding: 0;
+            margin: 10px 0 0 0;
+            border-top: 1px solid #555;
+            padding-top: 5px;
+        }
+        #cm-actions li {
+            padding: 5px;
+            cursor: pointer;
+        }
+        #cm-actions li:hover {
+            background: #444;
+            color: cyan;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid #777;
+            padding: 5px 10px;
+            color: #fff;
+            font-family: sans-serif;
+            font-size: 0.85rem;
+            z-index: 100;
+            pointer-events: none;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+            white-space: nowrap;
+        }
+
+        #settings-modal {
+            position: absolute;
+            background: rgba(20, 20, 20, 0.98);
+            border: 1px solid #777;
+            padding: 20px;
+            color: #fff;
+            font-family: sans-serif;
+            z-index: 200;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 250px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #settings-modal h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            color: cyan;
+        }
+        .settings-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 10, 10, 0.95);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #eee;
+        }
+        #start-screen h1 {
+            font-size: 3rem;
+            color: cyan;
+            margin-bottom: 20px;
+        }
+        #start-screen .intro-text {
+            max-width: 600px;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+        #start-screen .controls-list {
+            text-align: left;
+            background: #222;
+            padding: 20px;
+            border: 1px solid #444;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        #start-btn, #continue-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background: #111;
+            color: cyan;
+            border: 2px solid cyan;
+            cursor: pointer;
+            border-radius: 5px;
+            text-transform: uppercase;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        #start-btn:hover, #continue-btn:hover {
+            background: cyan;
+            color: #111;
+        }
+        #shop-modal {
+            position: absolute;
+            background: rgba(20, 20, 20, 0.98);
+            border: 1px solid #777;
+            padding: 20px;
+            color: #fff;
+            font-family: sans-serif;
+            z-index: 200;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+            flex-direction: column;
+            gap: 10px;
+            width: 320px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #shop-modal h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: cyan;
+        }
+        .shop-select {
+            background: #111;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 5px;
+            font-family: sans-serif;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <h1>Project Poly-Rogue</h1>
+        <div class="intro-text">
+            You are a glowing geometry of hope descending into the darkened facility.<br>
+            Survive, explore, and scavenge equipment to delve deeper into the procedural depths.
+        </div>
+        <div class="controls-list">
+            <h3 style="color: cyan; margin-top: 0;">Controls</h3>
+            <ul style="margin-bottom: 0; padding-left: 20px;">
+                <li><b>Mouse:</b> Left-click to move/attack. Left-click far away to auto-run. Right-click for context menu. Scroll to zoom.</li>
+                <li><b>Keyboard:</b> Q,W,E,A,S,D,Z,X,C for 8-way movement. Arrow keys to pan camera.</li>
+                <li><b>R:</b> Auto-explore the map.</li>
+            </ul>
+        </div>
+        <button id="continue-btn" style="display: none; margin-bottom: 15px;">Continue Game</button>
+        <button id="start-btn">Start Game</button>
+    </div>
+
+    <div id="game-wrapper">
+        <canvas id="game-board"></canvas>
+        <canvas id="dust-overlay"></canvas>
+        <div id="ui-panel">
+            <h1>Project Poly-Rogue</h1>
+            <div class="stat" id="hp-display">HP: 3 / 3</div>
+            <div class="stat" id="floor-display">Floor: 1</div>
+            <div id="debug-controls" style="display: none; margin-bottom: 10px;">
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc;">
+                    <input type="checkbox" id="debug-vision-toggle"> Show Vision (V)
+                </label>
+                <br>
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
+                    <input type="checkbox" id="debug-hearing-toggle"> Show Hearing (H)
+                </label>
+                <br>
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
+                    <input type="checkbox" id="debug-god-toggle"> God Mode
+                </label>
+                <br>
+                <label style="cursor: pointer; font-size: 0.9rem; color: #ccc; margin-top: 5px; display: inline-block;">
+                    <input type="checkbox" id="debug-teleport-toggle"> Teleport Click
+                </label>
+            </div>
+            <button id="settings-btn" class="ui-btn">Settings</button>
+            <button id="shop-btn" class="ui-btn" style="margin-bottom: 20px;">Forge</button>
+
+            <div class="section-title">Equipment</div>
+            <div id="equipment-list"></div>
+
+            <div class="section-title">Inventory</div>
+            <div id="inventory-grid" class="inventory-grid"></div>
+
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <div id="context-menu" style="display: none;">
+        <div class="menu-title" id="cm-title">Name</div>
+        <div id="cm-desc">Description</div>
+        <ul id="cm-actions"></ul>
+    </div>
+
+    <div id="tooltip" style="display: none;"></div>
+
+    <div id="shop-modal" style="display: none;">
+        <h2>Forge</h2>
+        <div id="shop-gold-display" style="color: gold; margin-bottom: 15px; font-weight: bold;">Gold: 0</div>
+
+        <div class="section-title" style="margin-top: 0;">Upgrade Stat (5 Gold)</div>
+        <select id="shop-upgrade-item" class="shop-select"></select>
+        <select id="shop-upgrade-stat" class="shop-select">
+            <option value="damage">Damage (+1)</option>
+            <option value="defense">Defense (+1)</option>
+            <option value="accuracy">Accuracy (+1)</option>
+        </select>
+        <button id="shop-upgrade-btn" class="ui-btn">Upgrade</button>
+
+        <div class="section-title">Copy Modifier (10 Gold)</div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            <select id="shop-mod-source" class="shop-select" style="margin-bottom: 0;"></select>
+            <div style="text-align: center;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="cyan" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="4" x2="12" y2="20"></line>
+                    <polyline points="18 14 12 20 6 14"></polyline>
+                </svg>
+            </div>
+            <select id="shop-mod-target" class="shop-select" style="margin-bottom: 0;"></select>
+        </div>
+        <button id="shop-mod-btn" class="ui-btn">Imbue</button>
+
+        <button id="close-shop-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
+    </div>
+
+    <div id="settings-modal" style="display: none;">
+        <h2>Game Settings</h2>
+        <label class="settings-label"><input type="checkbox" id="setting-audio" checked> Enable Audio & Music</label>
+        <label class="settings-label" style="flex-direction: column; align-items: flex-start; margin-top: 5px;">
+            <span style="font-size: 0.85rem; color: #aaa;">Music Volume</span>
+            <input type="range" id="setting-bgm-volume" min="0" max="1" step="0.05" value="1" style="width: 100%; margin: 0;">
+        </label>
+        <label class="settings-label" style="flex-direction: column; align-items: flex-start; margin-bottom: 5px;">
+            <span style="font-size: 0.85rem; color: #aaa;">SFX Volume</span>
+            <input type="range" id="setting-sfx-volume" min="0" max="1" step="0.05" value="1" style="width: 100%; margin: 0;">
+        </label>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-ammo" checked> Auto-Pickup Ammo</label>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-gold" checked> Auto-Pickup Gold</label>
+        <label class="settings-label"><input type="checkbox" id="setting-auto-potion" checked> Auto-Pickup Potions</label>
+        <button id="close-settings-btn" class="ui-btn" style="margin-top: 15px;">Close</button>
+        <button id="save-quit-btn" class="ui-btn" style="margin-top: 5px; color: #ff4444; border-color: #ff4444;">Save & Quit</button>
+    </div>
+
+<script>
+    class MinHeap {
+        constructor(scoreFn = node => node.f) {
+            this.heap = [];
+            this.scoreFn = scoreFn;
+        }
+        push(node) {
+            this.heap.push(node);
+            this.bubbleUp(this.heap.length - 1);
+        }
+        pop() {
+            if (this.heap.length === 0) return null;
+            if (this.heap.length === 1) return this.heap.pop();
+            const top = this.heap[0];
+            this.heap[0] = this.heap.pop();
+            this.sinkDown(0);
+            return top;
+        }
+        bubbleUp(idx) {
+            while (idx > 0) {
+                let parentIdx = Math.floor((idx - 1) / 2);
+                if (this.scoreFn(this.heap[idx]) >= this.scoreFn(this.heap[parentIdx])) break;
+                [this.heap[idx], this.heap[parentIdx]] = [this.heap[parentIdx], this.heap[idx]];
+                idx = parentIdx;
+            }
+        }
+        sinkDown(idx) {
+            const len = this.heap.length;
+            while (true) {
+                let left = 2 * idx + 1;
+                let right = 2 * idx + 2;
+                let smallest = idx;
+                if (left < len && this.scoreFn(this.heap[left]) < this.scoreFn(this.heap[smallest])) smallest = left;
+                if (right < len && this.scoreFn(this.heap[right]) < this.scoreFn(this.heap[smallest])) smallest = right;
+                if (smallest === idx) break;
+                [this.heap[idx], this.heap[smallest]] = [this.heap[smallest], this.heap[idx]];
+                idx = smallest;
+            }
+        }
+        isEmpty() {
+            return this.heap.length === 0;
+        }
+    }
+
+    const TILE_SIZE = 40;
+    const GRID_W = 200;
+    const GRID_H = 200;
+
+    let pathfindingPass = 0;
+    const visitedG = new Float64Array(GRID_W * GRID_H);
+    const visitedPass = new Uint32Array(GRID_W * GRID_H);
+    const enemyPositionsPass = new Uint32Array(GRID_W * GRID_H);
+    let visibleTiles = [];
+
+    let currentFloorNum = 1;
+    let levels = {};
+    
+    const board = document.getElementById('game-board');
+    const ctx = board.getContext('2d');
+    const logEl = document.getElementById('log');
+    const hpEl = document.getElementById('hp-display');
+    const debugToggleEl = document.getElementById('debug-vision-toggle');
+    const debugHearingToggleEl = document.getElementById('debug-hearing-toggle');
+    const debugGodToggleEl = document.getElementById('debug-god-toggle');
+    const debugTeleportToggleEl = document.getElementById('debug-teleport-toggle');
+    const equipmentListEl = document.getElementById('equipment-list');
+    const inventoryGridEl = document.getElementById('inventory-grid');
+    const contextMenu = document.getElementById('context-menu');
+    const cmTitle = document.getElementById('cm-title');
+    const cmDesc = document.getElementById('cm-desc');
+    const cmActions = document.getElementById('cm-actions');
+    const tooltipEl = document.getElementById('tooltip');
+
+    let player = { x: 7, y: 7, hp: 20, maxHp: 20, dx: 0, dy: -1 };
+    let enemies = [];
+    let initialEnemyCount = 0;
+    let floorItems = [];
+    let mapData = []; // 2D array holding tile objects
+    let isAutoRunning = false;
+    let isAutoExploring = false;
+    let autoRunPath = [];
+    let gameStarted = false;
+    let autoSaveTimeout = null;
+
+    let currentZoom = 1.0;
+    const MIN_ZOOM = 0.3;
+    const MAX_ZOOM = 2.5;
+    let cameraOffset = { x: 0, y: 0 };
+    let camBounds = { startX: 0, startY: 0, endX: 0, endY: 0 };
+    let camView = { vx: 0, vy: 0, vw: 0, vh: 0 };
+    
+    let debugVision = false;
+    let debugHearing = false;
+    let audibleTiles = new Map();
+    let turnSounds = [];
+    let projectiles = [];
+    let floatingTexts = [];
+    let devMode = false;
+    let debugGodMode = false;
+    let debugTeleport = false;
+
+    // --- Animation State ---
+    let lastFrameTime = performance.now();
+    let isAnimating = false;
+
+    function triggerAnimation() {
+        if (!isAnimating) {
+            lastFrameTime = performance.now();
+            isAnimating = true;
+            requestAnimationFrame(animLoop);
+        }
+    }
+
+    function animLoop(time) {
+        let dt = (time - lastFrameTime) / 1000;
+        lastFrameTime = time;
+        if (dt > 0.1) dt = 0.1; // clamp dt to prevent giant jumps if tab inactive
+        
+        let needsRedraw = false;
+        let speed = 15; // constant sliding speed in tiles per second
+
+        // Interpolate player
+        if (player.renderX === undefined) player.renderX = player.x;
+        if (player.renderY === undefined) player.renderY = player.y;
+        let pdx = player.x - player.renderX;
+        let pdy = player.y - player.renderY;
+        let pDist = Math.hypot(pdx, pdy);
+        
+        if (pDist > 0.01) {
+            let currentSpeed = pDist > 1.5 ? speed * (pDist / 1.5) : speed; // Catch up if trailing behind
+            let moveDist = currentSpeed * dt;
+            if (moveDist >= pDist) {
+                player.renderX = player.x;
+                player.renderY = player.y;
+            } else {
+                player.renderX += (pdx / pDist) * moveDist;
+                player.renderY += (pdy / pDist) * moveDist;
+            }
+            needsRedraw = true;
+        } else {
+            if (player.renderX !== player.x || player.renderY !== player.y) needsRedraw = true;
+            player.renderX = player.x;
+            player.renderY = player.y;
+        }
+
+        // Interpolate enemies
+        enemies.forEach(e => {
+            if (e.renderX === undefined) e.renderX = e.x;
+            if (e.renderY === undefined) e.renderY = e.y;
+            let edx = e.x - e.renderX;
+            let edy = e.y - e.renderY;
+            let eDist = Math.hypot(edx, edy);
+            
+            if (eDist > 0.01) {
+                let currentSpeed = eDist > 1.5 ? speed * (eDist / 1.5) : speed;
+                let moveDist = currentSpeed * dt;
+                if (moveDist >= eDist) {
+                    e.renderX = e.x;
+                    e.renderY = e.y;
+                } else {
+                    e.renderX += (edx / eDist) * moveDist;
+                    e.renderY += (edy / eDist) * moveDist;
+                }
+                needsRedraw = true;
+            } else {
+                if (e.renderX !== e.x || e.renderY !== e.y) needsRedraw = true;
+                e.renderX = e.x;
+                e.renderY = e.y;
+            }
+        });
+
+        let now = performance.now();
+        projectiles = projectiles.filter(p => now < p.startTime + p.duration);
+        turnSounds = turnSounds.filter(s => now < s.startTime + s.duration);
+        floatingTexts = floatingTexts.filter(ft => now < ft.startTime + ft.duration);
+
+        if (projectiles.length > 0 || turnSounds.length > 0 || floatingTexts.length > 0) needsRedraw = true;
+
+        if (needsRedraw) {
+            drawBoard();
+            requestAnimationFrame(animLoop);
+        } else {
+            isAnimating = false;
+            drawBoard(); // snap exact integer positioning
+        }
+    }
+
+    function addFloatingText(x, y, text, color = "white") {
+        floatingTexts.push({
+            x: x,
+            y: y,
+            text: text,
+            color: color,
+            startTime: performance.now(),
+            duration: 1000 // 1 second float time
+        });
+        triggerAnimation();
+    }
+
+    let gameSettings = {
+        audio: true,
+        bgmVolume: 1.0,
+        sfxVolume: 1.0,
+        autoPickupAmmo: true,
+        autoPickupGold: true,
+        autoPickupPotion: true
+    };
+
+    const itemTemplates = {
+        "Dagger": { name: "Dagger", type: "weapon", icon: "▲", color: "#cccccc", damageMin: 1, damageMax: 2, accuracy: 3, stackable: false },
+        "Gold Nugget": { name: "Gold Nugget", type: "money", icon: "◆", color: "#ffd700", stackable: true },
+        "Health Potion": { name: "Health Potion", type: "potion", icon: "✚", color: "#ff4444", healAmount: 5, stackable: true },
+        "Pebble": { name: "Pebble", type: "ammo", icon: "•", color: "#a9a9a9", stackable: true },
+        "Sling": { name: "Sling", type: "weapon", icon: "⚞", color: "#d2b48c", damageMin: 1, damageMax: 3, range: 5, ammoType: "Pebble", accuracy: 6, stackable: false },
+        "Leather Armor": { name: "Leather Armor", type: "body", icon: "■", color: "#8b4513", defense: 1, stackable: false },
+        "Leather Helm": { name: "Leather Helm", type: "head", icon: "◓", color: "#8b4513", defense: 1, stackable: false },
+        "Leather Gloves": { name: "Leather Gloves", type: "hands", icon: "▨", color: "#8b4513", damageBonus: 1, stackable: false },
+        "Leather Boots": { name: "Leather Boots", type: "feet", icon: "▟", color: "#8b4513", stealth: 1, stackable: false }
+    };
+
+    const rareModifiers = [
+        { name: "Sentry Slayer", desc: "+1 Damage vs Sentries", stat: "dmgSentry", value: 1 },
+        { name: "Seeker Bane", desc: "+1 Damage vs Seekers", stat: "dmgSeeker", value: 1 },
+        { name: "Evasive", desc: "+5% Dodge Chance", stat: "dodge", value: 0.05 },
+        { name: "Eagle-Eyed", desc: "+1 Vision Range", stat: "vision", value: 1 },
+        { name: "Silent", desc: "+1 Stealth", stat: "stealthBonusRare", value: 1 },
+        { name: "Scavenger", desc: "+10% Ammo Recovery", stat: "ammoRec", value: 0.10 },
+        { name: "Vitality", desc: "+2 Max HP", stat: "maxHp", value: 2 },
+        { name: "Precise", desc: "+2 Accuracy", stat: "accBonus", value: 2 },
+        { name: "Sentry Guard", desc: "+1 Defense vs Sentries", stat: "defSentry", value: 1 },
+        { name: "Seeker Guard", desc: "+1 Defense vs Seekers", stat: "defSeeker", value: 1 },
+        { name: "Sniper Slayer", desc: "+1 Damage vs Snipers", stat: "dmgSniper", value: 1 },
+        { name: "Brute Bane", desc: "+1 Damage vs Brutes", stat: "dmgBrute", value: 1 },
+        { name: "Shade Slayer", desc: "+1 Damage vs Shades", stat: "dmgShade", value: 1 },
+        { name: "Sniper Guard", desc: "+1 Defense vs Snipers", stat: "defSniper", value: 1 },
+        { name: "Brute Guard", desc: "+1 Defense vs Brutes", stat: "defBrute", value: 1 },
+        { name: "Shade Guard", desc: "+1 Defense vs Shades", stat: "defShade", value: 1 },
+        { name: "Illuminating", desc: "Reveals cloaked Shades", stat: "trueSight", value: 1 },
+        { name: "Vampiric", desc: "Heal 1 HP on kill", stat: "healOnKill", value: 1 },
+        { name: "Savage", desc: "+1 Melee Damage", stat: "meleeDmg", value: 1 },
+        { name: "Sniper", desc: "+1 Ranged Damage", stat: "rangedDmg", value: 1 },
+        { name: "Sturdy", desc: "+1 Defense", stat: "defense", value: 1 },
+        { name: "Lethal", desc: "+1 Damage", stat: "allDmg", value: 1 },
+        { name: "Shiny", desc: "Gleams in the dark", stat: "flavor_shiny", value: 1 },
+        { name: "Dusty", desc: "Covered in ancient dust", stat: "flavor_dusty", value: 1 },
+        { name: "Squeaky", desc: "Makes a weird squeaking noise", stat: "flavor_squeaky", value: 1 },
+        { name: "Sticky", desc: "Slightly sticky to the touch", stat: "flavor_sticky", value: 1 },
+        { name: "Smelly", desc: "Smells faintly of old cheese", stat: "flavor_smelly", value: 1 },
+        { name: "Ugly", desc: "Aesthetically displeasing", stat: "flavor_ugly", value: 1 },
+        { name: "Engraved", desc: "Has unknown initials carved into it", stat: "flavor_engraved", value: 1 },
+        { name: "Warm", desc: "Strangely warm to the touch", stat: "flavor_warm", value: 1 },
+        { name: "Cold", desc: "Chilly, like ice", stat: "flavor_cold", value: 1 },
+        { name: "Glowing", desc: "Emits a faint, useless light", stat: "flavor_glowing", value: 1 },
+        { name: "Heavy", desc: "Feels heavier than it looks", stat: "flavor_heavy", value: 1 },
+        { name: "Fragile", desc: "Looks like it might break (it won't)", stat: "flavor_fragile", value: 1 },
+        { name: "Itchy", desc: "Makes you want to scratch", stat: "flavor_itchy", value: 1 },
+        { name: "Damp", desc: "Perpetually moist", stat: "flavor_damp", value: 1 },
+        { name: "Haunted", desc: "Gives you the creeps", stat: "flavor_haunted", value: 1 }
+    ];
+
+    const cursedModifiers = [
+        { name: "Blinding", desc: "-4 Vision Range", stat: "vision", value: -4 },
+        { name: "Noisy", desc: "-1 Stealth", stat: "stealthBonusRare", value: -1 },
+        { name: "Frail", desc: "-5 Max HP", stat: "maxHp", value: -5 },
+        { name: "Clumsy", desc: "-2 Accuracy", stat: "accBonus", value: -2 },
+        { name: "Weak", desc: "-1 Damage", stat: "allDmg", value: -1 }
+    ];
+
+    const enemyTemplates = {
+        "Sentry": { type: "Sentry", hp: 1, damageMin: 1, damageMax: 2, searchTurns: 0 },
+        "Seeker": { type: "Seeker", hp: 3, damageMin: 3, damageMax: 5, searchTurns: 0, wanderTarget: null, wasSeeingPlayer: false },
+        "Sniper": { type: "Sniper", hp: 1, damageMin: 2, damageMax: 4, searchTurns: 0, range: 5 },
+        "Brute":  { type: "Brute", hp: 8, damageMin: 4, damageMax: 6, searchTurns: 0, moveTick: 0 },
+        "Shade":  { type: "Shade", hp: 2, damageMin: 3, damageMax: 5, searchTurns: 0 }
+    };
+
+    function getRareStat(statName) {
+        let total = 0;
+        for (let slot in equipment) {
+            if (equipment[slot] && (equipment[slot].rarity === 'rare' || equipment[slot].rarity === 'cursed') && equipment[slot].mods) {
+                equipment[slot].mods.forEach(mod => {
+                    if (mod.stat === statName) total += mod.value;
+                });
+            }
+        }
+        return total;
+    }
+
+    function getPlayerVisionRange() {
+        return Math.max(1, 7 + getRareStat('vision'));
+    }
+
+    function updateMaxHp() {
+        let baseMaxHp = 20;
+        player.maxHp = Math.max(1, baseMaxHp + getRareStat('maxHp'));
+        if (player.hp > player.maxHp) player.hp = player.maxHp;
+    }
+
+    function saveCurrentFloor() {
+        if (!currentFloorNum) return;
+        levels[currentFloorNum] = {
+            mapData: mapData,
+            enemies: enemies,
+            floorItems: floorItems,
+            initialEnemyCount: initialEnemyCount
+        };
+    }
+
+    function goToFloor(floorNum, stairId, direction) {
+        if (currentFloorNum) {
+            saveCurrentFloor();
+        }
+        currentFloorNum = floorNum;
+        document.getElementById('floor-display').textContent = `Floor: ${currentFloorNum}`;
+        if (!levels[floorNum]) {
+            generateLevel(floorNum);
+            saveCurrentFloor();
+        }
+        let level = levels[floorNum];
+        mapData = level.mapData;
+        enemies = level.enemies;
+        floorItems = level.floorItems;
+        initialEnemyCount = level.initialEnemyCount;
+        audibleTiles = new Map();
+        turnSounds = [];
+        projectiles = [];
+        if (stairId !== null) {
+            let spawnStairs = null;
+            for (let x = 0; x < GRID_W; x++) {
+                for (let y = 0; y < GRID_H; y++) {
+                    if (direction === 'down' && mapData[x][y].isStairsUp && mapData[x][y].stairId === stairId) {
+                        spawnStairs = {x, y};
+                    } else if (direction === 'up' && mapData[x][y].isStairsDown && mapData[x][y].stairId === stairId) {
+                        spawnStairs = {x, y};
+                    }
+                }
+            }
+            if (spawnStairs) {
+                player.x = spawnStairs.x;
+                player.y = spawnStairs.y;
+            }
+        }
+        player.renderX = player.x; // Snap visual coords on floor change
+        player.renderY = player.y;
+        enemies.forEach(e => { e.renderX = e.x; e.renderY = e.y; });
+        isAutoRunning = false;
+        isAutoExploring = false;
+        autoRunPath = [];
+        updateLOS();
+        renderUI();
+        drawBoard();
+        if (floorNum > 1 || direction !== null) logMessage(`Arrived at Floor ${currentFloorNum}.`, "cyan");
+        requestAutoSave();
+    }
+
+    // Item types: "head", "body", "hands", "feet", "weapon", "money", "potion"
+    let inventory = [];
+    let equipment = { 
+        head: null, 
+        body: null, 
+        hands: null, 
+        feet: null, 
+        weapon: { ...itemTemplates["Sling"], count: 1, rarity: "normal", identified: true, baseName: "Sling" } 
+    };
+    const INVENTORY_CAPACITY = 16;
+    
+    const equippableTypes = ['head', 'body', 'hands', 'feet', 'weapon'];
+    
+    const possibleLoot = [
+        { name: "Gold Nugget", count: 1 },
+        { name: "Health Potion", count: 1 },
+        { name: "Dagger", count: 1 },
+        { name: "Leather Armor", count: 1 },
+        { name: "Leather Helm", count: 1 },
+        { name: "Leather Gloves", count: 1 },
+        { name: "Leather Boots", count: 1 },
+        { name: "Sling", count: 1 },
+        { name: "Pebble", count: 3 }
+    ];
+    
+    function createItem(config, floorNum = 1) {
+        let template = itemTemplates[config.name];
+        let item = { ...template, count: config.count || 1 };
+        item.baseName = template.name;
+        let scale = Math.max(0, floorNum - 1);
+        
+        if (item.damageMin !== undefined) item.damageMin += scale;
+        if (item.damageMax !== undefined) item.damageMax += scale;
+        if (item.defense !== undefined) item.defense += scale;
+        if (item.damageBonus !== undefined) item.damageBonus += scale;
+        if (item.stealth !== undefined) item.stealth += scale;
+        if (item.healAmount !== undefined) item.healAmount += scale;
+        
+        if (equippableTypes.includes(item.type)) {
+            let roll = Math.random();
+            if (roll < 0.01) {
+                item.rarity = "cursed";
+                let baseMod = cursedModifiers[Math.floor(Math.random() * cursedModifiers.length)];
+                let mod = { ...baseMod };
+                if (Number.isInteger(mod.value) && scale > 0) {
+                    let oldVal = mod.value;
+                    mod.value += (mod.value > 0 ? scale : -scale);
+                    mod.desc = mod.desc.replace(Math.abs(oldVal).toString(), Math.abs(mod.value).toString());
+                }
+                item.mods = [mod];
+                item.trueName = `${mod.name} Cursed ${item.name}`; 
+                item.name = `Rare ${item.name}`;
+                item.identified = false;
+            } else if (roll < 0.10) {
+                item.rarity = "rare";
+                let baseMod = rareModifiers[Math.floor(Math.random() * rareModifiers.length)];
+                let mod = { ...baseMod };
+                if (Number.isInteger(mod.value) && scale > 0) {
+                    let oldVal = mod.value;
+                    mod.value += scale;
+                    mod.desc = mod.desc.replace(Math.abs(oldVal).toString(), Math.abs(mod.value).toString());
+                }
+                item.mods = [mod];
+                item.trueName = `${mod.name} Rare ${item.name}`; 
+                item.name = `Rare ${item.name}`;
+                item.identified = false;
+            } else {
+                item.rarity = "normal";
+                item.identified = true;
+            }
+        } else {
+            item.rarity = "normal";
+            item.identified = true;
+        }
+        return item;
+    }
+
+    // Keyboard direction mapping
+    const keyMap = {
+        'q': {x:-1, y:-1}, 'w': {x:0, y:-1}, 'e': {x:1, y:-1},
+        'a': {x:-1, y:0},  's': {x:0, y:0},  'd': {x:1, y:0},
+        'z': {x:-1, y:1},  'x': {x:0, y:1},  'c': {x:1, y:1}
+    };
+    
+    // Context menu actions
+    const availableActions = [
+        {
+            name: "Wait",
+            condition: (x, y) => x === player.x && y === player.y,
+            execute: (x, y) => processTurn(0, 0)
+        },
+        {
+            name: "Auto-Explore",
+            condition: (x, y) => x === player.x && y === player.y,
+            execute: (x, y) => triggerAutoExplore()
+        },
+        {
+            name: "Descend Stairs",
+            condition: (x, y) => x === player.x && y === player.y && mapData[x][y].isStairsDown,
+            execute: (x, y) => {
+                let id = mapData[x][y].stairId;
+                goToFloor(currentFloorNum + 1, id, 'down');
+            }
+        },
+        {
+            name: "Ascend Stairs",
+            condition: (x, y) => x === player.x && y === player.y && mapData[x][y].isStairsUp,
+            execute: (x, y) => {
+                let id = mapData[x][y].stairId;
+                goToFloor(currentFloorNum - 1, id, 'up');
+            }
+        },
+        {
+            name: "Move",
+            condition: (x, y) => {
+                let dx = Math.abs(x - player.x);
+                let dy = Math.abs(y - player.y);
+                if (dx > 1 || dy > 1 || (dx === 0 && dy === 0)) return false;
+                if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return false;
+                if (mapData[x][y].isWall) return false;
+                return !enemies.some(e => e.x === x && e.y === y);
+            },
+            execute: (x, y) => processTurn(x - player.x, y - player.y)
+        },
+        {
+            name: "Melee Attack",
+            condition: (x, y) => {
+                let dx = Math.abs(x - player.x);
+                let dy = Math.abs(y - player.y);
+                return (dx <= 1 && dy <= 1) && (dx > 0 || dy > 0) && enemies.some(e => e.x === x && e.y === y && (mapData[e.x][e.y].isVisible || debugVision));
+            },
+            execute: (x, y) => processTurn(x - player.x, y - player.y)
+        },
+        {
+            name: "Ranged Attack",
+            condition: (x, y) => {
+                let wpn = equipment.weapon;
+                if (!wpn || !wpn.range || wpn.range <= 1) return false;
+                let dist = Math.hypot(x - player.x, y - player.y);
+                if (dist > wpn.range || dist === 0) return false;
+                if (!enemies.some(e => e.x === x && e.y === y && (mapData[e.x][e.y].isVisible || debugVision))) return false;
+                if (!hasLineOfSight(player.x, player.y, x, y)) return false;
+                let ammo = inventory.find(i => i.name === wpn.ammoType);
+                if (!ammo || ammo.count < 1) return false;
+                return true;
+            },
+            execute: (x, y) => executeRangedAttack(x, y)
+        },
+        {
+            name: "Auto-Walk Here",
+            condition: (x, y) => {
+                let dx = Math.abs(x - player.x);
+                let dy = Math.abs(y - player.y);
+                if (dx <= 1 && dy <= 1) return false; // Too close for auto-run
+                if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H || mapData[x][y].isWall) return false;
+                if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) return false; // Prevent auto-run if enemies are visible
+                return findPath(player.x, player.y, x, y) !== null; // Make sure we can reach it
+            },
+            execute: (x, y) => {
+                triggerAutoRun(x, y);
+            }
+        }
+    ];
+
+    let audioCtx = null;
+    let bgmGain = null;
+    let bgmOscillators = [];
+    let bgmTimeouts = [];
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        startBGM();
+    }
+
+    function startBGM() {
+        if (bgmOscillators.length > 0) return;
+        
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.value = 0.4 * gameSettings.bgmVolume; // Master volume
+        bgmGain.connect(audioCtx.destination);
+
+        // 1. Create a massive Cavern Reverb (Convolution)
+        let convolver = audioCtx.createConvolver();
+        
+        // Fetch a known good impulse response from Google Chrome Labs Web Audio Samples
+        fetch('https://googlechromelabs.github.io/web-audio-samples/samples/audio/impulse-responses/matrix-reverb2.wav')
+            .then(response => response.arrayBuffer())
+            .then(buffer => audioCtx.decodeAudioData(buffer))
+            .then(audioBuffer => {
+                if (convolver) convolver.buffer = audioBuffer;
+            })
+            .catch(e => {
+                console.warn("Failed to load external IR, falling back to synthetic reverb.");
+                let reverbLen = audioCtx.sampleRate * 4.0;
+                let impulse = audioCtx.createBuffer(2, reverbLen, audioCtx.sampleRate);
+                for (let c = 0; c < 2; c++) {
+                    let data = impulse.getChannelData(c);
+                    for (let i = 0; i < reverbLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / reverbLen, 3.0);
+                }
+                if (convolver) convolver.buffer = impulse;
+            });
+
+        // 2. Add a Low-pass filter to muffle the harsh digital tones
+        let masterFilter = audioCtx.createBiquadFilter();
+        masterFilter.type = 'lowpass';
+        masterFilter.frequency.value = 600; // Keep it dark and murky
+
+        // Route: Synths -> Filter -> Reverb -> Master Gain -> Destination
+        masterFilter.connect(convolver);
+        convolver.connect(bgmGain);
+        // Also route a dry signal to keep some clarity
+        masterFilter.connect(bgmGain);
+
+        // 3. The Deep Drone Layer (C1 & C1 slightly detuned)
+        let osc1 = audioCtx.createOscillator();
+        osc1.type = 'sawtooth'; // Sawtooth run through a lowpass sounds like a warm synth pad
+        osc1.frequency.value = 32.70; // C1
+        let droneGain1 = audioCtx.createGain();
+        droneGain1.gain.value = 0.08;
+        osc1.connect(droneGain1);
+        droneGain1.connect(masterFilter);
+        osc1.start();
+        bgmOscillators.push(osc1);
+
+        let osc2 = audioCtx.createOscillator();
+        osc2.type = 'sawtooth';
+        osc2.frequency.value = 32.90; // Detuned C1 for a chorusing effect
+        let droneGain2 = audioCtx.createGain();
+        droneGain2.gain.value = 0.08;
+        osc2.connect(droneGain2);
+        droneGain2.connect(masterFilter);
+        osc2.start();
+        bgmOscillators.push(osc2);
+
+        // 4. Brian Eno-style ambient generative notes
+        // C Minor 9th chord tones: C, Eb, G, Bb, D
+        const notes = [130.81, 155.56, 196.00, 233.08, 293.66];
+        // Prime number intervals (in milliseconds) so they rarely overlap the same way
+        const intervals = [7300, 11300, 13700, 17900, 23300]; 
+
+        function playAmbientPad(freq, interval) {
+            if (bgmOscillators.length === 0) return; // Game stopped
+
+            let osc = audioCtx.createOscillator();
+            let noteGain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            
+            let now = audioCtx.currentTime;
+            // Very slow attack (4s) and release (4s)
+            noteGain.gain.setValueAtTime(0, now);
+            noteGain.gain.linearRampToValueAtTime(0.06, now + 4);
+            noteGain.gain.setValueAtTime(0.06, now + 5);
+            noteGain.gain.linearRampToValueAtTime(0, now + 9);
+            
+            osc.connect(noteGain);
+            noteGain.connect(masterFilter);
+            
+            osc.start(now);
+            osc.stop(now + 9);
+            
+            let timerId = setTimeout(() => playAmbientPad(freq, interval), interval);
+            bgmTimeouts.push(timerId);
+        }
+
+        // Start the generative note loops
+        notes.forEach((freq, index) => {
+            playAmbientPad(freq, intervals[index]);
+        });
+
+        // 5. Suspenseful eerie high notes (Tritone & minor 2nd intervals)
+        // F#4 (tritone), C5 (octave), Db5 (minor 9th)
+        const suspenseNotes = [369.99, 523.25, 554.37];
+        const suspenseIntervals = [29300, 37900, 43100]; // Very long, unpredictable intervals
+
+        function playSuspenseNote(freq, interval) {
+            if (bgmOscillators.length === 0) return; // Game stopped
+
+            let osc = audioCtx.createOscillator();
+            let noteGain = audioCtx.createGain();
+            
+            osc.type = 'triangle'; // Slightly more harmonic presence
+            // Slight pitch modulation for an eerie detuned effect
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(freq - 2, audioCtx.currentTime + 8);
+            
+            let now = audioCtx.currentTime;
+            noteGain.gain.setValueAtTime(0, now);
+            noteGain.gain.linearRampToValueAtTime(0.03, now + 3);
+            noteGain.gain.setValueAtTime(0.03, now + 4);
+            noteGain.gain.linearRampToValueAtTime(0, now + 8);
+            
+            osc.connect(noteGain);
+            noteGain.connect(masterFilter); // Still filtered so it doesn't pierce the ears
+            
+            osc.start(now);
+            osc.stop(now + 8);
+            
+            let timerId = setTimeout(() => playSuspenseNote(freq, interval), interval);
+            bgmTimeouts.push(timerId);
+        }
+
+        // Start the suspense notes
+        suspenseNotes.forEach((freq, index) => {
+            playSuspenseNote(freq, suspenseIntervals[index]);
+        });
+    }
+
+    function stopBGM() {
+        bgmOscillators.forEach(osc => {
+            try { osc.stop(); } catch(e) {}
+            osc.disconnect();
+        });
+        bgmOscillators = [];
+        if (bgmGain) {
+            bgmGain.disconnect();
+            bgmGain = null;
+        }
+        bgmTimeouts.forEach(clearTimeout);
+        bgmTimeouts = [];
+    }
+
+    function playSfx(type) {
+        if (!gameSettings.audio || !audioCtx) return;
+        
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        let now = audioCtx.currentTime;
+
+        let freqs = {
+            'step': { t: 'sine', f1: 80, f2: 10, d: 0.05, v: 0.05 },
+            'hit': { t: 'sawtooth', f1: 200, f2: 50, d: 0.1, v: 0.1 },
+            'miss': { t: 'sine', f1: 300, f2: 200, d: 0.1, v: 0.05 },
+            'shoot': { t: 'square', f1: 400, f2: 800, d: 0.1, v: 0.05 },
+            'pickup': { t: 'sine', f1: 800, f2: 1200, d: 0.1, v: 0.05 },
+            'equip': { t: 'triangle', f1: 600, f2: null, d: 0.15, v: 0.05 },
+            'potion': { t: 'sine', f1: 400, f2: 800, d: 0.2, v: 0.05 },
+            'player_hurt': { t: 'sawtooth', f1: 150, f2: 20, d: 0.3, v: 0.15 },
+            'error': { t: 'sawtooth', f1: 100, f2: null, d: 0.1, v: 0.05 },
+            'squeak': { t: 'sine', f1: 1200, f2: 1600, d: 0.1, v: 0.05 },
+            'squish': { t: 'triangle', f1: 300, f2: 100, d: 0.15, v: 0.08 },
+            'heavy_step': { t: 'square', f1: 60, f2: 10, d: 0.15, v: 0.15 },
+            'shriek': { t: 'sawtooth', f1: 400, f2: 1200, d: 0.2, v: 0.05 }
+        };
+
+        let config = freqs[type] || freqs['error'];
+
+        osc.type = config.t;
+        osc.frequency.setValueAtTime(config.f1, now);
+        if (config.f2 !== null) {
+            if (type === 'miss' || type === 'potion' || type === 'pickup') osc.frequency.linearRampToValueAtTime(config.f2, now + config.d);
+            else osc.frequency.exponentialRampToValueAtTime(config.f2, now + config.d);
+        }
+        
+        gain.gain.setValueAtTime(config.v * gameSettings.sfxVolume, now);
+        if (type === 'equip' || type === 'error') gain.gain.linearRampToValueAtTime(0.01, now + config.d);
+        else gain.gain.exponentialRampToValueAtTime(0.01, now + config.d);
+        
+        osc.start(now);
+        osc.stop(now + config.d);
+    }
+
+    // --- Dust Particle System ---
+    const NUM_DUST = 250;
+    let dustParticles = [];
+    let dustCtx = null;
+
+    function initDust() {
+        let dustCanvas = document.getElementById('dust-overlay');
+        dustCtx = dustCanvas.getContext('2d');
+        for (let i = 0; i < NUM_DUST; i++) {
+            dustParticles.push({
+                x: Math.random() * 10000, 
+                y: Math.random() * 10000,
+                z: Math.random() * 0.6 + 0.7, // Depth for parallax
+                r: Math.random() * 2.5 + 1.5, // Increased base radius
+                op: Math.random() * 0.4 + 0.1, // Base Opacity
+                vx: (Math.random() - 0.5) * 15, // Drift X (pixels per sec)
+                vy: (Math.random() - 0.5) * 10 + 10, // Drift Y (mostly falling)
+                phase: Math.random() * Math.PI * 2, // Twinkle phase
+                pulseSpeed: Math.random() * 1.5 + 0.5,
+                isEmber: Math.random() > 0.95 // 5% chance to be an orange glowing ember
+            });
+        }
+        requestAnimationFrame(drawDust);
+    }
+
+    function drawDust(time) {
+        requestAnimationFrame(drawDust);
+        let dustCanvas = document.getElementById('dust-overlay');
+        if (!dustCanvas || !dustCtx) return;
+        
+        dustCtx.clearRect(0, 0, dustCanvas.width, dustCanvas.height);
+        let t = time / 1000;
+        
+        let screenW = dustCanvas.width;
+        let screenH = dustCanvas.height;
+        // Use a padded wrap domain to prevent popping when dust wraps around edges
+        let wrapW = screenW + 100;
+        let wrapH = screenH + 100;
+
+        let camWorldX = (camView.vx || 0) + (camView.vw || 0) / 2;
+        let camWorldY = (camView.vy || 0) + (camView.vh || 0) / 2;
+
+        dustParticles.forEach(p => {
+            let worldX = p.x + p.vx * t;
+            let worldY = p.y + p.vy * t;
+
+            // Correctly map parallax from the center of the camera outward
+            let screenX = (worldX - camWorldX) * p.z * currentZoom + screenW / 2;
+            let screenY = (worldY - camWorldY) * p.z * currentZoom + screenH / 2;
+
+            // Wrap with a 50px buffer on all sides so they disappear off-screen smoothly
+            let px = ((screenX % wrapW) + wrapW) % wrapW - 50;
+            let py = ((screenY % wrapH) + wrapH) % wrapH - 50;
+            let alpha = Math.max(0, Math.min(1, p.op + Math.sin(t * p.pulseSpeed + p.phase) * (p.isEmber ? 0.5 : 0.2)));
+
+            dustCtx.globalAlpha = alpha;
+            dustCtx.fillStyle = p.isEmber ? "#ffaa55" : "#c8dcff";
+            dustCtx.beginPath();
+            
+            let radius = p.r * currentZoom;
+            dustCtx.arc(px, py, radius, 0, Math.PI * 2);
+            
+            if (p.isEmber && alpha > 0.3) {
+                dustCtx.shadowBlur = 8 * currentZoom;
+                dustCtx.shadowColor = "#ffaa55";
+                dustCtx.fill();
+                dustCtx.shadowBlur = 0;
+            } else {
+                dustCtx.fill();
+            }
+        });
+    }
+
+    // --- Shop & Forge System ---
+    function getGoldCount() {
+        let goldItem = inventory.find(i => i.name === "Gold Nugget");
+        return goldItem ? goldItem.count : 0;
+    }
+
+    function spendGold(amount) {
+        let goldItem = inventory.find(i => i.name === "Gold Nugget");
+        if (goldItem && goldItem.count >= amount) {
+            goldItem.count -= amount;
+            if (goldItem.count <= 0) {
+                inventory = inventory.filter(i => i !== goldItem);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function getAllItems() {
+        let items = [];
+        for (let slot in equipment) {
+            if (equipment[slot]) items.push({ loc: 'equip', slot: slot, item: equipment[slot] });
+        }
+        inventory.forEach((item, idx) => {
+            items.push({ loc: 'inv', index: idx, item: item });
+        });
+        return items;
+    }
+
+    let shopItems = [];
+    function populateShop() {
+        let gold = getGoldCount();
+        document.getElementById('shop-gold-display').textContent = `Gold: ${gold}`;
+
+        shopItems = getAllItems().filter(i => equippableTypes.includes(i.item.type));
+
+        let upgradeSelect = document.getElementById('shop-upgrade-item');
+        upgradeSelect.innerHTML = '';
+        shopItems.forEach((iObj, idx) => {
+            let opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = `${iObj.item.name} (${iObj.loc === 'equip' ? 'Equipped' : 'Inventory'})`;
+            upgradeSelect.appendChild(opt);
+        });
+
+        let sourceSelect = document.getElementById('shop-mod-source');
+        sourceSelect.innerHTML = '';
+        let sourceItems = shopItems.filter(i => i.item.mods && i.item.mods.length > 0);
+        sourceItems.forEach((iObj, idx) => {
+            let opt = document.createElement('option');
+            opt.value = idx;
+            let modNames = iObj.item.mods.map(m => m.name).join(', ');
+            opt.textContent = `${iObj.item.name} [${modNames}]`;
+            sourceSelect.appendChild(opt);
+        });
+
+        updateShopTargetSelect();
+    }
+
+    function updateShopTargetSelect() {
+        let sourceSelect = document.getElementById('shop-mod-source');
+        let targetSelect = document.getElementById('shop-mod-target');
+        targetSelect.innerHTML = '';
+
+        if (sourceSelect.value === '') return;
+        
+        let sourceItems = shopItems.filter(i => i.item.mods && i.item.mods.length > 0);
+        let sourceObj = sourceItems[sourceSelect.value];
+        if (!sourceObj) return;
+
+        let targetItems = shopItems.filter(i => i.item.baseName === sourceObj.item.baseName && i.item !== sourceObj.item);
+        targetItems.forEach((iObj) => {
+            let opt = document.createElement('option');
+            opt.value = shopItems.indexOf(iObj);
+            opt.textContent = `${iObj.item.name} (${iObj.loc === 'equip' ? 'Equipped' : 'Inventory'})`;
+            targetSelect.appendChild(opt);
+        });
+    }
+
+    function saveGame(silent = false) {
+        saveCurrentFloor(); // Ensure the current floor's latest state is in the 'levels' map
+        const saveData = {
+            player,
+            equipment,
+            inventory,
+            gameSettings,
+            currentFloorNum,
+            levels,
+            initialEnemyCount
+        };
+        localStorage.setItem('polyRogueSave', JSON.stringify(saveData));
+        if (!silent) logMessage("Game saved.", "cyan");
+    }
+
+    function requestAutoSave() {
+        if (player.hp > 0 && gameStarted) {
+            if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = setTimeout(() => saveGame(true), 500); // Wait 500ms after last action
+        }
+    }
+
+    function loadGame() {
+        const saved = localStorage.getItem('polyRogueSave');
+        if (!saved) return false;
+        try {
+            const data = JSON.parse(saved);
+            player = data.player;
+            equipment = data.equipment;
+            inventory = data.inventory;
+            gameSettings = data.gameSettings || gameSettings;
+            currentFloorNum = data.currentFloorNum;
+            levels = data.levels;
+            initialEnemyCount = data.initialEnemyCount;
+            
+            let level = levels[currentFloorNum];
+            mapData = level.mapData;
+            enemies = level.enemies;
+            floorItems = level.floorItems;
+            
+            projectiles = [];
+            turnSounds = [];
+            floatingTexts = [];
+            isAutoRunning = false;
+            isAutoExploring = false;
+            
+            // Restore render coordinates to prevent panning jump
+            player.renderX = player.x;
+            player.renderY = player.y;
+            enemies.forEach(e => { e.renderX = e.x; e.renderY = e.y; });
+            
+            document.getElementById('floor-display').textContent = `Floor: ${currentFloorNum}`;
+            updateMaxHp();
+            updateLOS();
+            renderUI();
+            drawBoard();
+            return true;
+        } catch (e) {
+            console.error("Save file corrupted", e);
+            return false;
+        }
+    }
+
+    function init() {
+        if (localStorage.getItem('polyRogueSave')) {
+            document.getElementById('continue-btn').style.display = 'inline-block';
+            document.getElementById('start-btn').textContent = 'New Game';
+        }
+
+        currentFloorNum = null;
+        goToFloor(1, null, null);
+        
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-screen').style.display = 'none';
+            gameStarted = true;
+            if (gameSettings.audio && !audioCtx) {
+                initAudio();
+            }
+            drawBoard();
+        });
+
+        document.getElementById('continue-btn').addEventListener('click', () => {
+            if (loadGame()) {
+                document.getElementById('start-screen').style.display = 'none';
+                gameStarted = true;
+                if (gameSettings.audio && !audioCtx) initAudio();
+                updateSettingsUI();
+                logMessage("Game loaded successfully.", "cyan");
+                drawBoard();
+            }
+        });
+
+        document.addEventListener('keydown', handleInput);
+        board.addEventListener('click', handleMouseClick);
+        board.addEventListener('contextmenu', handleRightClick);
+        document.addEventListener('click', hideContextMenu);
+        debugToggleEl.addEventListener('change', (e) => {
+            debugVision = e.target.checked;
+            logMessage(debugVision ? "Debug vision ON" : "Debug vision OFF");
+            drawBoard();
+        });
+        debugHearingToggleEl.addEventListener('change', (e) => {
+            debugHearing = e.target.checked;
+            logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
+            drawBoard();
+        });
+        debugGodToggleEl.addEventListener('change', (e) => {
+            debugGodMode = e.target.checked;
+            logMessage(debugGodMode ? "God mode ON" : "God mode OFF", "yellow");
+            updateLOS();
+            drawBoard();
+        });
+        debugTeleportToggleEl.addEventListener('change', (e) => {
+            debugTeleport = e.target.checked;
+            logMessage(debugTeleport ? "Teleport click ON" : "Teleport click OFF", "yellow");
+        });
+        board.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                currentZoom = Math.min(MAX_ZOOM, currentZoom + 0.1);
+            } else {
+                currentZoom = Math.max(MIN_ZOOM, currentZoom - 0.1);
+            }
+            drawBoard();
+        });
+
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            document.getElementById('settings-modal').style.display = 'flex';
+        });
+        document.getElementById('close-settings-btn').addEventListener('click', () => {
+            document.getElementById('settings-modal').style.display = 'none';
+        });
+        document.getElementById('save-quit-btn').addEventListener('click', () => {
+            if (player.hp > 0) saveGame();
+            location.reload(); 
+        });
+        document.getElementById('setting-audio').addEventListener('change', (e) => {
+            gameSettings.audio = e.target.checked;
+            if (gameSettings.audio) initAudio();
+            else { stopBGM(); if (audioCtx) audioCtx.suspend(); }
+        });
+        document.getElementById('setting-bgm-volume').addEventListener('input', (e) => {
+            gameSettings.bgmVolume = parseFloat(e.target.value);
+            if (bgmGain && audioCtx) {
+                bgmGain.gain.setValueAtTime(0.4 * gameSettings.bgmVolume, audioCtx.currentTime);
+            }
+        });
+        document.getElementById('setting-sfx-volume').addEventListener('input', (e) => {
+            gameSettings.sfxVolume = parseFloat(e.target.value);
+        });
+        document.getElementById('setting-auto-ammo').addEventListener('change', (e) => gameSettings.autoPickupAmmo = e.target.checked);
+        document.getElementById('setting-auto-gold').addEventListener('change', (e) => gameSettings.autoPickupGold = e.target.checked);
+        document.getElementById('setting-auto-potion').addEventListener('change', (e) => gameSettings.autoPickupPotion = e.target.checked);
+
+        function updateSettingsUI() {
+            document.getElementById('setting-audio').checked = gameSettings.audio;
+            document.getElementById('setting-bgm-volume').value = gameSettings.bgmVolume;
+            document.getElementById('setting-sfx-volume').value = gameSettings.sfxVolume;
+            document.getElementById('setting-auto-ammo').checked = gameSettings.autoPickupAmmo;
+            document.getElementById('setting-auto-gold').checked = gameSettings.autoPickupGold;
+            document.getElementById('setting-auto-potion').checked = gameSettings.autoPickupPotion;
+        }
+
+        document.getElementById('shop-btn').addEventListener('click', () => {
+            populateShop();
+            document.getElementById('shop-modal').style.display = 'flex';
+        });
+        
+        document.getElementById('close-shop-btn').addEventListener('click', () => {
+            document.getElementById('shop-modal').style.display = 'none';
+        });
+
+        document.getElementById('shop-mod-source').addEventListener('change', updateShopTargetSelect);
+
+        document.getElementById('shop-upgrade-btn').addEventListener('click', () => {
+            let itemIdx = document.getElementById('shop-upgrade-item').value;
+            if (itemIdx === '') return;
+            if (!spendGold(5)) { logMessage("Not enough gold to upgrade!", "red"); playSfx('error'); return; }
+            
+            let itemObj = shopItems[itemIdx].item;
+            let stat = document.getElementById('shop-upgrade-stat').value;
+
+            if (stat === 'damage') {
+                if (itemObj.damageMin !== undefined) itemObj.damageMin++;
+                if (itemObj.damageMax !== undefined) itemObj.damageMax++;
+                if (itemObj.damageBonus !== undefined) itemObj.damageBonus++;
+                if (itemObj.damageMin === undefined && itemObj.damageMax === undefined && itemObj.damageBonus === undefined) itemObj.damageBonus = 1;
+                logMessage(`Upgraded ${itemObj.name} damage!`, "cyan");
+            } else if (stat === 'defense') {
+                if (itemObj.defense !== undefined) itemObj.defense++;
+                else itemObj.defense = 1;
+                logMessage(`Upgraded ${itemObj.name} defense!`, "cyan");
+            } else if (stat === 'accuracy') {
+                if (itemObj.accuracy !== undefined) itemObj.accuracy++;
+                else itemObj.accuracy = 1;
+                logMessage(`Upgraded ${itemObj.name} accuracy!`, "cyan");
+            }
+            playSfx('equip'); updateMaxHp(); renderUI(); populateShop();
+        });
+
+        document.getElementById('shop-mod-btn').addEventListener('click', () => {
+            let sourceIdx = document.getElementById('shop-mod-source').value;
+            let targetIdx = document.getElementById('shop-mod-target').value;
+            if (sourceIdx === '' || targetIdx === '') return;
+            if (!spendGold(10)) { logMessage("Not enough gold to imbue!", "red"); playSfx('error'); return; }
+
+            let sourceItems = shopItems.filter(i => i.item.mods && i.item.mods.length > 0);
+            let sourceWrapper = sourceItems[sourceIdx];
+            let targetWrapper = shopItems[targetIdx];
+            let sourceObj = sourceWrapper.item;
+            let targetObj = targetWrapper.item;
+
+            if (!targetObj.mods) targetObj.mods = [];
+
+            sourceObj.mods.forEach(sMod => {
+                let existingMod = targetObj.mods.find(m => m.stat === sMod.stat);
+                if (existingMod) {
+                    existingMod.value += sMod.value;
+                    existingMod.desc = existingMod.desc.replace(/-?\d+/, Math.abs(existingMod.value));
+                } else {
+                    targetObj.mods.push(JSON.parse(JSON.stringify(sMod)));
+                }
+            });
+
+            targetObj.rarity = targetObj.mods.some(m => m.value < 0) ? 'cursed' : 'rare';
+
+            let baseName = targetObj.baseName || targetObj.name.replace(/^(.*? )?(Rare|Cursed) /, '');
+            targetObj.baseName = baseName;
+            let modNames = targetObj.mods.map(m => m.name).join(' ');
+            targetObj.trueName = `${modNames} ${targetObj.rarity.charAt(0).toUpperCase() + targetObj.rarity.slice(1)} ${baseName}`; 
+            targetObj.name = targetObj.trueName; 
+            targetObj.identified = true;
+            
+            if (sourceWrapper.loc === 'equip') {
+                equipment[sourceWrapper.slot] = null;
+            } else if (sourceWrapper.loc === 'inv') {
+                let currentInvIdx = inventory.indexOf(sourceObj);
+                if (currentInvIdx !== -1) inventory.splice(currentInvIdx, 1);
+            }
+
+            logMessage(`Imbued ${targetObj.name} with new modifiers and destroyed the source item!`, "cyan");
+            playSfx('equip'); updateMaxHp(); renderUI(); populateShop();
+        });
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+        });
+        resizeCanvas();
+        initDust();
+    }
+
+    function resizeCanvas() {
+        let rect = board.parentElement.getBoundingClientRect();
+        board.width = rect.width - 300; // Account for UI panel width
+        board.height = rect.height;
+        
+        let dustOverlay = document.getElementById('dust-overlay');
+        if (dustOverlay) {
+            dustOverlay.width = board.width;
+            dustOverlay.height = board.height;
+        }
+
+        if (gameStarted) drawBoard();
+    }
+
+    function updateCamera() {
+        let w = board.width;
+        let h = board.height;
+
+        let vw = w / currentZoom;
+        let vh = h / currentZoom;
+
+        let px = player.renderX !== undefined ? player.renderX : player.x;
+        let py = player.renderY !== undefined ? player.renderY : player.y;
+
+        let cx = px * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.x;
+        let cy = py * TILE_SIZE + TILE_SIZE / 2 + cameraOffset.y;
+
+        let vx = cx - vw / 2;
+        let vy = cy - vh / 2;
+
+        camBounds.startX = Math.max(0, Math.floor(vx / TILE_SIZE) - 2);
+        camBounds.startY = Math.max(0, Math.floor(vy / TILE_SIZE) - 2);
+        camBounds.endX = Math.min(GRID_W - 1, Math.floor((vx + vw) / TILE_SIZE) + 2);
+        camBounds.endY = Math.min(GRID_H - 1, Math.floor((vy + vh) / TILE_SIZE) + 2);
+
+        camView.vx = vx;
+        camView.vy = vy;
+        camView.vw = vw;
+        camView.vh = vh;
+    }
+
+    function initMap() {
+        mapData = Array.from({length: GRID_W}, () => 
+            Array.from({length: GRID_H}, () => ({ isWall: true, isVisible: false, isExplored: false }))
+        );
+    }
+
+    function generateLevel(floorNum) {
+        initMap();
+        enemies = [];
+        visibleTiles = [];
+        floorItems = [];
+        
+        let roomW = 3, roomH = 3;
+        let startX = Math.floor(GRID_W / 2) - Math.floor(roomW / 2);
+        let startY = Math.floor(GRID_H / 2) - Math.floor(roomH / 2);
+        
+        for (let x = startX; x < startX + roomW; x++) {
+            for (let y = startY; y < startY + roomH; y++) {
+                if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
+                    mapData[x][y].isWall = false;
+                }
+            }
+        }
+        player.x = startX + 1;
+        player.y = startY + 1;
+        
+        let wallList = [];
+        const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
+        
+        function addWalls(cx, cy) {
+            for (let d of dirs) {
+                let nx = cx + d.dx;
+                let ny = cy + d.dy;
+                if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1) {
+                    if (mapData[nx][ny].isWall) {
+                        wallList.push({x: nx, y: ny, dx: d.dx, dy: d.dy});
+                    }
+                }
+            }
+        }
+        
+        let startWalls = [];
+        for (let x = startX; x < startX + roomW; x++) {
+            for (let y = startY; y < startY + roomH; y++) {
+                if (!mapData[x][y].isWall) {
+                    for (let d of dirs) {
+                        let nx = x + d.dx;
+                        let ny = y + d.dy;
+                        if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1) {
+                            if (mapData[nx][ny].isWall) {
+                                startWalls.push({x: nx, y: ny, dx: d.dx, dy: d.dy});
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (startWalls.length > 0) {
+            let exitWall = startWalls[Math.floor(Math.random() * startWalls.length)];
+            wallList.push(exitWall);
+        }
+
+        let startingItems = [
+            { name: "Dagger", count: 1 },
+            { name: "Gold Nugget", count: 5 },
+            { name: "Health Potion", count: 1 },
+            { name: "Pebble", count: 25 }
+        ];
+
+        let startFloorTiles = [];
+        for (let x = startX; x < startX + roomW; x++) {
+            for (let y = startY; y < startY + roomH; y++) {
+                if (x !== player.x || y !== player.y) {
+                    startFloorTiles.push({x, y});
+                }
+            }
+        }
+        
+        startFloorTiles.sort(() => Math.random() - 0.5);
+        startingItems.forEach((itemCfg, i) => {
+            if (i < startFloorTiles.length) {
+                let pos = startFloorTiles[i];
+                floorItems.push({ x: pos.x, y: pos.y, item: createItem(itemCfg, floorNum) });
+            }
+        });
+        
+        let iterations = 0;
+        
+        while (wallList.length > 0 && iterations < 300000) {
+            let idx = Math.floor(Math.random() * wallList.length);
+            let wall = wallList[idx];
+            wallList.splice(idx, 1);
+            
+            if (!mapData[wall.x][wall.y].isWall) continue;
+            
+            let floorCount = 0;
+            for (let d of dirs) {
+                if (mapData[wall.x + d.dx] && !mapData[wall.x + d.dx][wall.y + d.dy].isWall) {
+                    floorCount++;
+                }
+            }
+            
+            if (floorCount !== 1) continue;
+            
+            let isRoom = Math.random() < 0.6;
+            let carved = false;
+            
+            if (isRoom) {
+                let rw = Math.floor(Math.random() * 3) + 3; 
+                let rh = Math.floor(Math.random() * 3) + 3;
+                let rx, ry;
+                if (wall.dx !== 0) { 
+                    rx = wall.dx > 0 ? wall.x + 1 : wall.x - rw;
+                    ry = wall.y - Math.floor(Math.random() * rh);
+                } else { 
+                    rx = wall.x - Math.floor(Math.random() * rw);
+                    ry = wall.dy > 0 ? wall.y + 1 : wall.y - rh;
+                }
+                
+                let fits = true;
+                if (rx < 1 || ry < 1 || rx + rw >= GRID_W - 1 || ry + rh >= GRID_H - 1) fits = false;
+                else {
+                    for (let x = rx - 1; x <= rx + rw; x++) {
+                        for (let y = ry - 1; y <= ry + rh; y++) {
+                            if (x === wall.x && y === wall.y) continue;
+                            if (mapData[x] && !mapData[x][y].isWall) fits = false;
+                        }
+                    }
+                }
+                
+                if (fits) {
+                    for (let x = rx; x < rx + rw; x++) {
+                        for (let y = ry; y < ry + rh; y++) {
+                            mapData[x][y].isWall = false;
+                        }
+                    }
+                    mapData[wall.x][wall.y].isWall = false;
+                    for (let x = rx; x < rx + rw; x++) {
+                        for (let y = ry; y < ry + rh; y++) {
+                            addWalls(x, y);
+                        }
+                    }
+                    addWalls(wall.x, wall.y);
+                    carved = true;
+                }
+            } else {
+                let length = Math.floor(Math.random() * 3) + 3; 
+                let cx = wall.x + wall.dx;
+                let cy = wall.y + wall.dy;
+                
+                let fits = true;
+                for (let i = 0; i < length; i++) {
+                    let tx = cx + wall.dx * i;
+                    let ty = cy + wall.dy * i;
+                    if (tx < 1 || ty < 1 || tx >= GRID_W - 1 || ty >= GRID_H - 1) {
+                        fits = false; break;
+                    }
+                    let adjacentFloors = 0;
+                    for (let d of dirs) {
+                        if (mapData[tx + d.dx] && !mapData[tx + d.dx][ty + d.dy].isWall) adjacentFloors++;
+                    }
+                    if (adjacentFloors > 0) { fits = false; break; }
+                }
+                
+                if (fits) {
+                    mapData[wall.x][wall.y].isWall = false;
+                    addWalls(wall.x, wall.y);
+                    for (let i = 0; i < length; i++) {
+                        let tx = cx + wall.dx * i;
+                        let ty = cy + wall.dy * i;
+                        mapData[tx][ty].isWall = false;
+                        addWalls(tx, ty);
+                    }
+                    carved = true;
+                }
+            }
+            
+            if (carved) iterations++;
+        }
+        
+        // Post-Processing 1: Add loops (connecting halls)
+        let potentialConnections = [];
+        for (let x = 1; x < GRID_W - 1; x++) {
+            for (let y = 1; y < GRID_H - 1; y++) {
+                if (mapData[x][y].isWall) {
+                    if (x >= startX - 1 && x <= startX + roomW && y >= startY - 1 && y <= startY + roomH) continue;
+
+                    let floorAbove = !mapData[x][y-1].isWall;
+                    let floorBelow = !mapData[x][y+1].isWall;
+                    let floorLeft = !mapData[x-1][y].isWall;
+                    let floorRight = !mapData[x+1][y].isWall;
+
+                    let horizontal = floorLeft && floorRight && !floorAbove && !floorBelow;
+                    let vertical = floorAbove && floorBelow && !floorLeft && !floorRight;
+
+                    if (horizontal || vertical) {
+                        potentialConnections.push({x, y});
+                    }
+                }
+            }
+        }
+
+        potentialConnections.sort(() => Math.random() - 0.5);
+        let connectionsToBreak = Math.floor(potentialConnections.length * 0.3); // Connect 30%
+        for (let i = 0; i < connectionsToBreak; i++) {
+            let pos = potentialConnections[i];
+            mapData[pos.x][pos.y].isWall = false;
+        }
+
+        // Post-Processing 2: Remove some dead ends
+        for (let pass = 0; pass < 3; pass++) {
+            let deadEnds = [];
+            for (let x = 1; x < GRID_W - 1; x++) {
+                for (let y = 1; y < GRID_H - 1; y++) {
+                    if (!mapData[x][y].isWall && (x !== player.x || y !== player.y)) {
+                        let wallCount = 0;
+                        if (mapData[x][y-1].isWall) wallCount++;
+                        if (mapData[x][y+1].isWall) wallCount++;
+                        if (mapData[x-1][y].isWall) wallCount++;
+                        if (mapData[x+1][y].isWall) wallCount++;
+                        
+                        if (wallCount === 3 && Math.random() < 0.7) { // Fill in 70% of dead ends
+                            deadEnds.push({x, y});
+                        }
+                    }
+                }
+            }
+            for (let pos of deadEnds) {
+                mapData[pos.x][pos.y].isWall = true;
+            }
+        }
+
+        let validWalls = [];
+        for (let x = 1; x < GRID_W - 1; x++) {
+            for (let y = 1; y < GRID_H - 1; y++) {
+                if (mapData[x][y].isWall) {
+                    let adjFloors = 0;
+                    for (let d of dirs) {
+                        if (mapData[x+d.dx] && !mapData[x+d.dx][y+d.dy].isWall) adjFloors++;
+                    }
+                    if (adjFloors > 0) validWalls.push({x, y});
+                }
+            }
+        }
+        validWalls.sort(() => Math.random() - 0.5);
+        
+        for (let i = 0; i < 5; i++) {
+            if (validWalls.length > 0) {
+                let w = validWalls.pop();
+                mapData[w.x][w.y].isWall = false;
+                mapData[w.x][w.y].isStairsDown = true;
+                mapData[w.x][w.y].stairId = i;
+            }
+        }
+        if (floorNum > 1) {
+            for (let i = 0; i < 5; i++) {
+                if (validWalls.length > 0) {
+                    let w = validWalls.pop();
+                    mapData[w.x][w.y].isWall = false;
+                    mapData[w.x][w.y].isStairsUp = true;
+                    mapData[w.x][w.y].stairId = i;
+                }
+            }
+        }
+
+        let emptySpaces = [];
+        for (let x = 0; x < GRID_W; x++) {
+            for (let y = 0; y < GRID_H; y++) {
+                if (!mapData[x][y].isWall && !mapData[x][y].isStairsDown && !mapData[x][y].isStairsUp && (x !== player.x || y !== player.y)) {
+                    emptySpaces.push({ x, y });
+                }
+            }
+        }
+        
+        emptySpaces = emptySpaces.filter(p => Math.hypot(p.x - player.x, p.y - player.y) > 5);
+        let numEnemies = Math.floor((GRID_W * GRID_H) / 55); 
+        let enemyDirs = [{x: 0, y: -1}, {x: 1, y: 0}, {x: 0, y: 1}, {x: -1, y: 0}];
+        let scale = Math.max(0, floorNum - 1);
+
+        let sniperChance = Math.min(0.25, 0.05 * (floorNum - 1));
+        let bruteChance = Math.min(0.20, 0.05 * Math.max(0, floorNum - 2));
+        let shadeChance = Math.min(0.20, 0.05 * Math.max(0, floorNum - 1));
+        let seekerChance = Math.min(0.30, 0.01 + 0.05 * floorNum);
+
+        let threshSniper = sniperChance;
+        let threshBrute = threshSniper + bruteChance;
+        let threshShade = threshBrute + shadeChance;
+        let threshSeeker = threshShade + seekerChance;
+
+        for (let i = 0; i < numEnemies; i++) {
+            if (emptySpaces.length > 0) {
+                let idx = Math.floor(Math.random() * emptySpaces.length);
+                let pos = emptySpaces.splice(idx, 1)[0];
+                let dir = enemyDirs[Math.floor(Math.random() * enemyDirs.length)];
+                let hearingLevel = Math.floor(Math.random() * 4); // 0 to 3
+                
+                let roll = Math.random();
+                if (roll < threshSniper) {
+                    enemies.push({ ...enemyTemplates["Sniper"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 1, hp: enemyTemplates["Sniper"].hp + scale, damageMin: enemyTemplates["Sniper"].damageMin + scale, damageMax: enemyTemplates["Sniper"].damageMax + scale });
+                } else if (roll < threshBrute) {
+                    enemies.push({ ...enemyTemplates["Brute"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: Math.max(0, hearingLevel - 1), hp: enemyTemplates["Brute"].hp + scale * 2, damageMin: enemyTemplates["Brute"].damageMin + scale, damageMax: enemyTemplates["Brute"].damageMax + scale });
+                } else if (roll < threshShade) {
+                    enemies.push({ ...enemyTemplates["Shade"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 3, hp: enemyTemplates["Shade"].hp + scale, damageMin: enemyTemplates["Shade"].damageMin + scale, damageMax: enemyTemplates["Shade"].damageMax + scale });
+                } else if (roll < threshSeeker) {
+                    enemies.push({ ...enemyTemplates["Seeker"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel + 2, hp: enemyTemplates["Seeker"].hp + scale, damageMin: enemyTemplates["Seeker"].damageMin + scale, damageMax: enemyTemplates["Seeker"].damageMax + scale });
+                } else {
+                    enemies.push({ ...enemyTemplates["Sentry"], x: pos.x, y: pos.y, dx: dir.x, dy: dir.y, hearing: hearingLevel, hp: enemyTemplates["Sentry"].hp + scale, damageMin: enemyTemplates["Sentry"].damageMin + scale, damageMax: enemyTemplates["Sentry"].damageMax + scale });
+                }
+
+            }
+        }
+        initialEnemyCount = enemies.length;
+
+        let numLoot = Math.floor((GRID_W * GRID_H) / (800 + floorNum * 50)); 
+        for (let i = 0; i < numLoot; i++) {
+            if (emptySpaces.length > 0) {
+                let idx = Math.floor(Math.random() * emptySpaces.length);
+                let pos = emptySpaces.splice(idx, 1)[0];
+                let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
+                floorItems.push({ x: pos.x, y: pos.y, item: createItem({ name: lootTemplate.name, count: lootTemplate.count }, floorNum) });
+            }
+        }
+
+        let rBase = Math.floor(Math.random() * 150);
+        let gBase = Math.floor(Math.random() * 150);
+        let bBase = Math.floor(Math.random() * 150);
+        
+        // Calculate a complementary, slightly darkened base for the walls
+        let wRBase = Math.floor((255 - rBase) * 0.5);
+        let wGBase = Math.floor((255 - gBase) * 0.5);
+        let wBBase = Math.floor((255 - bBase) * 0.5);
+        
+        for (let x = 0; x < GRID_W; x++) {
+            for (let y = 0; y < GRID_H; y++) {
+                let n1 = Math.sin(x * 0.6) * Math.cos(y * 0.6);
+                let n2 = Math.sin((x - y) * 0.4);
+                let noise = n1 + n2;
+                let grit = Math.random() * 12 - 6; 
+                
+                if (mapData[x][y].isWall) {
+                    let r = Math.min(255, Math.max(0, Math.floor(wRBase + 30 + noise * 15 + grit)));
+                    let g = Math.min(255, Math.max(0, Math.floor(wGBase + 30 + noise * 15 + grit)));
+                    let b = Math.min(255, Math.max(0, Math.floor(wBBase + 30 + noise * 15 + grit)));
+                    mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    let r = Math.min(255, Math.max(0, Math.floor(rBase + noise * 10 + grit)));
+                    let g = Math.min(255, Math.max(0, Math.floor(gBase + noise * 12 + grit)));
+                    let b = Math.min(255, Math.max(0, Math.floor(bBase + noise * 10 + grit)));
+                    mapData[x][y].color = `rgb(${r}, ${g}, ${b})`;
+
+                    // Add floor decorations
+                    if (!mapData[x][y].isStairsDown && !mapData[x][y].isStairsUp && Math.random() < 0.15) {
+                        let decType = Math.floor(Math.random() * 3);
+                        if (decType === 0) { // Rubble / Pebbles
+                            let dots = [];
+                            let numDots = Math.floor(Math.random() * 4) + 1;
+                            for (let i = 0; i < numDots; i++) {
+                                dots.push({
+                                    dx: Math.random() * TILE_SIZE,
+                                    dy: Math.random() * TILE_SIZE,
+                                    s: Math.random() * 3 + 1,
+                                    c: Math.random() > 0.5 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.08)'
+                                });
+                            }
+                            mapData[x][y].decoration = { type: 'dots', data: dots };
+                        } else if (decType === 1) { // Cracks / Scratches
+                            mapData[x][y].decoration = { 
+                                type: 'crack', 
+                                x1: Math.random() * TILE_SIZE, y1: Math.random() * TILE_SIZE,
+                                x2: Math.random() * TILE_SIZE, y2: Math.random() * TILE_SIZE,
+                                xm: Math.random() * TILE_SIZE, ym: Math.random() * TILE_SIZE,
+                                c: 'rgba(0,0,0,0.5)'
+                            };
+                        } else if (decType === 2) { // Stains (Blood or Coolant)
+                            mapData[x][y].decoration = {
+                                type: 'stain',
+                                dx: Math.random() * (TILE_SIZE - 10) + 5, dy: Math.random() * (TILE_SIZE - 10) + 5,
+                                r: Math.random() * 6 + 2,
+                                c: Math.random() > 0.7 ? 'rgba(120, 20, 20, 0.35)' : 'rgba(20, 100, 120, 0.25)'
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function logMessage(msg, color = null) {
+        const entry = document.createElement('div');
+        entry.textContent = "> " + msg;
+        if (color) entry.style.color = color;
+        logEl.prepend(entry);
+        
+        if (logEl.children.length > 100) {
+            logEl.removeChild(logEl.lastChild);
+        }
+    }
+
+    function drawBoard() {
+        updateCamera();
+        
+        ctx.clearRect(0, 0, board.width, board.height);
+        ctx.save();
+        ctx.scale(currentZoom, currentZoom);
+        ctx.translate(-camView.vx, -camView.vy);
+
+        // Draw Map Tiles (Floors and Walls)
+        for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+            for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                let tile = mapData[x][y];
+                if (!tile.isExplored && !debugVision) continue;
+
+                ctx.fillStyle = tile.color || (tile.isWall ? "#555" : "#111");
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
+                
+                if (!tile.isWall && tile.decoration) {
+                    let d = tile.decoration;
+                    let tx = x * TILE_SIZE;
+                    let ty = y * TILE_SIZE;
+                    
+                    if (d.type === 'dots') {
+                        d.data.forEach(dot => {
+                            ctx.fillStyle = dot.c;
+                            ctx.fillRect(tx + dot.dx, ty + dot.dy, dot.s, dot.s);
+                        });
+                    } else if (d.type === 'crack') {
+                        ctx.strokeStyle = d.c;
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(tx + d.x1, ty + d.y1);
+                        ctx.lineTo(tx + d.xm, ty + d.ym);
+                        ctx.lineTo(tx + d.x2, ty + d.y2);
+                        ctx.stroke();
+                    } else if (d.type === 'stain') {
+                        ctx.fillStyle = d.c;
+                        ctx.beginPath();
+                        ctx.arc(tx + d.dx, ty + d.dy, d.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        // Batch draw grid lines for floors
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+            for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                let tile = mapData[x][y];
+                if (!tile.isWall && (tile.isExplored || debugVision)) {
+                    ctx.rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+        ctx.stroke();
+
+        // Draw Stairs
+        for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+            for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                let tile = mapData[x][y];
+                if (!tile.isExplored && !debugVision) continue;
+                if (tile.isStairsDown || tile.isStairsUp) {
+                    let stX = x * TILE_SIZE;
+                    let stY = y * TILE_SIZE;
+                    
+                    if (tile.isStairsDown) {
+                        ctx.fillStyle = "#050505";
+                        ctx.fillRect(stX + 4, stY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        for (let s = 0; s < 5; s++) {
+                            let topW = 32 - s * 6;
+                            let botW = 32 - (s + 1) * 6;
+                            let ty = stY + 4 + s * 6;
+                            let by = ty + 6;
+                            let tx1 = stX + 20 - topW / 2;
+                            let tx2 = stX + 20 + topW / 2;
+                            let bx1 = stX + 20 - botW / 2;
+                            let bx2 = stX + 20 + botW / 2;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(tx1, ty);
+                            ctx.lineTo(tx2, ty);
+                            ctx.lineTo(bx2, by);
+                            ctx.lineTo(bx1, by);
+                            ctx.closePath();
+                            
+                            let shade = 120 - s * 20;
+                            ctx.fillStyle = `rgb(${shade + 30}, 10, 20)`;
+                            ctx.fill();
+                            
+                            ctx.fillStyle = "rgba(0,0,0,0.6)";
+                            ctx.fillRect(bx1, by - 2, botW, 2);
+                        }
+                    } else {
+                        ctx.fillStyle = "#111";
+                        ctx.fillRect(stX + 4, stY + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                        for (let s = 0; s < 5; s++) {
+                            let botW = 32 - s * 6;
+                            let topW = 32 - (s + 1) * 6;
+                            let by = stY + 36 - s * 6;
+                            let ty = by - 6;
+                            let bx1 = stX + 20 - botW / 2;
+                            let bx2 = stX + 20 + botW / 2;
+                            let tx1 = stX + 20 - topW / 2;
+                            let tx2 = stX + 20 + topW / 2;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(tx1, ty);
+                            ctx.lineTo(tx2, ty);
+                            ctx.lineTo(bx2, by);
+                            ctx.lineTo(bx1, by);
+                            ctx.closePath();
+                            
+                            let shade = 60 + s * 25;
+                            ctx.fillStyle = `rgb(10, ${shade}, ${shade + 50})`;
+                            ctx.fill();
+                            
+                            ctx.fillStyle = "rgba(255,255,255,0.15)";
+                            ctx.fillRect(bx1, by - 2, botW, 2);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Batch draw Fog of War
+        if (!debugVision) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            ctx.beginPath();
+            for(let x = camBounds.startX; x <= camBounds.endX; x++) {
+                for(let y = camBounds.startY; y <= camBounds.endY; y++) {
+                    let tile = mapData[x][y];
+                    if (!tile.isVisible && tile.isExplored) {
+                        ctx.rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
+                    }
+                }
+            }
+            ctx.fill();
+        }
+
+        let pRenderX = player.renderX !== undefined ? player.renderX : player.x;
+        let pRenderY = player.renderY !== undefined ? player.renderY : player.y;
+
+        // Setup light gradient for player
+        let currentVisionRange = getPlayerVisionRange();
+        let cx = pRenderX * TILE_SIZE + TILE_SIZE / 2;
+        let cy = pRenderY * TILE_SIZE + TILE_SIZE / 2;
+        
+        let playerLightGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentVisionRange * TILE_SIZE);
+        playerLightGrad.addColorStop(0, "rgba(0, 255, 255, 0.3)");
+        playerLightGrad.addColorStop(1, "rgba(0, 255, 255, 0)");
+
+        let rareBeamGrad = ctx.createLinearGradient(0, 0, 0, TILE_SIZE * 2);
+        rareBeamGrad.addColorStop(0, "rgba(80, 250, 123, 0)");
+        rareBeamGrad.addColorStop(1, "rgba(80, 250, 123, 0.6)");
+
+        // Draw Player Light (Raycasted)
+        let pts = [];
+        let maxDist = currentVisionRange * TILE_SIZE;
+        let stepSize = TILE_SIZE / 4;
+        
+        for (let a = 0; a <= Math.PI * 2 + 0.01; a += Math.PI / 128) {
+            let dist = 0;
+            let rayX = cx;
+            let rayY = cy;
+            
+            while (dist < maxDist) {
+                dist += stepSize;
+                let nextX = cx + Math.cos(a) * dist;
+                let nextY = cy + Math.sin(a) * dist;
+                let gx = Math.floor(nextX / TILE_SIZE);
+                let gy = Math.floor(nextY / TILE_SIZE);
+                if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H || mapData[gx][gy].isWall) {
+                    let refineStep = stepSize / 2;
+                    dist -= stepSize;
+                    for (let i = 0; i < 6; i++) {
+                        dist += refineStep;
+                        let rx = cx + Math.cos(a) * dist;
+                        let ry = cy + Math.sin(a) * dist;
+                        let r_gx = Math.floor(rx / TILE_SIZE);
+                        let r_gy = Math.floor(ry / TILE_SIZE);
+                        if (r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H || mapData[r_gx][r_gy].isWall) {
+                            dist -= refineStep;
+                        }
+                        refineStep /= 2;
+                    }
+                    rayX = cx + Math.cos(a) * dist;
+                    rayY = cy + Math.sin(a) * dist;
+                    break;
+                }
+                rayX = nextX;
+                rayY = nextY;
+            }
+            pts.push(`${rayX},${rayY}`);
+        }
+        
+        if (pts.length > 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = "screen";
+            ctx.beginPath();
+            pts.forEach((ptStr, i) => {
+                let [px, py] = ptStr.split(',').map(Number);
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.fillStyle = playerLightGrad;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        let dustOverlay = document.getElementById('dust-overlay');
+        if (debugVision) {
+            dustOverlay.style.webkitClipPath = 'none';
+            dustOverlay.style.clipPath = 'none';
+        } else {
+            let clipPts = pts.map(ptStr => {
+                let [px, py] = ptStr.split(',').map(Number);
+                let sx = (px - camView.vx) / camView.vw * 100;
+                let sy = (py - camView.vy) / camView.vh * 100;
+                return `${sx.toFixed(2)}% ${sy.toFixed(2)}%`;
+            });
+            let polygonStr = `polygon(${clipPts.join(', ')})`;
+            dustOverlay.style.webkitClipPath = polygonStr;
+            dustOverlay.style.clipPath = polygonStr;
+        }
+
+        // Draw debug hearing
+        if (debugHearing) {
+            audibleTiles.forEach((dist, posStr) => {
+                let [ax, ay] = posStr.split(',').map(Number);
+                if (ax < camBounds.startX || ax > camBounds.endX || ay < camBounds.startY || ay > camBounds.endY) return;
+                ctx.fillStyle = "rgba(255, 165, 0, 0.2)";
+                ctx.fillRect(ax * TILE_SIZE, ay * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            });
+        }
+
+        // Draw Floor Items
+        let drawnTiles = new Set();
+        for (let i = floorItems.length - 1; i >= 0; i--) {
+            let fi = floorItems[i];
+            if (fi.x < camBounds.startX || fi.x > camBounds.endX || fi.y < camBounds.startY || fi.y > camBounds.endY) continue;
+            if (!mapData[fi.x][fi.y].isExplored && !debugVision) continue;
+            
+            let posStr = `${fi.x},${fi.y}`;
+            if (drawnTiles.has(posStr)) continue;
+            drawnTiles.add(posStr);
+
+            let hasRare = floorItems.some(itemFi => itemFi.x === fi.x && itemFi.y === fi.y && (itemFi.item.rarity === 'rare' || itemFi.item.rarity === 'cursed'));
+            if (hasRare && (mapData[fi.x][fi.y].isVisible || debugVision)) {
+                triggerAnimation(); // Ensure continuous animation for the pulse effect
+
+                let now = performance.now();
+                let pulseY = Math.sin(now / 200) * 5;
+                let pulseScaleY = 0.75 + Math.sin(now / 150) * 0.25;
+                let pulseAlpha = 0.7 + Math.sin(now / 150) * 0.3;
+                ctx.save();
+                ctx.translate(fi.x * TILE_SIZE + TILE_SIZE / 2, fi.y * TILE_SIZE + TILE_SIZE / 2 + pulseY);
+                ctx.scale(1, pulseScaleY);
+                ctx.translate(0, -TILE_SIZE * 2);
+                ctx.globalCompositeOperation = "lighter";
+                ctx.globalAlpha = pulseAlpha;
+                ctx.fillStyle = rareBeamGrad;
+                ctx.fillRect(-4, 0, 8, TILE_SIZE * 2);
+                ctx.restore();
+            }
+
+            ctx.fillStyle = fi.item.color || "#ccc";
+            ctx.font = "20px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.globalAlpha = (!mapData[fi.x][fi.y].isVisible && !debugVision) ? 0.4 : 1.0;
+            ctx.fillText(fi.item.icon || fi.item.name.charAt(0), fi.x * TILE_SIZE + TILE_SIZE / 2, fi.y * TILE_SIZE + TILE_SIZE / 2 + 2);
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Draw debug vision
+        if (debugVision) {
+            // Draw enemy vision
+            enemies.forEach(e => {
+                let eRenderX = e.renderX !== undefined ? e.renderX : e.x;
+                let eRenderY = e.renderY !== undefined ? e.renderY : e.y;
+
+                if (eRenderX < camBounds.startX || eRenderX > camBounds.endX || eRenderY < camBounds.startY || eRenderY > camBounds.endY) return;
+                
+                let pts = [];
+                let ecx = eRenderX * TILE_SIZE + TILE_SIZE / 2;
+                let ecy = eRenderY * TILE_SIZE + TILE_SIZE / 2;
+                let baseAngle = Math.atan2(e.dy, e.dx);
+                pts.push(`${ecx},${ecy}`);
+                
+                let maxDist = 8 * TILE_SIZE;
+                let stepSize = TILE_SIZE / 4;
+                
+                for (let a = -Math.PI / 4; a <= Math.PI / 4 + 0.01; a += Math.PI / 128) {
+                    let angle = baseAngle + a;
+                    let dist = 0;
+                    let rayX = ecx;
+                    let rayY = ecy;
+                    
+                    while (dist < maxDist) {
+                        dist += stepSize;
+                        let nextX = ecx + Math.cos(angle) * dist;
+                        let nextY = ecy + Math.sin(angle) * dist;
+                        let gx = Math.floor(nextX / TILE_SIZE);
+                        let gy = Math.floor(nextY / TILE_SIZE);
+                        if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H || mapData[gx][gy].isWall) {
+                            let refineStep = stepSize / 2;
+                            dist -= stepSize;
+                            for (let i = 0; i < 6; i++) {
+                                dist += refineStep;
+                                let rx = ecx + Math.cos(angle) * dist;
+                                let ry = ecy + Math.sin(angle) * dist;
+                                let r_gx = Math.floor(rx / TILE_SIZE);
+                                let r_gy = Math.floor(ry / TILE_SIZE);
+                                if (r_gx < 0 || r_gy < 0 || r_gx >= GRID_W || r_gy >= GRID_H || mapData[r_gx][r_gy].isWall) {
+                                    dist -= refineStep;
+                                }
+                                refineStep /= 2;
+                            }
+                            rayX = ecx + Math.cos(angle) * dist;
+                            rayY = ecy + Math.sin(angle) * dist;
+                            break;
+                        }
+                        rayX = nextX;
+                        rayY = nextY;
+                    }
+                    pts.push(`${rayX},${rayY}`);
+                }
+                if (pts.length > 0) {
+                    ctx.beginPath();
+                    pts.forEach((ptStr, i) => {
+                        let [px, py] = ptStr.split(',').map(Number);
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    });
+                    ctx.closePath();
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.15)";
+                    ctx.fill();
+                }
+            });
+        }
+
+        // Draw Enemies
+        enemies.forEach(e => {
+            let eRenderX = e.renderX !== undefined ? e.renderX : e.x;
+            let eRenderY = e.renderY !== undefined ? e.renderY : e.y;
+
+            if (eRenderX < camBounds.startX || eRenderX > camBounds.endX || eRenderY < camBounds.startY || eRenderY > camBounds.endY) return;
+            if (!mapData[e.x][e.y].isVisible && !debugVision) return;
+
+            let pDist = Math.hypot(player.x - e.x, player.y - e.y);
+            if (e.type === 'Shade' && pDist > 2.5 && !debugVision && getRareStat('trueSight') === 0) return;
+
+            ctx.save();
+            let ecx = eRenderX * TILE_SIZE + TILE_SIZE / 2;
+            let ecy = eRenderY * TILE_SIZE + TILE_SIZE / 2;
+
+            ctx.translate(ecx, ecy);
+            if (e.type === 'Seeker') {
+                ctx.rotate(45 * Math.PI / 180);
+            } else if (e.type === 'Shade') {
+                ctx.rotate(Math.atan2(e.dy, e.dx));
+            }
+
+            ctx.shadowBlur = 12;
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            let rectSize = TILE_SIZE - 10;
+            
+            if (e.type === 'Sniper') {
+                ctx.fillStyle = "purple";
+                ctx.shadowColor = "purple";
+                for(let i=0; i<6; i++) ctx.lineTo(15 * Math.cos(i * Math.PI / 3), 15 * Math.sin(i * Math.PI / 3));
+                ctx.closePath();
+            } else if (e.type === 'Brute') {
+                ctx.fillStyle = "cornflowerblue";
+                ctx.shadowColor = "cornflowerblue";
+                for(let i=0; i<8; i++) ctx.lineTo(18 * Math.cos(i * Math.PI / 4 + Math.PI/8), 18 * Math.sin(i * Math.PI / 4 + Math.PI/8));
+                ctx.closePath();
+            } else if (e.type === 'Shade') {
+                ctx.fillStyle = "#444";
+                ctx.shadowColor = "#444";
+                ctx.moveTo(15, 0);
+                ctx.lineTo(-10, 10);
+                ctx.lineTo(-10, -10);
+                ctx.closePath();
+            } else {
+                ctx.fillStyle = e.type === 'Seeker' ? "orange" : "red";
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.rect(-rectSize/2, -rectSize/2, rectSize, rectSize);
+            }
+            ctx.fill();
+            ctx.shadowBlur = 0; // Reset for crisp strokes
+
+            if (e.hasLOS) {
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } else if (e.lastKnown) {
+                ctx.strokeStyle = "orange";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Draw facing indicator
+            if (e.type !== 'Shade') {
+                let mag = Math.hypot(e.dx, e.dy) || 1;
+                ctx.strokeStyle = "#111";
+                ctx.lineWidth = 3;
+                ctx.lineCap = "round";
+                ctx.beginPath();
+                ctx.moveTo(ecx, ecy);
+                ctx.lineTo(ecx + (e.dx / mag) * (TILE_SIZE / 2 - 5), ecy + (e.dy / mag) * (TILE_SIZE / 2 - 5));
+                ctx.stroke();
+            }
+        });
+
+        // Draw Player (Triangle)
+        ctx.save();
+        let px_screen = pRenderX * TILE_SIZE;
+        let py_screen = pRenderY * TILE_SIZE;
+        let pangle = Math.atan2(player.dy, player.dx) + Math.PI / 2;
+
+        ctx.translate(px_screen + 20, py_screen + 20);
+        ctx.rotate(pangle);
+        
+        ctx.lineJoin = "round";
+        let pColor = getRareStat('flavor_ugly') > 0 ? "#55aaaa" : "cyan";
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = pColor;
+
+        ctx.beginPath();
+        if (pColor === "#55aaaa") {
+            ctx.moveTo(-5, -10);
+            ctx.lineTo(18, 12);
+            ctx.lineTo(-18, 18);
+        } else {
+            ctx.moveTo(0, -15);
+            ctx.lineTo(15, 15);
+            ctx.lineTo(-15, 15);
+        }
+        ctx.closePath();
+        ctx.fillStyle = pColor;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        if (getRareStat("flavor_shiny") > 0 || getRareStat("flavor_glowing") > 0) {
+            ctx.strokeStyle = "yellow";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        } else if (getRareStat("flavor_cold") > 0) {
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        } else if (getRareStat("flavor_warm") > 0) {
+            ctx.strokeStyle = "orange";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // Draw Projectiles
+        let nowTime = performance.now();
+        projectiles.forEach(p => {
+            let t = (nowTime - p.startTime) / p.duration;
+            if (t > 1) t = 1;
+            if (t < 0) return;
+
+            let startPx = p.startX * TILE_SIZE + TILE_SIZE / 2;
+            let startPy = p.startY * TILE_SIZE + TILE_SIZE / 2;
+            let endPx = p.endX * TILE_SIZE + TILE_SIZE / 2;
+            let endPy = p.endY * TILE_SIZE + TILE_SIZE / 2;
+
+            let projX = startPx + (endPx - startPx) * t;
+            let projY = startPy + (endPy - startPy) * t;
+
+            ctx.beginPath();
+            ctx.arc(projX, projY, 6, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+        
+        ctx.restore(); // Restore camera transform EARLY for screen-space distortion
+
+        // Draw Sound Ripples with screen-space visual warping
+        turnSounds.forEach(snd => {
+            if (nowTime < snd.startTime) return;
+            let t = (nowTime - snd.startTime) / snd.duration;
+            if (t > 1) t = 1;
+
+            let maxRadius = snd.volume * TILE_SIZE;
+            let radius = maxRadius * t;
+            let opacity = 0.8 * (1 - t);
+
+            // Convert world center to screen coordinates
+            let cx = snd.x * TILE_SIZE + TILE_SIZE / 2;
+            let cy = snd.y * TILE_SIZE + TILE_SIZE / 2;
+            let screenCx = (cx - camView.vx) * currentZoom;
+            let screenCy = (cy - camView.vy) * currentZoom;
+            let screenR = radius * currentZoom;
+
+            // Refraction/Distortion pass
+            let ringWidth = TILE_SIZE * 1.5 * currentZoom * (1 - t); 
+            if (screenR > 0 && ringWidth > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(screenCx, screenCy, screenR + ringWidth / 2, 0, Math.PI * 2);
+                ctx.arc(screenCx, screenCy, Math.max(0, screenR - ringWidth / 2), 0, Math.PI * 2, true);
+                ctx.clip();
+
+                let scaleDistort = 1.0 + 0.15 * Math.sin(t * Math.PI) * opacity; 
+                
+                ctx.translate(screenCx, screenCy);
+                ctx.scale(scaleDistort, scaleDistort);
+                ctx.translate(-screenCx, -screenCy);
+                
+                ctx.drawImage(board, 0, 0);
+                
+                ctx.restore();
+            }
+
+            // Color Stroke pass
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            ctx.beginPath();
+            ctx.arc(screenCx, screenCy, screenR, 0, Math.PI * 2);
+            ctx.strokeStyle = snd.color;
+            ctx.lineWidth = (snd.color === "orange" ? 4 : 2) * currentZoom;
+            ctx.globalAlpha = opacity;
+            ctx.stroke();
+            
+            // Inner echo ring
+            if (t > 0.2) {
+                let innerT = (t - 0.2) / 0.8;
+                let innerRadius = maxRadius * innerT;
+                ctx.beginPath();
+                ctx.arc(screenCx, screenCy, innerRadius * currentZoom, 0, Math.PI * 2);
+                ctx.lineWidth = 1 * currentZoom;
+                ctx.globalAlpha = opacity * 0.5;
+                ctx.stroke();
+            }
+            ctx.restore();
+        });
+
+        // Draw Floating Combat Text
+        ctx.save();
+        ctx.scale(currentZoom, currentZoom);
+        ctx.translate(-camView.vx, -camView.vy);
+        
+        floatingTexts.forEach(ft => {
+            let t = (nowTime - ft.startTime) / ft.duration;
+            if (t > 1) t = 1;
+            let worldX = ft.x * TILE_SIZE + TILE_SIZE / 2;
+            let worldY = ft.y * TILE_SIZE + TILE_SIZE / 2 - (t * TILE_SIZE); // float up 1 tile
+            let opacity = 1 - Math.pow(t, 2);
+
+            ctx.globalAlpha = opacity;
+            ctx.fillStyle = ft.color;
+            ctx.strokeStyle = "rgba(0,0,0,0.8)";
+            ctx.lineWidth = 4;
+            ctx.font = "bold 24px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.strokeText(ft.text, worldX, worldY);
+            ctx.fillText(ft.text, worldX, worldY);
+        });
+        ctx.restore();
+
+        renderUI();
+    }
+
+    function addItemToInventory(item) {
+        let existingItem = inventory.find(i => i.name === item.name && i.stackable);
+        if (existingItem) {
+            existingItem.count += (item.count || 1);
+            logMessage(`Added ${item.count || 1}x ${item.name} to inventory.`);
+        } else {
+            if (inventory.length < INVENTORY_CAPACITY) {
+                inventory.push({ ...item, count: item.count || 1 });
+                logMessage(`Picked up ${item.name}.`);
+            } else {
+                logMessage("Inventory is full!");
+            }
+        }
+        renderUI();
+    }
+
+    function dropItemToFloor(x, y, item) {
+        let existingFloorItem = floorItems.find(fi => fi.x === x && fi.y === y && fi.item.name === item.name && fi.item.stackable);
+        if (existingFloorItem) {
+            existingFloorItem.item.count += (item.count || 1);
+        } else {
+            floorItems.push({ x: x, y: y, item: { ...item } });
+        }
+    }
+
+    function bindTooltip(el, text) {
+        el.addEventListener('mousemove', (e) => {
+            tooltipEl.textContent = text;
+            tooltipEl.style.display = 'block';
+            let ttWidth = tooltipEl.offsetWidth;
+            let ttHeight = tooltipEl.offsetHeight;
+            let left = e.pageX + 15;
+            let top = e.pageY - ttHeight - 15; // Above the mouse
+            if (top < 0) top = e.pageY + 15; // Keep on screen
+            if (left + ttWidth > window.innerWidth) left = window.innerWidth - ttWidth - 10;
+            tooltipEl.style.left = left + 'px';
+            tooltipEl.style.top = top + 'px';
+        });
+        el.addEventListener('mouseleave', () => {
+            tooltipEl.style.display = 'none';
+        });
+    }
+
+    function renderUI() {
+        hpEl.textContent = `HP: ${player.hp} / ${player.maxHp}`;
+        
+        equipmentListEl.innerHTML = '';
+        for (let slotName in equipment) {
+            let item = equipment[slotName];
+            let slot = document.createElement('div');
+            slot.className = 'equipment-slot';
+            slot.innerHTML = `<span>${slotName.charAt(0).toUpperCase() + slotName.slice(1)}</span> <span style="color: ${item ? (item.color || 'cyan') : '#555'}">${item ? item.icon + ' ' + item.name : 'Empty'}</span>`;
+            
+            if (item) {
+                bindTooltip(slot, item.name);
+                slot.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showItemContextMenu(e, item, 'equipment', slotName, -1);
+                });
+            }
+            
+            if (item && (item.rarity === 'rare' || item.rarity === 'cursed')) {
+                slot.style.borderColor = '#50fa7b';
+                slot.style.boxShadow = 'inset 0 0 5px rgba(80, 250, 123, 0.2)';
+            }
+            equipmentListEl.appendChild(slot);
+        }
+
+        inventoryGridEl.innerHTML = '';
+        for (let i = 0; i < INVENTORY_CAPACITY; i++) {
+            let slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            if (i < inventory.length) {
+                let item = inventory[i];
+                slot.textContent = item.icon || item.name.charAt(0);
+                
+                bindTooltip(slot, item.name);
+                
+                slot.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showItemContextMenu(e, item, 'inventory', null, i);
+                });
+                
+                if (item.color) {
+                    slot.style.color = item.color;
+                    slot.style.textShadow = `0 0 6px ${item.color}`;
+                }
+
+                if (item.rarity === 'rare' || item.rarity === 'cursed') {
+                    slot.style.borderColor = '#50fa7b';
+                    slot.style.boxShadow = 'inset 0 0 8px rgba(80, 250, 123, 0.4)';
+                }
+                
+                if (item.count > 1) {
+                    let countEl = document.createElement('span');
+                    countEl.className = 'item-count';
+                    countEl.textContent = item.count;
+                    slot.appendChild(countEl);
+                }
+            }
+            inventoryGridEl.appendChild(slot);
+        }
+    }
+
+    function getPlayerStealth() {
+        let stealth = 0;
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].stealth) stealth += equipment[slot].stealth;
+        }
+        stealth += getRareStat('stealthBonusRare');
+        return stealth;
+    }
+
+    function getPlayerDefense() {
+        let defense = 0;
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].defense) defense += equipment[slot].defense;
+        }
+        defense += getRareStat('defense');
+        return defense;
+    }
+
+    function getPlayerDamageBonus() {
+        let bonus = 0;
+        for (let slot in equipment) {
+            if (slot !== 'weapon' && equipment[slot] && equipment[slot].damageBonus) bonus += equipment[slot].damageBonus;
+        }
+        bonus += getRareStat('allDmg');
+        return bonus;
+    }
+
+    function calculatePlayerDamage(wpn, enemy, isRanged) {
+        let damage = 1;
+        if (wpn) {
+            let minDmg = wpn.damageMin !== undefined ? wpn.damageMin : (wpn.damage || 1);
+            let maxDmg = wpn.damageMax !== undefined ? wpn.damageMax : (wpn.damage || 1);
+            damage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+        }
+        damage += getPlayerDamageBonus();
+        damage += getRareStat(isRanged ? 'rangedDmg' : 'meleeDmg');
+        if (enemy.type === 'Sentry') damage += getRareStat('dmgSentry');
+        if (enemy.type === 'Seeker') damage += getRareStat('dmgSeeker');
+        if (enemy.type === 'Sniper') damage += getRareStat('dmgSniper');
+        if (enemy.type === 'Brute') damage += getRareStat('dmgBrute');
+        if (enemy.type === 'Shade') damage += getRareStat('dmgShade');
+        return Math.max(0, damage);
+    }
+
+    function handleInput(e) {
+        if (!gameStarted) return;
+        if (isAutoRunning || isAutoExploring) {
+            isAutoRunning = false;
+            isAutoExploring = false;
+            return;
+        }
+        let key = e.key.toLowerCase();
+        
+        if (key === '`') {
+            devMode = !devMode;
+            document.getElementById('debug-controls').style.display = devMode ? 'block' : 'none';
+            logMessage(devMode ? "Developer mode ENABLED" : "Developer mode DISABLED", "yellow");
+            if (!devMode) {
+                debugVision = false;
+                debugHearing = false;
+                debugGodMode = false;
+                debugTeleport = false;
+                debugToggleEl.checked = false;
+                debugHearingToggleEl.checked = false;
+                debugGodToggleEl.checked = false;
+                debugTeleportToggleEl.checked = false;
+                updateLOS();
+                drawBoard();
+            }
+            return;
+        }
+
+        if (key === 'arrowup') { cameraOffset.y -= TILE_SIZE * 2; drawBoard(); return; }
+        if (key === 'arrowdown') { cameraOffset.y += TILE_SIZE * 2; drawBoard(); return; }
+        if (key === 'arrowleft') { cameraOffset.x -= TILE_SIZE * 2; drawBoard(); return; }
+        if (key === 'arrowright') { cameraOffset.x += TILE_SIZE * 2; drawBoard(); return; }
+
+        if (key === 'r') {
+            triggerAutoExplore();
+            return;
+        }
+
+        if (key === 'v' && devMode) {
+            debugVision = !debugVision;
+            debugToggleEl.checked = debugVision;
+            logMessage(debugVision ? "Debug vision ON" : "Debug vision OFF");
+            drawBoard();
+            return;
+        }
+        
+        if (key === 'h' && devMode) {
+            debugHearing = !debugHearing;
+            debugHearingToggleEl.checked = debugHearing;
+            logMessage(debugHearing ? "Debug hearing ON" : "Debug hearing OFF");
+            drawBoard();
+            return;
+        }
+
+        if (keyMap[key]) {
+            processTurn(keyMap[key].x, keyMap[key].y);
+        }
+    }
+
+    function handleMouseClick(e) {
+        if (isAutoRunning || isAutoExploring) {
+            isAutoRunning = false;
+            isAutoExploring = false;
+            return;
+        }
+
+        let rect = board.getBoundingClientRect();
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+
+        let worldX = (mouseX / currentZoom) + camView.vx;
+        let worldY = (mouseY / currentZoom) + camView.vy;
+        
+        let gridX = Math.floor(worldX / TILE_SIZE);
+        let gridY = Math.floor(worldY / TILE_SIZE);
+
+        if (debugTeleport) {
+            if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && !mapData[gridX][gridY].isWall) {
+                player.x = gridX;
+                player.y = gridY;
+                player.renderX = gridX;
+                player.renderY = gridY;
+                logMessage(`Teleported to ${gridX}, ${gridY}`, "yellow");
+                updateLOS();
+                drawBoard();
+            }
+            return;
+        }
+
+        let dx = gridX - player.x;
+        let dy = gridY - player.y;
+
+        // Check if clicked tile is adjacent (including diagonals) or self
+        if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+            processTurn(dx, dy);
+        } else {
+            let enemyTarget = enemies.find(en => en.x === gridX && en.y === gridY);
+            let wpn = equipment.weapon;
+
+            if (enemyTarget && (mapData[gridX][gridY].isVisible || debugVision)) {
+                if (wpn && wpn.range && wpn.range > 1) {
+                    let dist = Math.hypot(dx, dy);
+                    if (dist <= wpn.range) {
+                        if (hasLineOfSight(player.x, player.y, gridX, gridY)) {
+                            let ammo = inventory.find(i => i.name === wpn.ammoType);
+                            if (ammo && ammo.count > 0) {
+                                executeRangedAttack(gridX, gridY);
+                                return;
+                            } else {
+                                logMessage("Out of ammo!");
+                        playSfx('error');
+                                return;
+                            }
+                        } else {
+                            logMessage("No line of sight.");
+                    playSfx('error');
+                            return;
+                        }
+                    }
+                }
+
+                let path = findPath(player.x, player.y, gridX, gridY);
+                if (path && path.length > 0) {
+                    let step = path[0];
+                    processTurn(step.x, step.y);
+                    return;
+                } else {
+                    logMessage("No clear path to enemy.");
+            playSfx('error');
+                    return;
+                }
+            }
+
+            if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
+                let path = findPath(player.x, player.y, gridX, gridY);
+                if (path && path.length > 0) {
+                    let step = path[0];
+                    processTurn(step.x, step.y);
+                } else {
+                    logMessage("No clear path to destination.");
+                    playSfx('error');
+                }
+            } else {
+                triggerAutoRun(gridX, gridY);
+            }
+        }
+    }
+
+    function executeRangedAttack(x, y) {
+        let wpn = equipment.weapon;
+        playSfx('shoot');
+        let ammoIndex = inventory.findIndex(i => i.name === wpn.ammoType);
+        
+        inventory[ammoIndex].count--;
+        if (inventory[ammoIndex].count <= 0) inventory.splice(ammoIndex, 1);
+        
+        let enemyIndex = enemies.findIndex(e => e.x === x && e.y === y);
+        let now = performance.now();
+        projectiles.push({
+            startX: player.x,
+            startY: player.y,
+            endX: x,
+            endY: y,
+            color: '#a9a9a9',
+            startTime: now,
+            duration: 150
+        });
+        if (enemyIndex !== -1) {
+            let enemy = enemies[enemyIndex];
+            let accuracy = (wpn.accuracy !== undefined) ? wpn.accuracy : 1;
+            let roll = Math.floor(Math.random() * 20) + 1 + getRareStat('accBonus');
+
+            if (roll < accuracy) {
+                logMessage(`Fired ${wpn.ammoType} at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
+                turnSounds.push({ x: x, y: y, volume: 4, color: "white", startTime: now, duration: 600 });
+                turnSounds.push({ x: x, y: y, volume: 4, color: "white", startTime: now + 200, duration: 600 });
+                addFloatingText(x, y, "Miss", "#aaa");
+                setTimeout(() => playSfx('miss'), 100);
+            } else {
+                let damage = calculatePlayerDamage(wpn, enemy, true);
+                
+                enemy.hp -= damage;
+                logMessage(`Fired ${wpn.ammoType} at ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
+                turnSounds.push({ x: x, y: y, volume: 8, color: "white", startTime: now, duration: 600 });
+                turnSounds.push({ x: x, y: y, volume: 8, color: "white", startTime: now + 200, duration: 600 });
+                addFloatingText(x, y, damage.toString(), "white");
+                setTimeout(() => playSfx('hit'), 100);
+                if (enemy.hp <= 0) {
+                    dropLoot(x, y, 0.75); // 75% chance to recover ammo on ranged kill
+                    enemies.splice(enemyIndex, 1);
+                    logMessage(`Shattered a ${enemy.type}.`);
+                    let heal = getRareStat('healOnKill');
+                    if (heal > 0) {
+                        player.hp = Math.min(player.maxHp, player.hp + heal);
+                        logMessage(`Vampiric strike healed you for ${heal} HP.`);
+                        addFloatingText(player.x, player.y, "+" + heal, "#50fa7b");
+                    }
+                }
+            }
+        }
+        
+        updateLOS();
+        updateEnemies();
+        updateLOS();
+        renderUI();
+        triggerAnimation();
+    }
+
+    function handleRightClick(e) {
+        e.preventDefault(); 
+
+        let rect = board.getBoundingClientRect();
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+
+        let worldX = (mouseX / currentZoom) + camView.vx;
+        let worldY = (mouseY / currentZoom) + camView.vy;
+        
+        let gridX = Math.floor(worldX / TILE_SIZE);
+        let gridY = Math.floor(worldY / TILE_SIZE);
+
+        let title = "Empty Tile";
+        let desc = "Safe to traverse.";
+
+        if (gridX === player.x && gridY === player.y) {
+            title = "Player";
+            desc = "HP: " + player.hp + " / " + player.maxHp + "<br>A glowing geometry of hope.";
+        } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isWall) {
+            title = "Wall";
+            desc = "Solid matter. Impassable.";
+        } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isStairsDown) {
+            title = "Stairs Down";
+            desc = "Descend deeper into the facility.";
+        } else if (gridX >= 0 && gridX < GRID_W && gridY >= 0 && gridY < GRID_H && mapData[gridX][gridY].isStairsUp) {
+            title = "Stairs Up";
+            desc = "Ascend to the previous floor.";
+        } else {
+            let enemy = enemies.find(en => en.x === gridX && en.y === gridY);
+            if (enemy && (mapData[enemy.x][enemy.y].isVisible || debugVision)) {
+                let pDist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+                if (enemy.type === 'Shade' && pDist > 2.5 && !debugVision && getRareStat('trueSight') === 0) {
+                    // Cloaked, do not reveal in context menu
+                } else {
+                    title = enemy.type === 'Seeker' ? "Seeker (Orange Diamond)" : 
+                            enemy.type === 'Sniper' ? "Sniper (Purple Hexagon)" :
+                            enemy.type === 'Brute'  ? "Brute (Blue Octagon)" :
+                            enemy.type === 'Shade'  ? "Shade (Dark Triangle)" :
+                            "Sentry (Red Square)";
+                    let minDmg = enemy.damageMin !== undefined ? enemy.damageMin : (enemy.damage || 1);
+                    let maxDmg = enemy.damageMax !== undefined ? enemy.damageMax : (enemy.damage || 1);
+                    let threat = enemy.type === 'Brute' || enemy.type === 'Seeker' || enemy.type === 'Sniper' ? "High" : "Medium";
+                    let behavior = enemy.type === 'Seeker' ? "Patrols until it spots you, then shrieks." : 
+                                   enemy.type === 'Sniper' ? "Keeps distance and fires ranged shots." :
+                                   enemy.type === 'Brute' ? "Moves and attacks at half speed, but hits incredibly hard." :
+                                   enemy.type === 'Shade' ? "Cloaked until close. Actively hunts noises." :
+                                   "Stands guard until it spots you.";
+                    desc = `Threat: ${threat}<br>Behavior: ${behavior}<br>HP: ${enemy.hp}<br>Damage: ${minDmg}-${maxDmg}<br>Hearing: ${enemy.hearing}`;
+                }
+            }
+        }
+
+        let itemsHere = floorItems.filter(fi => fi.x === gridX && fi.y === gridY && (mapData[gridX][gridY].isExplored || debugVision));
+        if (itemsHere.length > 0 && title === "Empty Tile") {
+
+            title = itemsHere.length === 1 ? itemsHere[0].item.name : "Pile of Items";
+            if (itemsHere.length === 1) {
+                let item = itemsHere[0].item;
+                desc = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}<br>Pick it up to view stats.`;
+            } else {
+                desc = "Multiple items scattered here.";
+            }
+        }
+
+        cmTitle.style.color = title === "Player" ? "cyan" : 
+                              title.includes("Sentry") ? "red" : 
+                              title.includes("Seeker") ? "orange" : 
+                              title.includes("Sniper") ? "purple" :
+                              title.includes("Brute") ? "cornflowerblue" :
+                              title.includes("Shade") ? "#888" :
+                              (itemsHere.length === 1 ? itemsHere[0].item.color : "#ccc");
+        cmTitle.innerHTML = title;
+        cmDesc.innerHTML = desc;
+
+        cmActions.innerHTML = '';
+        availableActions.forEach(action => {
+            if (action.condition(gridX, gridY)) {
+                let li = document.createElement('li');
+                li.textContent = action.name;
+                li.onclick = () => {
+                    action.execute(gridX, gridY);
+                };
+                cmActions.appendChild(li);
+            }
+        });
+
+        // Dynamic Pick Up actions
+        if (itemsHere.length > 0 && Math.abs(gridX - player.x) <= 1 && Math.abs(gridY - player.y) <= 1) {
+            itemsHere.forEach(fi => {
+                let li = document.createElement('li');
+                li.textContent = `Pick up ${fi.item.name} ${fi.item.count > 1 ? `(x${fi.item.count})` : ''}`;
+                li.onclick = (evt) => {
+                    evt.stopPropagation(); // Stop click from reaching document and hiding the menu
+                    pickUpItem(fi, true);
+                    handleRightClick(e);
+                };
+                cmActions.appendChild(li);
+
+                if (equippableTypes.includes(fi.item.type)) {
+                    let liEquip = document.createElement('li');
+                    liEquip.textContent = `Equip ${fi.item.name}`;
+                    liEquip.onclick = (evt) => {
+                        evt.stopPropagation();
+                        equipFloorItem(fi);
+                        handleRightClick(e);
+                    };
+                    cmActions.appendChild(liEquip);
+                }
+            });
+        }
+
+        contextMenu.style.display = 'block';
+
+        let menuWidth = contextMenu.offsetWidth;
+        let menuHeight = contextMenu.offsetHeight;
+        
+        let left = e.pageX + 10;
+        let top = e.pageY - menuHeight - 10; // Position above mouse
+        if (top < 0) top = e.pageY + 10; // Keep on screen
+        if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 10;
+        
+        contextMenu.style.left = left + 'px';
+        contextMenu.style.top = top + 'px';
+    }
+
+    function showItemContextMenu(e, item, source, slotName, index) {
+        let identifiedItem = false;
+        if (!item.identified) {
+            item.identified = true;
+            if (item.trueName) item.name = item.trueName;
+            identifiedItem = true;
+        }
+
+        cmTitle.style.color = item.color || "cyan";
+        cmTitle.innerHTML = item.name;
+        
+        let descHtml = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
+        if (item.damageMin !== undefined && item.damageMax !== undefined) descHtml += `<br>Damage: ${item.damageMin}-${item.damageMax}`;
+        else if (item.damage !== undefined) descHtml += `<br>Damage: ${item.damage}`;
+        if (item.accuracy !== undefined) descHtml += `<br>Accuracy: ${item.accuracy}+`;
+        if (item.range) descHtml += `<br>Range: ${item.range}`;
+        if (item.ammoType) descHtml += `<br>Ammo: ${item.ammoType}`;
+        if (item.defense) descHtml += `<br>Defense: ${item.defense}`;
+        if (item.stealth) descHtml += `<br>Stealth: ${item.stealth}`;
+        if (item.damageBonus) descHtml += `<br>Bonus Damage: +${item.damageBonus}`;
+        if (item.healAmount) descHtml += `<br>Restores HP: ${item.healAmount}`;
+        if (item.count > 1) descHtml += `<br>Quantity: ${item.count}`;
+        if (item.mods) {
+            item.mods.forEach(mod => {
+                let isCursed = mod.value < 0;
+                let color = isCursed ? "#ff4444" : "#50fa7b";
+                let prefix = isCursed ? "Cursed" : "Rare";
+                descHtml += `<br><span style="color: ${color};">${prefix}: ${mod.desc}</span>`;
+            });
+        }
+        if (item.rarity === 'cursed' && item.curseTurns > 0) {
+            descHtml += `<br><span style="color: #ff4444;">Stuck for ${item.curseTurns} turns</span>`;
+        }
+        cmDesc.innerHTML = descHtml;
+
+        cmActions.innerHTML = '';
+
+        if (source === 'inventory') {
+            if (equippableTypes.includes(item.type)) {
+                let li = document.createElement('li');
+                li.textContent = "Equip";
+                li.onclick = () => { equipItem(index); contextMenu.style.display = 'none'; };
+                cmActions.appendChild(li);
+            }
+            if (item.type === 'potion') {
+                let li = document.createElement('li');
+                li.textContent = "Drink";
+                li.onclick = () => { useItem(index); contextMenu.style.display = 'none'; };
+                cmActions.appendChild(li);
+            }
+            let dropLi = document.createElement('li');
+            dropLi.textContent = "Drop";
+            dropLi.onclick = () => { dropItem(index); contextMenu.style.display = 'none'; };
+            cmActions.appendChild(dropLi);
+            
+            if (item.count > 1) {
+                let dropAllLi = document.createElement('li');
+                dropAllLi.textContent = "Drop All";
+                dropAllLi.onclick = () => { dropAllItem(index); contextMenu.style.display = 'none'; };
+                cmActions.appendChild(dropAllLi);
+            }
+        } else if (source === 'equipment') {
+            let li = document.createElement('li');
+            li.textContent = "Unequip";
+            li.onclick = () => { unequipItem(slotName); contextMenu.style.display = 'none'; };
+            cmActions.appendChild(li);
+        }
+
+        if (identifiedItem) {
+            renderUI();
+            drawBoard();
+        }
+
+        contextMenu.style.display = 'block';
+
+        let menuWidth = contextMenu.offsetWidth;
+        let menuHeight = contextMenu.offsetHeight;
+        let left = e.pageX + 10;
+        let top = e.pageY - menuHeight - 10; 
+        if (top < 0) top = e.pageY + 10; 
+        if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 10;
+        contextMenu.style.left = left + 'px';
+        contextMenu.style.top = top + 'px';
+    }
+
+    function hideContextMenu(e) {
+        if (e.button !== 2) { 
+            contextMenu.style.display = 'none';
+        }
+    }
+
+    function processTurn(dx, dy, silentWait = false) {
+        cameraOffset = { x: 0, y: 0 }; // Re-center camera on player action
+
+        if (player.hp <= 0) return;
+        
+        let now = performance.now();
+
+        for (let slot in equipment) {
+            if (equipment[slot] && equipment[slot].rarity === 'cursed' && equipment[slot].curseTurns > 0) {
+                equipment[slot].curseTurns--;
+                if (equipment[slot].curseTurns === 0) {
+                    logMessage(`The curse on your ${equipment[slot].name} has faded. It can now be removed.`, "#50fa7b");
+                }
+            }
+        }
+
+        if (dx !== 0 || dy !== 0) {
+            player.dx = dx;
+            player.dy = dy;
+            let newX = player.x + dx;
+            let newY = player.y + dy;
+
+            // Boundary check
+            if (newX < 0 || newX >= GRID_W || newY < 0 || newY >= GRID_H) { playSfx('error'); return; }
+            
+            // Wall check
+            if (mapData[newX][newY].isWall) { playSfx('error'); return; }
+
+            // Combat check
+            let enemyIndex = enemies.findIndex(e => e.x === newX && e.y === newY);
+            if (enemyIndex !== -1) {
+                let enemy = enemies[enemyIndex];
+                let wpn = equipment.weapon;
+                let accuracy = (wpn && wpn.accuracy !== undefined) ? wpn.accuracy : 1;
+                let roll = Math.floor(Math.random() * 20) + 1 + getRareStat('accBonus');
+
+                if (roll < accuracy) {
+                    logMessage(`Struck at ${enemy.type} but missed! (Roll: ${roll} < ${accuracy})`);
+                    turnSounds.push({ x: newX, y: newY, volume: 4, color: "white", startTime: now, duration: 600 });
+                    turnSounds.push({ x: newX, y: newY, volume: 4, color: "white", startTime: now + 200, duration: 600 });
+                    addFloatingText(newX, newY, "Miss", "#aaa");
+                    playSfx('miss');
+                } else {
+                    let damage = calculatePlayerDamage(wpn, enemy, false);
+                    
+                    enemy.hp -= damage;
+                    logMessage(`Struck ${enemy.type} for ${damage} damage! (Roll: ${roll} >= ${accuracy})`);
+                    turnSounds.push({ x: newX, y: newY, volume: 8, color: "white", startTime: now, duration: 600 });
+                    turnSounds.push({ x: newX, y: newY, volume: 8, color: "white", startTime: now + 200, duration: 600 });
+                    addFloatingText(newX, newY, damage.toString(), "white");
+                    playSfx('hit');
+                    if (enemy.hp <= 0) {
+                        dropLoot(newX, newY, 0.05); // 5% chance to find ammo on melee kill
+                        enemies.splice(enemyIndex, 1);
+                        logMessage(`Shattered a ${enemy.type}.`);
+                        let heal = getRareStat('healOnKill');
+                        if (heal > 0) {
+                            player.hp = Math.min(player.maxHp, player.hp + heal);
+                            logMessage(`Vampiric strike healed you for ${heal} HP.`);
+                            addFloatingText(player.x, player.y, "+" + heal, "#50fa7b");
+                        }
+                    }
+                }
+            } else {
+                player.x = newX;
+                player.y = newY;
+                checkAutoPickup();
+                if (!isAutoRunning && !isAutoExploring) {
+                    if (getRareStat('flavor_heavy') > 0) {
+                        playSfx('heavy_step');
+                        board.style.transform = `translate(${(Math.random() - 0.5) * 4}px, ${(Math.random() - 0.5) * 4}px)`;
+                        setTimeout(() => board.style.transform = 'none', 50);
+                    } else if (getRareStat('flavor_squeaky') > 0 && Math.random() < 0.3) {
+                        playSfx('squeak');
+                        logMessage("Your equipment squeaks loudly.", "gray");
+                        turnSounds.push({ x: player.x, y: player.y, volume: 5, color: "gray", startTime: now, duration: 600 });
+                        turnSounds.push({ x: player.x, y: player.y, volume: 5, color: "gray", startTime: now + 200, duration: 600 });
+                    } else if (getRareStat('flavor_damp') > 0 && Math.random() < 0.2) {
+                        playSfx('squish');
+                        logMessage("Squish... squelch...", "lightblue");
+                    } else {
+                        playSfx('step');
+                    }
+
+                    if (getRareStat('flavor_dusty') > 0 && Math.random() < 0.1) {
+                        logMessage("A puff of ancient dust falls from your gear.", "gray");
+                    }
+                    if (getRareStat('flavor_itchy') > 0 && Math.random() < 0.05) {
+                        logMessage("You pause to aggressively scratch an itch.", "orange");
+                    }
+                    if (getRareStat('flavor_haunted') > 0 && Math.random() < 0.05) {
+                        logMessage("You feel an icy breath on your neck...", "purple");
+                        playSfx('shriek');
+                    }
+                    if (getRareStat('flavor_sticky') > 0 && Math.random() < 0.1) {
+                        logMessage("Your boot sticks to the floor for a moment.", "yellow");
+                    }
+                    if (getRareStat('flavor_smelly') > 0 && Math.random() < 0.05) {
+                        logMessage("A pungent odor wafts from your inventory.", "green");
+                    }
+                }
+            }
+        } else {
+            if (!silentWait) {
+                logMessage("Waited a turn.");
+            }
+        }
+
+        updateLOS();
+        updateEnemies();
+        updateLOS();
+
+        triggerAnimation();
+
+        if (Math.random() < 0.1 && !isAutoRunning && !isAutoExploring) {
+            emitFlavorText();
+        }
+        
+        // Auto-save silently at the end of the turn
+        if (!isAutoRunning && !isAutoExploring) {
+            requestAutoSave();
+        }
+    }
+
+    function checkAutoPickup() {
+        let itemsHere = floorItems.filter(fi => fi.x === player.x && fi.y === player.y);
+        itemsHere.forEach(fi => {
+            let shouldPickup = false;
+            if (fi.item.type === 'ammo' && gameSettings.autoPickupAmmo) shouldPickup = true;
+            if (fi.item.type === 'money' && gameSettings.autoPickupGold) shouldPickup = true;
+            if (fi.item.type === 'potion' && gameSettings.autoPickupPotion) shouldPickup = true;
+            
+            if (shouldPickup) {
+                pickUpItem(fi);
+            }
+        });
+    }
+
+    function updateEnemies() {
+        let enemyOccupied = new Int32Array(GRID_W * GRID_H);
+        enemyOccupied.fill(-1);
+        enemies.forEach((e, idx) => {
+            enemyOccupied[e.y * GRID_W + e.x] = idx;
+        });
+
+        enemies.forEach((e, idx) => {
+            if (e.type === 'Brute') {
+                e.moveTick = (e.moveTick || 0) + 1;
+                if (e.moveTick % 2 === 0) return; // Skip turn (half speed)
+            }
+
+            let targetX, targetY;
+
+            if (e.hasLOS) {
+                if (e.type === 'Seeker' && !e.wasSeeingPlayer) {
+                    logMessage("A Seeker spotted you and shrieked!");
+                    let now = performance.now();
+                    turnSounds.push({ x: e.x, y: e.y, volume: 15, color: "orange", startTime: now, duration: 600 });
+                    turnSounds.push({ x: e.x, y: e.y, volume: 15, color: "orange", startTime: now + 200, duration: 600 });
+                    playSfx('shriek');
+                }
+                e.wasSeeingPlayer = true;
+                targetX = player.x;
+                targetY = player.y;
+            } else if (e.lastKnown) {
+                e.wasSeeingPlayer = false;
+                targetX = e.lastKnown.x;
+                targetY = e.lastKnown.y;
+                if (e.x === targetX && e.y === targetY) {
+                    if (e.searchTurns && e.searchTurns > 0) {
+                        e.searchTurns--;
+                        let possibleMoves = [];
+                        for (let key in keyMap) {
+                            let dx = keyMap[key].x;
+                            let dy = keyMap[key].y;
+                            if (dx === 0 && dy === 0) continue;
+                            let nx = e.x + dx;
+                            let ny = e.y + dy;
+                            if (nx > 0 && nx < GRID_W - 1 && ny > 0 && ny < GRID_H - 1 && !mapData[nx][ny].isWall) {
+                                possibleMoves.push({x: nx, y: ny});
+                            }
+                        }
+                        if (possibleMoves.length > 0) {
+                            let move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                            e.lastKnown = { x: move.x, y: move.y };
+                            targetX = move.x;
+                            targetY = move.y;
+                        } else {
+                            e.lastKnown = null;
+                            return;
+                        }
+                    } else {
+                        e.lastKnown = null;
+                        return;
+                    }
+                }
+            } else {
+                e.wasSeeingPlayer = false;
+                if (e.type === 'Seeker') {
+                    if (!e.wanderTarget || (e.x === e.wanderTarget.x && e.y === e.wanderTarget.y)) {
+                        for (let i = 0; i < 20; i++) {
+                            let rx = e.x + Math.floor((Math.random() - 0.5) * 20);
+                            let ry = e.y + Math.floor((Math.random() - 0.5) * 20);
+                            if (rx > 0 && rx < GRID_W - 1 && ry > 0 && ry < GRID_H - 1 && !mapData[rx][ry].isWall) {
+                                e.wanderTarget = { x: rx, y: ry };
+                                break;
+                            }
+                        }
+                    }
+                    if (e.wanderTarget) {
+                        targetX = e.wanderTarget.x;
+                        targetY = e.wanderTarget.y;
+                    } else {
+                        return;
+                    }
+                } else {
+                    return;
+                }
+            }
+
+            // If destination is occupied by another enemy, pick a new nearby empty point
+            if (!e.hasLOS && targetX !== undefined && targetY !== undefined) {
+                let occ = enemyOccupied[targetY * GRID_W + targetX];
+                if (occ !== -1 && occ !== idx) {
+                    let nearby = [];
+                    for (let key in keyMap) {
+                        let dx = keyMap[key].x;
+                        let dy = keyMap[key].y;
+                        if (dx === 0 && dy === 0) continue;
+                        let nx = targetX + dx;
+                        let ny = targetY + dy;
+                        if (nx >= 0 && nx < GRID_W && ny >= 0 && ny < GRID_H && !mapData[nx][ny].isWall && enemyOccupied[ny * GRID_W + nx] === -1 && (nx !== player.x || ny !== player.y)) {
+                            nearby.push({x: nx, y: ny});
+                        }
+                    }
+                    if (nearby.length > 0) {
+                        let newPoint = nearby[Math.floor(Math.random() * nearby.length)];
+                        if (e.lastKnown && targetX === e.lastKnown.x && targetY === e.lastKnown.y) {
+                            e.lastKnown = newPoint;
+                        } else if (e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
+                            e.wanderTarget = newPoint;
+                        }
+                        targetX = newPoint.x;
+                        targetY = newPoint.y;
+                    }
+                }
+            }
+
+            if (e.type === 'Sniper' && e.hasLOS) {
+                let pDistToE = Math.hypot(player.x - e.x, player.y - e.y);
+                if (pDistToE > 1.5 && pDistToE <= e.range) {
+                    let minDmg = e.damageMin !== undefined ? e.damageMin : (e.damage || 1);
+                    let maxDmg = e.damageMax !== undefined ? e.damageMax : (e.damage || 1);
+                    let baseDamage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                    let defense = getPlayerDefense();
+                    defense += getRareStat('defSniper');
+                    let actualDamage = Math.max(0, baseDamage - defense);
+                    
+                    let now = performance.now();
+                    projectiles.push({
+                        startX: e.x, startY: e.y, endX: player.x, endY: player.y,
+                        color: 'purple', startTime: now, duration: 150
+                    });
+                    turnSounds.push({ x: e.x, y: e.y, volume: 8, color: "purple", startTime: now, duration: 600 });
+                    
+                    e.dx = player.x - e.x;
+                    e.dy = player.y - e.y;
+                    
+                    setTimeout(() => {
+                        player.hp -= actualDamage;
+                        addFloatingText(player.x, player.y, actualDamage > 0 ? actualDamage.toString() : "Block", actualDamage > 0 ? "#ff4444" : "#aaa");
+                        if (actualDamage > 0) {
+                            logMessage(`A Sniper shot you for ${actualDamage} damage! HP left: ${player.hp}`);
+                            playSfx('player_hurt');
+                        } else {
+                            logMessage(`A Sniper shot hit you, but your armor blocked it!`);
+                            playSfx('equip');
+                        }
+                        if (player.hp <= 0) {
+                            logMessage("CRITICAL FAILURE. Run ended.");
+                            localStorage.removeItem('polyRogueSave');
+                        }
+                        renderUI();
+                    }, 150);
+                    return; // Turn ends here
+                } else if (pDistToE <= 1.5) {
+                    targetX = Math.max(0, Math.min(GRID_W - 1, e.x + Math.round(e.x - player.x) * 4));
+                    targetY = Math.max(0, Math.min(GRID_H - 1, e.y + Math.round(e.y - player.y) * 4));
+                }
+            }
+
+            let path = findPath(e.x, e.y, targetX, targetY, 'enemy');
+            
+            // If pathfinding failed (likely due to other enemies blocking the way), replot ignoring them
+            if (!path || path.length === 0) {
+                path = findPath(e.x, e.y, targetX, targetY, 'ignore');
+            }
+
+            if (path && path.length > 0) {
+                let dx = path[0].x;
+                let dy = path[0].y;
+                
+                e.dx = dx;
+                e.dy = dy;
+
+                let nextX = e.x + dx;
+                let nextY = e.y + dy;
+
+                if (nextX === player.x && nextY === player.y) {
+                    if (debugGodMode) return;
+
+                    let dodgeChance = getRareStat('dodge');
+                    if (Math.random() < dodgeChance) {
+                        logMessage(`A ${e.type} tried to strike you, but you dodged!`);
+                        addFloatingText(player.x, player.y, "Dodge", "#aaa");
+                        playSfx('miss');
+                        return;
+                    }
+                    
+                    let minDmg = e.damageMin !== undefined ? e.damageMin : (e.damage || 1);
+                    let maxDmg = e.damageMax !== undefined ? e.damageMax : (e.damage || 1);
+                    let baseDamage = Math.floor(Math.random() * (maxDmg - minDmg + 1)) + minDmg;
+                    let defense = getPlayerDefense();
+                    if (e.type === 'Sentry') defense += getRareStat('defSentry');
+                    if (e.type === 'Seeker') defense += getRareStat('defSeeker');
+                    if (e.type === 'Brute') defense += getRareStat('defBrute');
+                    if (e.type === 'Shade') defense += getRareStat('defShade');
+                    
+                    let actualDamage = Math.max(0, baseDamage - defense);
+                    
+                    player.hp -= actualDamage;
+                    addFloatingText(player.x, player.y, actualDamage > 0 ? actualDamage.toString() : "Block", actualDamage > 0 ? "#ff4444" : "#aaa");
+                    if (actualDamage > 0) {
+                        logMessage(`A ${e.type} struck you for ${actualDamage} damage! HP left: ${player.hp}`);
+                        playSfx('player_hurt');
+                    } else {
+                        logMessage(`A ${e.type} struck you, but your armor blocked the damage!`);
+                        playSfx('equip');
+                    }
+                    
+                    if (getRareStat('flavor_fragile') > 0 && Math.random() < 0.1) {
+                        logMessage("You hear an unsettling crack from your fragile gear!", "gray");
+                    }
+                    if (player.hp <= 0) {
+                        logMessage("CRITICAL FAILURE. Run ended.");
+                        localStorage.removeItem('polyRogueSave');
+                    }
+                    return;
+                }
+
+                let nextOcc = enemyOccupied[nextY * GRID_W + nextX];
+                if (!mapData[nextX][nextY].isWall && (nextOcc === -1 || nextOcc === idx)) {
+                    enemyOccupied[e.y * GRID_W + e.x] = -1;
+                    e.x = nextX;
+                    e.y = nextY;
+                    enemyOccupied[e.y * GRID_W + e.x] = idx;
+                } else {
+                    // Stuck! Try to move to any adjacent free tile that lowers the distance to the target
+                    let bestDist = Math.hypot(targetX - e.x, targetY - e.y);
+                    let bestMove = null;
+                    for (let key in keyMap) {
+                        let kdx = keyMap[key].x;
+                        let kdy = keyMap[key].y;
+                        if (kdx === 0 && kdy === 0) continue;
+                        let kx = e.x + kdx;
+                        let ky = e.y + kdy;
+                        let occ = enemyOccupied[ky * GRID_W + kx];
+                        if (kx >= 0 && kx < GRID_W && ky >= 0 && ky < GRID_H && !mapData[kx][ky].isWall && (occ === -1 || occ === idx) && (kx !== player.x || ky !== player.y)) {
+                            let dist = Math.hypot(targetX - kx, targetY - ky);
+                            if (dist < bestDist) {
+                                bestDist = dist;
+                                bestMove = {x: kx, y: ky};
+                            }
+                        }
+                    }
+                    if (bestMove) {
+                        enemyOccupied[e.y * GRID_W + e.x] = -1;
+                        e.x = bestMove.x;
+                        e.y = bestMove.y;
+                        enemyOccupied[e.y * GRID_W + e.x] = idx;
+                    }
+                }
+            } else if (e.type === 'Seeker' && e.wanderTarget && targetX === e.wanderTarget.x && targetY === e.wanderTarget.y) {
+                e.wanderTarget = null;
+            }
+        });
+    }
+
+    function updateLOS() {
+        for (let tile of visibleTiles) {
+            tile.isVisible = false;
+        }
+        visibleTiles = [];
+
+        let currentVisionRange = getPlayerVisionRange();
+        let startX = Math.max(0, player.x - currentVisionRange - 1);
+        let endX = Math.min(GRID_W - 1, player.x + currentVisionRange + 1);
+        let startY = Math.max(0, player.y - currentVisionRange - 1);
+        let endY = Math.min(GRID_H - 1, player.y + currentVisionRange + 1);
+
+        for(let x = startX; x <= endX; x++) {
+            for(let y = startY; y <= endY; y++) {
+                if (canPlayerSee(x, y, currentVisionRange)) {
+                    mapData[x][y].isVisible = true;
+                    mapData[x][y].isExplored = true;
+                    visibleTiles.push(mapData[x][y]);
+                }
+            }
+        }
+
+        let playerStealth = getPlayerStealth();
+        let maxEnemyHearing = enemies.length > 0 ? Math.max(...enemies.map(e => e.hearing)) : 0;
+        let footprintLimit = Math.max(6, maxEnemyHearing); // Keep debug drawing minimum size of 6
+        let maxHearingDist = Math.max(0, footprintLimit - playerStealth);
+        
+        let playerNoiseMap = getAudibleTiles(player.x, player.y, maxHearingDist);
+        audibleTiles = new Map(playerNoiseMap);
+
+        let soundMaps = turnSounds.map(snd => {
+            let sMap = getAudibleTiles(snd.x, snd.y, snd.volume + maxEnemyHearing);
+            sMap.forEach((dist, posStr) => {
+                if (!audibleTiles.has(posStr) || audibleTiles.get(posStr) > dist) {
+                    audibleTiles.set(posStr, dist);
+                }
+            });
+            return { snd, sMap };
+        });
+
+        enemies.forEach(e => {
+            if (debugGodMode) {
+                e.hasLOS = false;
+                e.heardPlayer = false;
+                e.lastKnown = null;
+                e.searchTurns = 0;
+                return;
+            }
+            if (inVisionCone(e, player.x, player.y)) {
+                e.hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
+            } else {
+                e.hasLOS = false;
+            }
+
+            let pDist = playerNoiseMap.get(`${e.x},${e.y}`);
+            e.heardPlayer = (pDist !== undefined && pDist <= e.hearing - playerStealth);
+
+            let heardSound = null;
+            for (let {snd, sMap} of soundMaps) {
+                let sDist = sMap.get(`${e.x},${e.y}`);
+                if (sDist !== undefined && sDist <= e.hearing + snd.volume) {
+                    heardSound = snd;
+                }
+            }
+
+            if (e.hasLOS || e.heardPlayer) {
+                e.lastKnown = { x: player.x, y: player.y };
+                e.searchTurns = 5;
+            } else if (heardSound) {
+                e.lastKnown = { x: heardSound.x, y: heardSound.y };
+                e.searchTurns = 5;
+            }
+        });
+    }
+
+    function getAudibleTiles(startX, startY, maxDist) {
+        let openSet = [{x: startX, y: startY, dist: 0}];
+        
+        pathfindingPass++;
+        let startIdx = startY * GRID_W + startX;
+        visitedPass[startIdx] = pathfindingPass;
+        visitedG[startIdx] = 0;
+        
+        let visited = new Map();
+        visited.set(`${startX},${startY}`, 0);
+
+        while (openSet.length > 0) {
+            openSet.sort((a, b) => a.dist - b.dist);
+            let current = openSet.shift();
+            
+            if (current.dist >= maxDist) continue;
+
+            for (let key in keyMap) {
+                let dx = keyMap[key].x;
+                let dy = keyMap[key].y;
+                if (dx === 0 && dy === 0) continue;
+
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+
+                if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+                if (mapData[nx][ny].isWall) continue;
+
+                let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
+                let newDist = current.dist + stepCost;
+
+                if (newDist <= maxDist) {
+                    let nIdx = ny * GRID_W + nx;
+                    if (visitedPass[nIdx] !== pathfindingPass || visitedG[nIdx] > newDist + 1e-6) {
+                        visitedPass[nIdx] = pathfindingPass;
+                        visitedG[nIdx] = newDist;
+                        openSet.push({x: nx, y: ny, dist: newDist});
+                        visited.set(`${nx},${ny}`, newDist);
+                    }
+                }
+            }
+        }
+        return visited;
+    }
+
+    function inVisionCone(e, px, py) {
+        let vecX = px - e.x;
+        let vecY = py - e.y;
+        let dist = Math.hypot(vecX, vecY);
+        if (dist === 0) return true; // Direct overlap
+        
+        let eMag = Math.hypot(e.dx, e.dy) || 1;
+        let dot = (vecX / dist) * (e.dx / eMag) + (vecY / dist) * (e.dy / eMag);
+        
+        if (dot < 0.707) return false; // 90 degree vision cone (45 degrees each side)
+        
+        return dist <= 8;
+    }
+
+    function canPlayerSee(x, y, visionRange) {
+        let distToPlayer = Math.hypot(player.x - x, player.y - y);
+        return distToPlayer <= visionRange && hasLineOfSight(player.x, player.y, x, y);
+    }
+
+    function hasLineOfSight(x1, y1, x2, y2) {
+        let dx = Math.abs(x2 - x1);
+        let dy = Math.abs(y2 - y1);
+        let sx = (x1 < x2) ? 1 : -1;
+        let sy = (y1 < y2) ? 1 : -1;
+        let err = dx - dy;
+
+        let cx = x1;
+        let cy = y1;
+
+        while (true) {
+            if (cx === x2 && cy === y2) return true;
+            if (cx < 0 || cy < 0 || cx >= GRID_W || cy >= GRID_H || mapData[cx][cy].isWall) return false;
+
+            let e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; cx += sx; }
+            if (e2 < dx) { err += dx; cy += sy; }
+        }
+    }
+
+    function findPath(startX, startY, endX, endY, pathingType = 'player') {
+        let maxNodes = pathingType === 'player' ? 50000 : 800;
+        pathfindingPass++;
+        let openSet = new MinHeap(n => n.f);
+        openSet.push({x: startX, y: startY, parent: null, g: 0, f: 0});
+        
+        let startIdx = startY * GRID_W + startX;
+        visitedPass[startIdx] = pathfindingPass;
+        visitedG[startIdx] = 0;
+
+        if (pathingType !== 'ignore') {
+            for (let e of enemies) {
+                if (pathingType === 'enemy' || mapData[e.x][e.y].isVisible || debugVision) {
+                    enemyPositionsPass[e.y * GRID_W + e.x] = pathfindingPass;
+                }
+            }
+        }
+
+        let nodesExpanded = 0;
+
+        while (!openSet.isEmpty()) {
+            let current = openSet.pop();
+            nodesExpanded++;
+            if (nodesExpanded > maxNodes) return null;
+            
+            let currentIdx = current.y * GRID_W + current.x;
+            if (visitedPass[currentIdx] === pathfindingPass && visitedG[currentIdx] < current.g - 1e-6) {
+                continue;
+            }
+
+            if (current.x === endX && current.y === endY) {
+                let path = [];
+                let curr = current;
+                while (curr.parent) {
+                    path.push({x: curr.dx, y: curr.dy});
+                    curr = curr.parent;
+                }
+                return path.reverse();
+            }
+
+            for (let key in keyMap) {
+                let dx = keyMap[key].x;
+                let dy = keyMap[key].y;
+                if (dx === 0 && dy === 0) continue;
+
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+
+                if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+                if (mapData[nx][ny].isWall) continue;
+                let nIdx = ny * GRID_W + nx;
+                if (pathingType !== 'ignore' && enemyPositionsPass[nIdx] === pathfindingPass && !(nx === endX && ny === endY)) continue;
+
+                let stepCost = (dx !== 0 && dy !== 0) ? Math.SQRT2 : 1;
+                let g = current.g + stepCost;
+
+                if (visitedPass[nIdx] !== pathfindingPass || visitedG[nIdx] > g) {
+                    let h = Math.hypot(endX - nx, endY - ny);
+                    let cross = Math.abs((nx - endX) * (startY - endY) - (startX - endX) * (ny - endY));
+                    let f = g + h + cross * 0.001; // Tie-breaker for straightest path
+                    
+                    visitedPass[nIdx] = pathfindingPass;
+                    visitedG[nIdx] = g;
+                    openSet.push({x: nx, y: ny, parent: current, dx: dx, dy: dy, g: g, f: f});
+                }
+            }
+        }
+        return null;
+    }
+    
+    function triggerAutoRun(x, y) {
+        let path = findPath(player.x, player.y, x, y);
+        if (path && path.length > 0) {
+            autoRunPath = path;
+            isAutoRunning = true;
+            executeAutoRunStep();
+        } else {
+            logMessage("No clear path to destination.");
+            playSfx('error');
+        }
+    }
+
+    function executeAutoRunStep() {
+        if (!isAutoRunning || autoRunPath.length === 0 || player.hp <= 0) {
+            isAutoRunning = false;
+            isAutoExploring = false;
+            return;
+        }
+
+        let step = autoRunPath.shift();
+        processTurn(step.x, step.y);
+
+        if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
+            logMessage("Enemy spotted! Auto-run halted.");
+            isAutoRunning = false;
+            isAutoExploring = false;
+            autoRunPath = [];
+            requestAutoSave();
+            return;
+        }
+
+        if (autoRunPath.length > 0) {
+            setTimeout(executeAutoRunStep, 50);
+        } else {
+            isAutoRunning = false;
+            if (isAutoExploring) {
+                setTimeout(triggerAutoExplore, 50);
+            } else {
+                requestAutoSave();
+            }
+        }
+    }
+
+    function triggerAutoExplore() {
+        if (enemies.some(e => e.hasLOS || mapData[e.x][e.y].isVisible)) {
+            logMessage("Cannot auto-explore while enemies are in sight.");
+            playSfx('error');
+            isAutoExploring = false;
+            return;
+        }
+
+        let target = findAutoExploreTarget();
+        if (target) {
+            let path = findPath(player.x, player.y, target.x, target.y);
+            if (path && path.length > 0) {
+                autoRunPath = path;
+                isAutoRunning = true;
+                isAutoExploring = true;
+                executeAutoRunStep();
+            } else {
+                logMessage("No reachable unexplored areas or items.");
+                playSfx('error');
+                isAutoExploring = false;
+            }
+        } else {
+            logMessage("Fully explored!");
+            playSfx('error');
+            isAutoExploring = false;
+        }
+    }
+
+    function findAutoExploreTarget() {
+        let bestItem = null;
+        let bestItemDist = Infinity;
+        
+        for (let fi of floorItems) {
+            if (mapData[fi.x][fi.y].isVisible) {
+                let wantsToPickup = false;
+                if (fi.item.type === 'ammo' && gameSettings.autoPickupAmmo) wantsToPickup = true;
+                if (fi.item.type === 'money' && gameSettings.autoPickupGold) wantsToPickup = true;
+                if (fi.item.type === 'potion' && gameSettings.autoPickupPotion) wantsToPickup = true;
+                
+                if (wantsToPickup && (fi.x !== player.x || fi.y !== player.y)) {
+                    let path = findPath(player.x, player.y, fi.x, fi.y);
+                    if (path && path.length > 0 && path.length < bestItemDist) {
+                        bestItem = {x: fi.x, y: fi.y};
+                        bestItemDist = path.length;
+                    }
+                }
+            }
+        }
+        if (bestItem) return bestItem;
+
+        let openSet = [{x: player.x, y: player.y}];
+        let head = 0;
+        
+        pathfindingPass++;
+        let startIdx = player.y * GRID_W + player.x;
+        visitedPass[startIdx] = pathfindingPass;
+
+        while (head < openSet.length) {
+            let current = openSet[head++];
+
+            for (let key in keyMap) {
+                let dx = keyMap[key].x;
+                let dy = keyMap[key].y;
+                if (dx === 0 && dy === 0) continue;
+
+                let nx = current.x + dx;
+                let ny = current.y + dy;
+
+                if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
+                if (mapData[nx][ny].isWall) continue;
+                
+                let nIdx = ny * GRID_W + nx;
+                if (visitedPass[nIdx] !== pathfindingPass) {
+                    visitedPass[nIdx] = pathfindingPass;
+                    
+                    if (!mapData[nx][ny].isExplored) {
+                        return {x: nx, y: ny};
+                    } else {
+                        openSet.push({x: nx, y: ny});
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function emitFlavorText() {
+        if (initialEnemyCount === 0) return;
+        let pct = enemies.length / initialEnemyCount;
+        let msg = "";
+        if (enemies.length === 0) {
+            msg = "Total silence. You are completely alone in the dark.";
+        } else if (pct < 0.1) {
+            msg = "The facility feels almost abandoned. Just a few stragglers remain.";
+        } else if (pct < 0.2) {
+            msg = "The ranks of your enemies are broken. Only scattered patrols echo in the halls.";
+        } else if (pct < 0.3) {
+            msg = "A strange quiet begins to settle, punctuated by the occasional mechanical whir.";
+        } else if (pct < 0.4) {
+            msg = "The opposition is thinning, yet danger still lurks just out of sight.";
+        } else if (pct < 0.5) {
+            msg = "Fewer hostiles roam the corridors now, but they are still actively hunting you.";
+        } else if (pct < 0.6) {
+            msg = "Distant chatter and heavy footsteps indicate a sizeable force still remains.";
+        } else if (pct < 0.7) {
+            msg = "The presence of hostiles is palpable, though slight gaps in their patrol routes appear.";
+        } else if (pct < 0.8) {
+            msg = "The perimeter is heavily guarded. Danger approaches from multiple vectors.";
+        } else if (pct < 0.9) {
+            msg = "Shadows shift constantly in the distance. They are everywhere.";
+        } else {
+            msg = "The complex hums with hostile activity. Footsteps echo from all directions.";
+        }
+        logMessage(msg, "yellow");
+    }
+
+    function equipItem(index) {
+        let item = inventory[index];
+        let slot = item.type;
+        let currentEquipped = equipment[slot];
+        
+        if (currentEquipped && currentEquipped.rarity === 'cursed' && currentEquipped.curseTurns > 0) {
+            logMessage(`Cannot equip: ${currentEquipped.name} is cursed and stuck for ${currentEquipped.curseTurns} more turns!`, "#ff4444");
+            playSfx('error');
+            return;
+        }
+
+        if (item.rarity === 'cursed') {
+            item.curseTurns = 20;
+        }
+
+        if (item.count > 1) {
+            item.count--;
+            equipment[slot] = {...item, count: 1};
+        } else {
+            inventory.splice(index, 1);
+            equipment[slot] = item;
+        }
+
+        if (currentEquipped) addItemToInventory(currentEquipped);
+        logMessage(`Equipped ${item.name}.`);
+        playSfx('equip');
+        updateMaxHp();
+        renderUI();
+        tooltipEl.style.display = 'none';
+        processTurn(0, 0, true);
+    }
+
+    function unequipItem(slotName) {
+        let item = equipment[slotName];
+        if (item.rarity === 'cursed' && item.curseTurns > 0) {
+            logMessage(`Cannot unequip: ${item.name} is cursed and stuck for ${item.curseTurns} more turns!`, "#ff4444");
+            playSfx('error');
+            return;
+        }
+
+        if (inventory.length < INVENTORY_CAPACITY) {
+            equipment[slotName] = null;
+            addItemToInventory(item);
+            logMessage(`Unequipped ${item.name}.`);
+            playSfx('equip');
+            updateMaxHp();
+        } else {
+            logMessage("Inventory full, cannot unequip.");
+        }
+        renderUI();
+        tooltipEl.style.display = 'none';
+    }
+
+    function useItem(index) {
+        let item = inventory[index];
+        if (item.type === 'potion' && player.hp < player.maxHp) {
+            let heal = item.healAmount || 1;
+            player.hp = Math.min(player.maxHp, player.hp + heal);
+            logMessage(`Drank ${item.name}. Recovered ${heal} HP.`);
+            addFloatingText(player.x, player.y, "+" + heal, "#50fa7b");
+            playSfx('potion');
+            if (item.count > 1) item.count--;
+            else inventory.splice(index, 1);
+            renderUI();
+            tooltipEl.style.display = 'none';
+            processTurn(0, 0, true);
+        } else if (item.type === 'potion') {
+            logMessage("HP already full.");
+            playSfx('error');
+        }
+    }
+
+    function equipFloorItem(floorItem) {
+        let idx = floorItems.indexOf(floorItem);
+        if (idx > -1) {
+            let item = floorItem.item;
+            let slot = item.type;
+            let currentEquipped = equipment[slot];
+            
+            if (currentEquipped && currentEquipped.rarity === 'cursed' && currentEquipped.curseTurns > 0) {
+                logMessage(`Cannot equip: ${currentEquipped.name} is cursed and stuck for ${currentEquipped.curseTurns} more turns!`, "#ff4444");
+                playSfx('error');
+                return;
+            }
+
+            if (item.rarity === 'cursed') {
+                item.curseTurns = 20;
+            }
+
+            if (item.count > 1) {
+                item.count--;
+                equipment[slot] = {...item, count: 1};
+            } else {
+                floorItems.splice(idx, 1);
+                equipment[slot] = item;
+            }
+
+            if (currentEquipped) {
+                let existingItem = inventory.find(i => i.name === currentEquipped.name && i.stackable);
+                if (existingItem) {
+                    existingItem.count += (currentEquipped.count || 1);
+                } else if (inventory.length < INVENTORY_CAPACITY) {
+                    inventory.push(currentEquipped);
+                } else {
+                    dropItemToFloor(player.x, player.y, currentEquipped);
+                    logMessage(`Inventory full, dropped ${currentEquipped.name} to the floor.`);
+                }
+            }
+            logMessage(`Equipped ${item.name}.`);
+            playSfx('equip');
+            updateMaxHp();
+            renderUI();
+            processTurn(0, 0, true);
+        }
+    }
+
+    function dropItem(index) {
+        let item = inventory[index];
+        let droppedItem = { ...item, count: 1 };
+        
+        dropItemToFloor(player.x, player.y, droppedItem);
+
+        logMessage(`Dropped ${item.name}.`);
+        playSfx('step');
+        if (item.count > 1) item.count--;
+        else inventory.splice(index, 1);
+        
+        renderUI();
+        drawBoard();
+        tooltipEl.style.display = 'none';
+    }
+
+    function dropAllItem(index) {
+        let item = inventory[index];
+        let droppedItem = { ...item };
+        
+        dropItemToFloor(player.x, player.y, droppedItem);
+
+        logMessage(`Dropped ${item.count}x ${item.name}.`);
+        playSfx('step');
+        inventory.splice(index, 1);
+        
+        renderUI();
+        drawBoard();
+        tooltipEl.style.display = 'none';
+    }
+
+    function pickUpItem(floorItem, spendTurn = false) {
+        let idx = floorItems.indexOf(floorItem);
+        if (idx > -1) {
+            let existingItem = inventory.find(i => i.name === floorItem.item.name && i.stackable);
+            if (existingItem) {
+                existingItem.count += floorItem.item.count;
+                logMessage(`Picked up ${floorItem.item.count}x ${floorItem.item.name}.`);
+                playSfx('pickup');
+                floorItems.splice(idx, 1);
+            } else if (inventory.length < INVENTORY_CAPACITY) {
+                inventory.push(floorItem.item);
+                logMessage(`Picked up ${floorItem.item.name}.`);
+                playSfx('pickup');
+                floorItems.splice(idx, 1);
+            } else {
+                logMessage("Inventory is full! Cannot pick up.");
+                playSfx('error');
+                return;
+            }
+            
+            if (spendTurn) {
+                processTurn(0, 0, true);
+            } else {
+                renderUI();
+                drawBoard();
+            }
+        }
+    }
+
+    function dropLoot(x, y, baseAmmoRecoveryChance = 0.75) {
+        let ammoRecoveryChance = baseAmmoRecoveryChance + getRareStat('ammoRec');
+        if (Math.random() < ammoRecoveryChance) {
+            let droppedItem = createItem({ name: "Pebble", count: 1 }, currentFloorNum);
+            dropItemToFloor(x, y, droppedItem);
+            logMessage("A Pebble dropped to the floor.");
+        }
+
+        if (Math.random() < 0.675) {
+            let lootTemplate = possibleLoot[Math.floor(Math.random() * possibleLoot.length)];
+            let droppedItem = createItem({ name: lootTemplate.name, count: lootTemplate.count }, currentFloorNum);
+            dropItemToFloor(x, y, droppedItem);
+            logMessage(`${droppedItem.name} dropped to the floor.`);
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>

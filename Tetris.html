@@ -11,7 +11,7 @@
             --block-size: 24px; /* Define block size as CSS variable */
             --board-width: calc(var(--block-size) * 10);
             --board-height: calc(var(--block-size) * 20);
-            --preview-size: calc(var(--block-size) * 4);
+        --preview-size: calc(var(--block-size) * 5);
         }
         *{margin:0;padding:0;box-sizing:border-box;}html,body{height:100%;}
         body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased; line-height: 1.4;}
@@ -21,14 +21,14 @@
         canvas{background:#181a21;border-radius:6px;display:block;}
         #board { width: var(--board-width); height: var(--board-height); }
         #next, #hold { width: var(--preview-size); height: var(--preview-size); }
-        .side{width:180px;display:flex;flex-direction:column;gap:1rem;}
+    .side{width:260px;display:flex;flex-direction:column;gap:1rem;}
         .panel{background:var(--panel);padding:.75rem;border-radius:6px;text-align:center;}
         .panel h3{font-size:.85rem;font-weight:500;color:var(--accent);margin-bottom:.5rem;}
         .stats p{font-size:.9rem;margin:.2rem 0;}
         .controls{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-top:.5rem;}
-        button{flex:1 1 70px;padding:.4rem .6rem;border:none;border-radius:4px;background:var(--accent);color:#0e0f13;font-weight:600;cursor:pointer;transition:background .2s;}button:hover{background:#38b2ac;} button:disabled { background: #555; color: #aaa; cursor: not-allowed; }
+        button{flex:1 1 45%;padding:.4rem .6rem;border:none;border-radius:4px;background:var(--accent);color:#0e0f13;font-weight:600;cursor:pointer;transition:background .2s;}button:hover{background:#38b2ac;} button:disabled { background: #555; color: #aaa; cursor: not-allowed; }
         .hint{font-size:.7rem;opacity:.7;margin-top:.3rem; text-align: center;}
-        @media(max-width:700px){#game{flex-direction:column;align-items:center}.side{flex-direction:row;width:auto; flex-wrap: wrap; justify-content: center;} .panel { flex-basis: 120px; } .hint { width: 100%; text-align: center; margin-top: 1rem;}}
+    @media(max-width:700px){#game{flex-direction:column;align-items:center}.side{flex-direction:row;width:auto; flex-wrap: wrap; justify-content: center;} .panel { flex-basis: 140px; } .hint { width: 100%; text-align: center; margin-top: 1rem;}}
     </style>
 </head>
 <body>
@@ -49,6 +49,8 @@
                 <button id="start">Start</button>
                 <button id="pause">Pause</button>
                 <button id="reset">Reset</button>
+                <button id="bot-toggle">Bot: OFF</button>
+                <button id="sound-toggle">Sound: OFF</button>
             </div>
             <p class="hint">Keys: ← → move | ↑ rotate CW | Z rotate CCW | ↓ soft‑drop | Space hard‑drop | C hold | P pause</p>
         </div>
@@ -60,7 +62,7 @@
     /* ----- CONFIG ----- */
     const COLS = 10;
     const ROWS = 20;
-    const BLOCK_SIZE = 24; // Match CSS variable if possible, or use it directly
+    let BLOCK_SIZE = 24; // Match CSS variable if possible, or use it directly
     const HIDDEN_ROWS = 2; // Rows above the visible area for spawning
 
     // Piece definitions: [color, initial shape matrix]
@@ -113,14 +115,6 @@
     const canvasHold = document.getElementById('hold');
     const ctxHold = canvasHold.getContext('2d');
 
-    // Set canvas dimensions based on config
-    canvasBoard.width = COLS * BLOCK_SIZE;
-    canvasBoard.height = ROWS * BLOCK_SIZE;
-    canvasNext.width = 4 * BLOCK_SIZE; // Standard preview box size
-    canvasNext.height = 4 * BLOCK_SIZE;
-    canvasHold.width = 4 * BLOCK_SIZE;
-    canvasHold.height = 4 * BLOCK_SIZE;
-
     /* ----- DOM Elements ----- */
     const scoreEl = document.getElementById('score');
     const linesEl = document.getElementById('lines');
@@ -128,6 +122,8 @@
     const startBtn = document.getElementById('start');
     const pauseBtn = document.getElementById('pause');
     const resetBtn = document.getElementById('reset');
+    const botToggleBtn = document.getElementById('bot-toggle');
+    const soundToggleBtn = document.getElementById('sound-toggle');
     const copyrightEl = document.getElementById('copyright');
 
     /* ----- GAME STATE ----- */
@@ -148,6 +144,121 @@
     let isGameOver;
     let animationFrameId;
     let pieceBag;     // For 7-bag random generator
+    
+    let botActive = false;
+    let botPath = null;
+    let botActionTimer = 0;
+    const BOT_ACTION_DELAY = 15; // ms per action
+    
+    let particles = [];
+    let shakeTime = 0;
+
+    /* ----- AUDIO SYSTEM ----- */
+    let audioCtx;
+    let isSoundEnabled = false;
+    let musicTimeout = null;
+    let noteIndex = 0;
+
+    // Tetris Theme (Korobeiniki) Melody - [Frequency, Duration (beats)]
+    const TETRIS_THEME = [
+        [659.25, 1], [493.88, 0.5], [523.25, 0.5], [587.33, 1], [523.25, 0.5], [493.88, 0.5],
+        [440.00, 1], [440.00, 0.5], [523.25, 0.5], [659.25, 1], [587.33, 0.5], [523.25, 0.5],
+        [493.88, 1.5], [523.25, 0.5], [587.33, 1], [659.25, 1],
+        [523.25, 1], [440.00, 1], [440.00, 2],
+        [587.33, 1.5], [698.46, 0.5], [880.00, 1], [783.99, 0.5], [698.46, 0.5],
+        [659.25, 1.5], [523.25, 0.5], [659.25, 1], [587.33, 0.5], [523.25, 0.5],
+        [493.88, 1], [493.88, 0.5], [523.25, 0.5], [587.33, 1], [659.25, 1],
+        [523.25, 1], [440.00, 1], [440.00, 2]
+    ];
+
+    const initAudio = () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    };
+
+    const playSound = (type) => {
+        if (!isSoundEnabled || !audioCtx) return;
+        if (botActive && (type === 'move' || type === 'rotate')) return; // Prevent buzz when bot plays extremely fast
+        
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        let vol = 0.1;
+
+        if (type === 'move') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(200, now);
+            gain.gain.setValueAtTime(vol, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'rotate') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(400, now + 0.1);
+            gain.gain.setValueAtTime(vol, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'drop') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+            gain.gain.setValueAtTime(vol * 1.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+            osc.start(now); osc.stop(now + 0.15);
+        } else if (type === 'clear') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(600, now); osc.frequency.setValueAtTime(800, now + 0.1);
+            gain.gain.setValueAtTime(vol * 1.5, now); gain.gain.linearRampToValueAtTime(vol * 1.5, now + 0.1); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+        } else if (type === 'gameover') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(100, now + 1);
+            gain.gain.setValueAtTime(vol * 2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 1);
+            osc.start(now); osc.stop(now + 1);
+        }
+    };
+
+    const playMusicNote = () => {
+        if (!isSoundEnabled) { musicTimeout = null; return; }
+        if (!isRunning || isPaused || isGameOver) {
+            musicTimeout = setTimeout(playMusicNote, 100); // Poll until we can play again
+            return; 
+        }
+        
+        const note = TETRIS_THEME[noteIndex];
+        const freq = note[0];
+        const duration = note[1] * 0.35; // 0.35s multiplier = approx 170 BPM
+
+        if (freq > 0) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square'; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.03, audioCtx.currentTime); 
+            gain.gain.setValueAtTime(0.03, audioCtx.currentTime + duration * 0.7);
+            gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + duration * 0.9); // Staccato gap
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + duration);
+        }
+        noteIndex = (noteIndex + 1) % TETRIS_THEME.length;
+        musicTimeout = setTimeout(playMusicNote, duration * 1000);
+    };
+
+    const resizeCanvas = () => {
+        const availableHeight = window.innerHeight - 160; 
+        let availableWidth = window.innerWidth - 330; 
+        if (window.innerWidth <= 700) {
+            availableWidth = window.innerWidth - 40; // On mobile, side panel wraps
+        }
+        
+        BLOCK_SIZE = Math.max(12, Math.floor(Math.min(availableHeight / ROWS, availableWidth / COLS)));
+        
+        document.documentElement.style.setProperty('--block-size', `${BLOCK_SIZE}px`);
+        
+        canvasBoard.width = COLS * BLOCK_SIZE;
+        canvasBoard.height = ROWS * BLOCK_SIZE;
+        canvasNext.width = 5 * BLOCK_SIZE; 
+        canvasNext.height = 5 * BLOCK_SIZE;
+        canvasHold.width = 5 * BLOCK_SIZE;
+        canvasHold.height = 5 * BLOCK_SIZE;
+        particles = []; // Clear particles on resize so they don't break scale
+        
+        if (board) draw(); // Redraw if game is initialized
+    };
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
     /* ----- HELPER FUNCTIONS ----- */
 
@@ -213,6 +324,20 @@
         return rotated;
     };
 
+    // Pre-compute all rotation matrices for fast bot evaluation
+    const ROTATION_MATRICES = {};
+    const initRotationMatrices = () => {
+        PIECE_IDS.forEach(id => {
+            ROTATION_MATRICES[id] = [];
+            let m = PIECES[id][1].map(row => [...row]);
+            ROTATION_MATRICES[id].push(m);
+            for(let i=1; i<4; i++) {
+                m = rotateMatrix(m);
+                ROTATION_MATRICES[id].push(m);
+            }
+        });
+    };
+    initRotationMatrices();
 
     // Check for collision at a given position
     const checkCollision = (currentBoard, currentPiece, checkPos) => {
@@ -240,6 +365,25 @@
         return false; // No collision
     };
 
+    // Spawn particles when a line clears
+    const spawnParticles = (rowY, rowData) => {
+        for (let x = 0; x < COLS; x++) {
+            const color = COLORS[rowData[x]];
+            if (!color) continue;
+            for (let i = 0; i < 6; i++) {
+                particles.push({
+                    x: x * BLOCK_SIZE + BLOCK_SIZE / 2,
+                    y: (rowY - HIDDEN_ROWS) * BLOCK_SIZE + BLOCK_SIZE / 2,
+                    vx: (Math.random() - 0.5) * (BLOCK_SIZE * 0.4),
+                    vy: (Math.random() - 0.5) * (BLOCK_SIZE * 0.4) - (BLOCK_SIZE * 0.1),
+                    life: 1.0,
+                    decay: 0.02 + Math.random() * 0.03,
+                    color: color
+                });
+            }
+        }
+    };
+
     // Merge the piece onto the board
     const mergePiece = () => {
         piece.matrix.forEach((row, y) => {
@@ -262,6 +406,7 @@
         for (let y = board.length - 1; y >= 0; ) { // Start from bottom row
             // Check if row 'y' is full (use HIDDEN_ROWS offset implicitly)
             if (board[y].every(cell => cell !== 0)) {
+                spawnParticles(y, board[y]);
                 // Remove the full row
                 board.splice(y, 1);
                 // Add a new empty row at the top (index 0)
@@ -271,6 +416,9 @@
             } else {
                 y--; // Move to the row above
             }
+        }
+        if (linesCleared > 0) {
+            shakeTime = Math.max(shakeTime, linesCleared * 0.4); // Shake magnitude scales with lines
         }
         return linesCleared;
     };
@@ -338,6 +486,13 @@
         ctxBoard.fillStyle = '#181a21'; // Background color
         ctxBoard.fillRect(0, 0, canvasBoard.width, canvasBoard.height);
 
+        ctxBoard.save();
+        
+        if (shakeTime > 0) {
+            const magnitude = shakeTime * 6; // Max shake in pixels
+            ctxBoard.translate((Math.random() - 0.5) * magnitude, (Math.random() - 0.5) * magnitude);
+        }
+
         // Draw landed blocks
         for (let y = HIDDEN_ROWS; y < ROWS + HIDDEN_ROWS; y++) {
             for (let x = 0; x < COLS; x++) {
@@ -362,6 +517,22 @@
                 });
             });
         }
+
+        // Draw line-clear particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= p.decay;
+            if (p.life <= 0) {
+                particles.splice(i, 1);
+            } else {
+                ctxBoard.fillStyle = p.color;
+                ctxBoard.globalAlpha = p.life;
+                ctxBoard.fillRect(p.x - BLOCK_SIZE/8, p.y - BLOCK_SIZE/8, BLOCK_SIZE/4, BLOCK_SIZE/4);
+            }
+        }
+        ctxBoard.restore();
     };
 
     // Draw a piece in a preview box (Next or Hold)
@@ -377,7 +548,7 @@
 
         // Calculate centering offset
         const matrixSize = matrix.length;
-        const blockSize = canvas.width / 4; // Assume 4x4 grid for preview
+        const blockSize = canvas.width / 5; // Assume 5x5 grid for preview
 
         // Find actual bounds of the piece shape to center it better
         let minX = matrixSize, minY = matrixSize, maxX = -1, maxY = -1;
@@ -420,6 +591,228 @@
         levelEl.textContent = level;
     };
 
+    /* ----- BOT LOGIC ----- */
+    const evaluateBoard = (testBoard) => {
+        let aggregateHeight = 0;
+        let completeLines = 0;
+        let holes = 0;
+        let bumpiness = 0;
+        let heights = new Array(COLS).fill(0);
+
+        let linesToClear = [];
+        for (let r = 0; r < testBoard.length; r++) {
+            let isFull = true;
+            for (let c = 0; c < COLS; c++) {
+                if (testBoard[r][c] === 0) {
+                    isFull = false;
+                    break;
+                }
+            }
+            if (isFull) linesToClear.push(r);
+        }
+        completeLines = linesToClear.length;
+
+        let simulatedBoard = testBoard.map(row => [...row]);
+        for (let i = linesToClear.length - 1; i >= 0; i--) {
+            simulatedBoard.splice(linesToClear[i], 1);
+            simulatedBoard.unshift(new Array(COLS).fill(0));
+        }
+
+        for (let c = 0; c < COLS; c++) {
+            let foundBlock = false;
+            for (let r = 0; r < simulatedBoard.length; r++) {
+                if (simulatedBoard[r][c] !== 0) {
+                    if (!foundBlock) {
+                        heights[c] = simulatedBoard.length - r;
+                        aggregateHeight += heights[c];
+                        foundBlock = true;
+                    }
+                } else if (foundBlock) {
+                    holes++;
+                }
+            }
+        }
+
+        for (let c = 0; c < COLS - 1; c++) {
+            bumpiness += Math.abs(heights[c] - heights[c + 1]);
+        }
+
+        return (-0.510066 * aggregateHeight) + (0.760666 * completeLines) + (-0.35663 * holes) + (-0.184483 * bumpiness);
+    };
+
+    const simulateRotate = (id, x, y, rotation, direction, currentBoard) => {
+        const nextRotation = (rotation + direction + 4) % 4;
+        const rotatedMatrix = ROTATION_MATRICES[id][nextRotation];
+        const kickData = (id === 'I') ? WALL_KICK_DATA_I : WALL_KICK_DATA_JLSTZ;
+        const transition = `${rotation}->${nextRotation}`;
+        const offsets = kickData[transition];
+        if (!offsets) return null;
+
+        const tempPiece = { id, matrix: rotatedMatrix, pos: { x, y }, rotation: nextRotation };
+        for (const [dx, dy] of offsets) {
+            const testPos = { x: x + dx, y: y + dy };
+            if (!checkCollision(currentBoard, tempPiece, testPos)) {
+                return { x: testPos.x, y: testPos.y, rotation: nextRotation };
+            }
+        }
+        return null;
+    };
+
+    const getBestMove = (currentPiece, currentHoldId, nextId, currentBoard) => {
+        let bestScore = -Infinity;
+        let bestPath = null;
+        let bestIsHold = false;
+
+        const evaluatePaths = (pieceId, isHold) => {
+            const queue = [];
+            const startPiece = createPiece(pieceId);
+            queue.push({
+                x: startPiece.pos.x,
+                y: startPiece.pos.y,
+                rotation: 0,
+                path: []
+            });
+
+            const visited = new Set();
+            const stateKey = (x, y, r) => `${x},${y},${r}`;
+            visited.add(stateKey(startPiece.pos.x, startPiece.pos.y, 0));
+
+            const terminalStates = [];
+
+            while (queue.length > 0) {
+                const { x, y, rotation, path } = queue.shift();
+
+                // Rotate
+                if (pieceId !== 'O') {
+                    const cwResult = simulateRotate(pieceId, x, y, rotation, 1, currentBoard);
+                    if (cwResult) {
+                        const key = stateKey(cwResult.x, cwResult.y, cwResult.rotation);
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            queue.push({ x: cwResult.x, y: cwResult.y, rotation: cwResult.rotation, path: [...path, 'rotateCW'] });
+                        }
+                    }
+                    
+                    const ccwResult = simulateRotate(pieceId, x, y, rotation, -1, currentBoard);
+                    if (ccwResult) {
+                        const key = stateKey(ccwResult.x, ccwResult.y, ccwResult.rotation);
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            queue.push({ x: ccwResult.x, y: ccwResult.y, rotation: ccwResult.rotation, path: [...path, 'rotateCCW'] });
+                        }
+                    }
+                }
+
+                // Left
+                const leftPos = { x: x - 1, y };
+                const leftState = { id: pieceId, matrix: ROTATION_MATRICES[pieceId][rotation], pos: leftPos, rotation };
+                if (!checkCollision(currentBoard, leftState, leftPos)) {
+                    const key = stateKey(x - 1, y, rotation);
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        queue.push({ x: x - 1, y, rotation, path: [...path, 'left'] });
+                    }
+                }
+
+                // Right
+                const rightPos = { x: x + 1, y };
+                const rightState = { id: pieceId, matrix: ROTATION_MATRICES[pieceId][rotation], pos: rightPos, rotation };
+                if (!checkCollision(currentBoard, rightState, rightPos)) {
+                    const key = stateKey(x + 1, y, rotation);
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        queue.push({ x: x + 1, y, rotation, path: [...path, 'right'] });
+                    }
+                }
+
+                // Down
+                const downPos = { x, y: y + 1 };
+                const downState = { id: pieceId, matrix: ROTATION_MATRICES[pieceId][rotation], pos: downPos, rotation };
+                if (!checkCollision(currentBoard, downState, downPos)) {
+                    const key = stateKey(x, y + 1, rotation);
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        queue.push({ x, y: y + 1, rotation, path: [...path, 'down'] });
+                    }
+                } else {
+                    // Only consider it a terminal locked state if we can no longer move down
+                    terminalStates.push({ x, y, rotation, path });
+                }
+            }
+
+            for (const state of terminalStates) {
+                let testBoard = currentBoard.map(row => [...row]);
+                const matrix = ROTATION_MATRICES[pieceId][state.rotation];
+                let outOfBounds = false;
+                
+                matrix.forEach((row, py) => {
+                    row.forEach((val, px) => {
+                        if (val) {
+                            let by = state.y + py;
+                            let bx = state.x + px;
+                            if (by >= 0 && by < testBoard.length) {
+                                testBoard[by][bx] = PIECE_IDS.indexOf(pieceId) + 1;
+                            } else {
+                                outOfBounds = true;
+                            }
+                        }
+                    });
+                });
+                
+                if (outOfBounds) continue;
+
+                let score = evaluateBoard(testBoard);
+                score -= state.path.length * 0.001; // Prefer shorter paths if score is tied
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestPath = state.path;
+                    bestIsHold = isHold;
+                }
+            }
+        };
+
+        evaluatePaths(currentPiece.id, false);
+        if (canHold) {
+            evaluatePaths(currentHoldId || nextId, true);
+        }
+
+        return { path: bestPath, isHold: bestIsHold };
+    };
+
+    const executeBotAction = () => {
+        if (!piece || isGameOver) return;
+
+        if (!botPath) {
+            const bestMove = getBestMove(piece, holdPieceId, nextPieceId, board);
+            if (!bestMove || !bestMove.path) {
+                hardDrop(); 
+                return;
+            }
+            if (bestMove.isHold) {
+                holdPieceAction();
+                botPath = null; 
+                return;
+            }
+            botPath = bestMove.path;
+            botPath.push('lock'); 
+        }
+
+        if (botPath.length > 0) {
+            const action = botPath.shift();
+            if (action === 'left') movePiece(-1);
+            else if (action === 'right') movePiece(1);
+            else if (action === 'down') softDrop();
+            else if (action === 'rotateCW') rotatePiece(1);
+            else if (action === 'rotateCCW') rotatePiece(-1);
+            else if (action === 'lock') {
+                hardDrop();
+                botPath = null;
+            }
+        } else {
+            botPath = null;
+        }
+    };
 
     /* ----- GAME LOGIC ----- */
 
@@ -476,6 +869,7 @@
                 piece.matrix = rotatedMatrix; // Update the actual piece matrix
                 piece.rotation = nextRotation;
                 calculateGhostPosition(); // Update ghost after successful rotation
+                playSound('rotate');
                 return true; // Rotation succeeded
             }
         }
@@ -490,6 +884,7 @@
         const testPos = { ...piece.pos, x: piece.pos.x + direction };
         if (!checkCollision(board, piece, testPos)) {
             piece.pos.x = testPos.x;
+            playSound('move');
             calculateGhostPosition(); // Update ghost after move
         }
     };
@@ -511,6 +906,8 @@
     const hardDrop = () => {
         if (!piece) return;
         piece.pos = { ...ghostPiecePos }; // Move directly to ghost position
+        playSound('drop');
+        shakeTime = Math.max(shakeTime, 0.25); // Add subtle shake for hard drop
         lockPiece();
     };
 
@@ -519,6 +916,7 @@
         if (!piece) return;
         mergePiece();
         const clearedCount = clearLines();
+        if (clearedCount > 0) playSound('clear');
         updateScore(clearedCount);
         piece = null; // Clear current piece reference
         spawnPiece(); // Spawn the next piece
@@ -559,11 +957,24 @@
 
         const deltaTime = timestamp - lastTime;
         lastTime = timestamp;
-        dropCounter += deltaTime;
 
-        if (dropCounter > dropInterval) {
-            softDrop(); // Attempt to move down automatically
-            dropCounter = 0; // Reset counter even if lock happens
+        if (shakeTime > 0) {
+            shakeTime -= deltaTime / 150; // Decrease screen shake intensity
+            if (shakeTime < 0) shakeTime = 0;
+        }
+
+        if (botActive) {
+            botActionTimer += deltaTime;
+            if (botActionTimer > BOT_ACTION_DELAY) {
+                botActionTimer = 0;
+                executeBotAction();
+            }
+        } else {
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                softDrop(); // Attempt to move down automatically
+                dropCounter = 0; // Reset counter even if lock happens
+            }
         }
 
         draw(); // Render the current state
@@ -589,7 +1000,10 @@
         isGameOver = false;
         isPaused = false;
         isRunning = false; // Don't start loop automatically
+        botPath = null;
         ghostPiecePos = null;
+        particles = [];
+        shakeTime = 0;
         updateStatsDisplay();
         draw(); // Initial draw of empty board + previews
         startBtn.disabled = false;
@@ -607,6 +1021,7 @@
         isPaused = false;
         isGameOver = false;
         lastTime = performance.now(); // Use performance.now for higher precision
+        noteIndex = 0; // Reset music rhythm on start
         dropCounter = 0; // Reset drop counter
         if (animationFrameId) cancelAnimationFrame(animationFrameId); // Clear any old loops
         animationFrameId = requestAnimationFrame(gameLoop);
@@ -656,6 +1071,7 @@
     const gameOver = () => {
         console.log("Game Over!");
         isRunning = false;
+        playSound('gameover');
         isGameOver = true;
         isPaused = false; // Not paused, just ended
         if (animationFrameId) {
@@ -688,7 +1104,7 @@
             return; // Handle pause separately
         }
 
-        if (!isRunning || isPaused) return; // Ignore game controls if not running or paused
+        if (!isRunning || isPaused || botActive) return; // Ignore game controls if not running, paused, or bot playing
 
         switch (e.code) {
             case 'ArrowLeft':   // Move Left
@@ -738,6 +1154,29 @@
     startBtn.addEventListener('click', startGame);
     pauseBtn.addEventListener('click', pauseGame);
     resetBtn.addEventListener('click', resetGame);
+
+    botToggleBtn.addEventListener('click', () => {
+        botActive = !botActive;
+        botToggleBtn.textContent = `Bot: ${botActive ? 'ON' : 'OFF'}`;
+        if (!botActive) botPath = null; // Clear path if turned off
+        if (botActive && !isRunning && !isGameOver) {
+            startGame();
+        }
+    });
+
+    soundToggleBtn.addEventListener('click', () => {
+        isSoundEnabled = !isSoundEnabled;
+        soundToggleBtn.textContent = `Sound: ${isSoundEnabled ? 'ON' : 'OFF'}`;
+        if (isSoundEnabled) {
+            initAudio();
+            if (!musicTimeout) {
+                playMusicNote();
+            }
+        } else {
+            if (musicTimeout) clearTimeout(musicTimeout);
+            musicTimeout = null;
+        }
+    });
 
     // Set dynamic copyright year
     copyrightEl.textContent = `© ${new Date().getFullYear()}`;

@@ -3,333 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Dynamics Simulation</title>
+    <title>Stable Fluid (Speed Limited)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #000;
-        }
-        canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
+        body { margin: 0; overflow: hidden; background-color: #050505; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #38bdf8; margin-top: -6px; cursor: pointer; box-shadow: 0 0 10px rgba(56,189,248,0.5); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #334155; border-radius: 2px; }
     </style>
 </head>
-<body class="bg-black">
+<body class="text-white font-sans">
+
     <canvas id="fluidCanvas"></canvas>
 
+    <div class="absolute top-4 left-4 w-64 bg-gray-900/60 backdrop-blur-xl p-5 rounded-xl border border-gray-800 shadow-2xl select-none">
+        <h1 class="text-xl font-bold text-sky-400 mb-1 tracking-tight">Stable Fluid</h1>
+        <p class="text-xs text-gray-400 mb-5">Velocity Clamping Active</p>
+
+        <div class="space-y-5">
+            <div>
+                <label class="flex justify-between text-sm font-medium text-gray-300 mb-2">
+                    <span>Flow Friction</span><span id="val-friction" class="text-sky-400 font-mono">0.003</span>
+                </label>
+                <input type="range" id="friction" min="0.000" max="0.010" step="0.001" value="0.003">
+            </div>
+            <div>
+                <label class="flex justify-between text-sm font-medium text-gray-300 mb-2">
+                    <span>Density Decay</span><span id="val-decay" class="text-sky-400 font-mono">0.980</span>
+                </label>
+                <input type="range" id="decay" min="0.950" max="0.999" step="0.001" value="0.980">
+            </div>
+             <div class="pt-2">
+                <button id="clearBtn" class="w-full px-3 py-2 bg-red-500/10 hover:bg-red-500/30 text-red-400 hover:text-red-200 text-sm font-semibold rounded-lg border border-red-500/30 transition-all duration-200">Reset Canvas</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // --- Main Simulation Setup ---
-
-        const canvas = document.getElementById('fluidCanvas');
-        const ctx = canvas.getContext('2d');
-
-        // Simulation parameters
-        const N = 128; // Grid size (resolution)
-        const iter = 4; // Solver iterations
-        const dt = 0.1; // Time step
-        const diff = 0.0000; // Diffusion rate
-        const visc = 0.0000; // Viscosity
-
-        let fluid;
-        let scaleX, scaleY; // Dynamic scaling factors for rendering
-
-        // --- Fluid Solver Class ---
+        const config = {
+            N: 128,
+            iter: 10,
+            dt: 0.1,
+            diff: 0.0000,
+            visc: 0.0000,
+            decay: 0.980,      // Density decay (visual fade)
+            friction: 0.003,   // Velocity decay (slows down movement)
+            limit: 5,          // === FIX: HARD SPEED LIMIT (Grid cells per frame) ===
+            inputDensity: 50,
+            inputRadius: 5
+        };
 
         class Fluid {
-            constructor(dt, diffusion, viscosity) {
-                this.size = N;
-                this.dt = dt;
-                this.diff = diffusion;
-                this.visc = viscosity;
-
-                // Velocity fields
-                this.Vx = new Float32Array(N * N).fill(0);
-                this.Vy = new Float32Array(N * N).fill(0);
-                this.Vx0 = new Float32Array(N * N).fill(0);
-                this.Vy0 = new Float32Array(N * N).fill(0);
-
-                // Density fields (for colors)
-                this.densityR = new Float32Array(N * N).fill(0);
-                this.densityG = new Float32Array(N * N).fill(0);
-                this.densityB = new Float32Array(N * N).fill(0);
-                this.sR = new Float32Array(N * N).fill(0);
-                this.sG = new Float32Array(N * N).fill(0);
-                this.sB = new Float32Array(N * N).fill(0);
+            constructor(size, dt, diff, visc) {
+                this.N = size; this.dt = dt; this.diff = diff; this.visc = visc; this.size = size * size;
+                this.Vx = new Float32Array(this.size); this.Vy = new Float32Array(this.size);
+                this.Vx0 = new Float32Array(this.size); this.Vy0 = new Float32Array(this.size);
+                this.r = new Float32Array(this.size); this.g = new Float32Array(this.size); this.b = new Float32Array(this.size);
+                this.r0 = new Float32Array(this.size); this.g0 = new Float32Array(this.size); this.b0 = new Float32Array(this.size);
             }
-
-            // Indexing helper
-            IX(x, y) {
-                x = Math.max(0, Math.min(N - 1, x));
-                y = Math.max(0, Math.min(N - 1, y));
-                return x + y * N;
-            }
-
-            // Add density (color) to a cell
+            IX(x, y) { x = Math.max(0, Math.min(this.N - 1, x)); y = Math.max(0, Math.min(this.N - 1, y)); return x + y * this.N; }
             addDensity(x, y, r, g, b) {
                 const index = this.IX(x, y);
-                this.densityR[index] += r;
-                this.densityG[index] += g;
-                this.densityB[index] += b;
+                this.r[index] += r; this.g[index] += g; this.b[index] += b;
             }
-
-            // Add velocity to a cell
             addVelocity(x, y, amountX, amountY) {
                 const index = this.IX(x, y);
-                this.Vx[index] += amountX;
-                this.Vy[index] += amountY;
+                this.Vx[index] += amountX; this.Vy[index] += amountY;
             }
-
-            // Main simulation step
             step() {
-                const visc = this.visc;
-                const diff = this.diff;
-                const dt = this.dt;
-                const Vx = this.Vx;
-                const Vy = this.Vy;
-                const Vx0 = this.Vx0;
-                const Vy0 = this.Vy0;
+                const N = this.N; const visc = this.visc; const diff = this.diff; const dt = this.dt;
+                const Vx = this.Vx; const Vy = this.Vy; const Vx0 = this.Vx0; const Vy0 = this.Vy0;
                 
-                diffuse(1, Vx0, Vx, visc, dt);
-                diffuse(2, Vy0, Vy, visc, dt);
-                project(Vx0, Vy0, Vx, Vy);
-                advect(1, Vx, Vx0, Vx0, Vy0, dt);
-                advect(2, Vy, Vy0, Vx0, Vy0, dt);
-                project(Vx, Vy, Vx0, Vy0);
-                diffuse(0, this.sR, this.densityR, diff, dt);
-                diffuse(0, this.sG, this.densityG, diff, dt);
-                diffuse(0, this.sB, this.densityB, diff, dt);
-                advect(0, this.densityR, this.sR, Vx, Vy, dt);
-                advect(0, this.densityG, this.sG, Vx, Vy, dt);
-                advect(0, this.densityB, this.sB, Vx, Vy, dt);
+                this.diffuse(1, Vx0, Vx, visc, dt); this.diffuse(2, Vy0, Vy, visc, dt);
+                this.project(Vx0, Vy0, Vx, Vy);
+                this.advect(1, Vx, Vx0, Vx0, Vy0, dt); this.advect(2, Vy, Vy0, Vx0, Vy0, dt);
+                this.project(Vx, Vy, Vx0, Vy0);
+                this.diffuse(0, this.r0, this.r, diff, dt); this.diffuse(0, this.g0, this.g, diff, dt); this.diffuse(0, this.b0, this.b, diff, dt);
+                this.advect(0, this.r, this.r0, Vx, Vy, dt); this.advect(0, this.g, this.g0, Vx, Vy, dt); this.advect(0, this.b, this.b0, Vx, Vy, dt);
+                
+                // === FIX: Velocity Damping & Clamping ===
+                // This prevents the particles from exceeding the speed of the grid calculation
+                // and prevents "runaway" energy that creates sparkles.
+                for(let i=0; i<this.size; i++) {
+                    // 1. Friction (slow down over time)
+                    const damping = 1 - config.friction;
+                    Vx[i] *= damping;
+                    Vy[i] *= damping;
+
+                    // 2. Speed Limit (Hard Clamp)
+                    // If velocity is higher than 'limit', chop it off.
+                    Vx[i] = Math.max(-config.limit, Math.min(config.limit, Vx[i]));
+                    Vy[i] = Math.max(-config.limit, Math.min(config.limit, Vy[i]));
+                }
             }
-        }
-
-        // --- Core Solver Functions (Navier-Stokes equations simplified) ---
-
-        function set_bnd(b, x) {
-            for (let i = 1; i < N - 1; i++) {
-                x[IX(i, 0)] = b === 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
-                x[IX(i, N - 1)] = b === 2 ? -x[IX(i, N - 2)] : x[IX(i, N - 2)];
+            set_bnd(b, x) {
+                const N = this.N;
+                for (let i = 1; i < N - 1; i++) { x[this.IX(i, 0)] = b === 2 ? -x[this.IX(i, 1)] : x[this.IX(i, 1)]; x[this.IX(i, N - 1)] = b === 2 ? -x[this.IX(i, N - 2)] : x[this.IX(i, N - 2)]; }
+                for (let j = 1; j < N - 1; j++) { x[this.IX(0, j)] = b === 1 ? -x[this.IX(1, j)] : x[this.IX(1, j)]; x[this.IX(N - 1, j)] = b === 1 ? -x[this.IX(N - 2, j)] : x[this.IX(N - 2, j)]; }
+                x[this.IX(0, 0)] = 0.5 * (x[this.IX(1, 0)] + x[this.IX(0, 1)]); x[this.IX(0, N - 1)] = 0.5 * (x[this.IX(1, N - 1)] + x[this.IX(0, N - 2)]);
+                x[this.IX(N - 1, 0)] = 0.5 * (x[this.IX(N - 2, 0)] + x[this.IX(N - 1, 1)]); x[this.IX(N - 1, N - 1)] = 0.5 * (x[this.IX(N - 2, N - 1)] + x[this.IX(N - 1, N - 2)]);
             }
-            for (let j = 1; j < N - 1; j++) {
-                x[IX(0, j)] = b === 1 ? -x[IX(1, j)] : x[IX(1, j)];
-                x[IX(N - 1, j)] = b === 1 ? -x[IX(N - 2, j)] : x[IX(N - 2, j)];
+            lin_solve(b, x, x0, a, c) {
+                const cRecip = 1.0 / c; const N = this.N;
+                for (let k = 0; k < config.iter; k++) {
+                    for (let j = 1; j < N - 1; j++) {
+                        for (let i = 1; i < N - 1; i++) {
+                            const idx = i + j * N;
+                            x[idx] = (x0[idx] + a * (x[idx + 1] + x[idx - 1] + x[idx + N] + x[idx - N])) * cRecip;
+                        }
+                    }
+                    this.set_bnd(b, x);
+                }
             }
-
-            x[IX(0, 0)] = 0.5 * (x[IX(1, 0)] + x[IX(0, 1)]);
-            x[IX(0, N - 1)] = 0.5 * (x[IX(1, N - 1)] + x[IX(0, N - 2)]);
-            x[IX(N - 1, 0)] = 0.5 * (x[IX(N - 2, 0)] + x[IX(N - 1, 1)]);
-            x[IX(N - 1, N - 1)] = 0.5 * (x[IX(N - 2, N - 1)] + x[IX(N - 1, N - 2)]);
-        }
-
-        function lin_solve(b, x, x0, a, c) {
-            const cRecip = 1.0 / c;
-            for (let k = 0; k < iter; k++) {
+            diffuse(b, x, x0, diff, dt) { const a = dt * diff * (this.N - 2) * (this.N - 2); this.lin_solve(b, x, x0, a, 1 + 6 * a); }
+            project(velocX, velocY, p, div) {
+                const N = this.N;
                 for (let j = 1; j < N - 1; j++) {
                     for (let i = 1; i < N - 1; i++) {
-                        x[IX(i, j)] = (x0[IX(i, j)] + a * (x[IX(i + 1, j)] + x[IX(i - 1, j)] + x[IX(i, j + 1)] + x[IX(i, j - 1)])) * cRecip;
+                        const idx = i + j * N;
+                        div[idx] = -0.5 * (velocX[idx + 1] - velocX[idx - 1] + velocY[idx + N] - velocY[idx - N]) / N;
+                        p[idx] = 0;
                     }
                 }
-                set_bnd(b, x);
+                this.set_bnd(0, div); this.set_bnd(0, p); this.lin_solve(0, p, div, 1, 6);
+                for (let j = 1; j < N - 1; j++) {
+                    for (let i = 1; i < N - 1; i++) {
+                        const idx = i + j * N;
+                        velocX[idx] -= 0.5 * (p[idx + 1] - p[idx - 1]) * N;
+                        velocY[idx] -= 0.5 * (p[idx + N] - p[idx - N]) * N;
+                    }
+                }
+                this.set_bnd(1, velocX); this.set_bnd(2, velocY);
+            }
+            advect(b, d, d0, velocX, velocY, dt) {
+                const N = this.N; const Nfloat = N - 2; const dtx = dt * Nfloat; const dty = dt * Nfloat;
+                for (let j = 1; j < N - 1; j++) {
+                    for (let i = 1; i < N - 1; i++) {
+                        const idx = i + j * N;
+                        let x = i - dtx * velocX[idx]; let y = j - dty * velocY[idx];
+                        if (x < 0.5) x = 0.5; if (x > Nfloat + 0.5) x = Nfloat + 0.5;
+                        if (y < 0.5) y = 0.5; if (y > Nfloat + 0.5) y = Nfloat + 0.5;
+                        const i0 = Math.floor(x); const i1 = i0 + 1; const j0 = Math.floor(y); const j1 = j0 + 1;
+                        const s1 = x - i0; const s0 = 1.0 - s1; const t1 = y - j0; const t0 = 1.0 - t1;
+                        const row0 = j0 * N; const row1 = j1 * N;
+                        d[idx] = s0 * (t0 * d0[i0 + row0] + t1 * d0[i0 + row1]) + s1 * (t0 * d0[i1 + row0] + t1 * d0[i1 + row1]);
+                    }
+                }
+                this.set_bnd(b, d);
             }
         }
 
-        function diffuse(b, x, x0, diff, dt) {
-            const a = dt * diff * (N - 2) * (N - 2);
-            lin_solve(b, x, x0, a, 1 + 6 * a);
+        const canvas = document.getElementById('fluidCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        let fluid, w, h, imageData;
+        let hue = 0;
+
+        function resize() {
+            w = canvas.width = config.N; h = canvas.height = config.N; 
+            fluid = new Fluid(config.N, config.dt, config.diff, config.visc);
+            imageData = ctx.createImageData(config.N, config.N);
         }
 
-        function project(velocX, velocY, p, div) {
-            for (let j = 1; j < N - 1; j++) {
-                for (let i = 1; i < N - 1; i++) {
-                    div[IX(i, j)] = -0.5 * (velocX[IX(i + 1, j)] - velocX[IX(i - 1, j)] + velocY[IX(i, j + 1)] - velocY[IX(i, j - 1)]) / N;
-                    p[IX(i, j)] = 0;
+        function render() {
+            const data = imageData.data; const size = config.N * config.N;
+            for (let i = 0; i < size; i++) {
+                fluid.r[i] *= config.decay; fluid.g[i] *= config.decay; fluid.b[i] *= config.decay;
+                const p = i * 4;
+                data[p] = Math.min(255, fluid.r[i]);
+                data[p + 1] = Math.min(255, fluid.g[i]);
+                data[p + 2] = Math.min(255, fluid.b[i]);
+                data[p + 3] = 255;
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function loop() {
+            fluid.step(); render(); requestAnimationFrame(loop);
+        }
+
+        const pointer = { x: 0, y: 0, lastX: 0, lastY: 0, down: false };
+
+        function splat(x, y, dx, dy, color) {
+            // Reduced initial force to work better with the new limit
+            const force = 50; 
+            fluid.addVelocity(Math.floor(x), Math.floor(y), dx * force, dy * force);
+
+            const radius = config.inputRadius;
+            const centerX = Math.floor(x);
+            const centerY = Math.floor(y);
+
+            for(let i = -radius; i <= radius; i++) {
+                for(let j = -radius; j <= radius; j++) {
+                    const dist = Math.sqrt(i * i + j * j);
+                    if (dist <= radius) {
+                        const falloff = Math.cos((dist / radius) * (Math.PI / 2));
+                        fluid.addDensity(
+                            centerX + i, centerY + j, 
+                            color[0] * config.inputDensity * falloff,
+                            color[1] * config.inputDensity * falloff, 
+                            color[2] * config.inputDensity * falloff
+                        );
+                    }
                 }
             }
-            set_bnd(0, div);
-            set_bnd(0, p);
-            lin_solve(0, p, div, 1, 6);
+        }
 
-            for (let j = 1; j < N - 1; j++) {
-                for (let i = 1; i < N - 1; i++) {
-                    velocX[IX(i, j)] -= 0.5 * (p[IX(i + 1, j)] - p[IX(i - 1, j)]) * N;
-                    velocY[IX(i, j)] -= 0.5 * (p[IX(i, j + 1)] - p[IX(i, j - 1)]) * N;
+        function updatePointer(e, isDown) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = config.N / rect.width;
+            const scaleY = config.N / rect.height;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            let x = Math.max(0, Math.min(config.N - 1, (clientX - rect.left) * scaleX));
+            let y = Math.max(0, Math.min(config.N - 1, (clientY - rect.top) * scaleY));
+
+            if (isDown) {
+                if (!pointer.down) { pointer.lastX = x; pointer.lastY = y; }
+                const dx = x - pointer.lastX;
+                const dy = y - pointer.lastY;
+                
+                hue = (hue + 1) % 360;
+                const color = hslToRgb(hue / 360, 1.0, 0.5);
+
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const steps = Math.ceil(dist); 
+                
+                if (steps > 0) {
+                    for(let i = 0; i < steps; i++) {
+                        const t = (i + 1) / steps; 
+                        const interpX = pointer.lastX + (dx * t);
+                        const interpY = pointer.lastY + (dy * t);
+                        splat(interpX, interpY, dx, dy, color);
+                    }
+                } else {
+                    splat(x, y, dx, dy, color);
                 }
             }
-            set_bnd(1, velocX);
-            set_bnd(2, velocY);
+            pointer.lastX = x; pointer.lastY = y; pointer.down = isDown;
         }
 
-        function advect(b, d, d0, velocX, velocY, dt) {
-            let i0, i1, j0, j1;
-            const dtx = dt * (N - 2);
-            const dty = dt * (N - 2);
-            let s0, s1, t0, t1;
-            let tmp1, tmp2, x, y;
-            const Nfloat = N - 2;
-            let ifloat, jfloat;
-            let i, j;
-
-            for (j = 1, jfloat = 1; j < N - 1; j++, jfloat++) {
-                for (i = 1, ifloat = 1; i < N - 1; i++, ifloat++) {
-                    tmp1 = dtx * velocX[IX(i, j)];
-                    tmp2 = dty * velocY[IX(i, j)];
-                    x = ifloat - tmp1;
-                    y = jfloat - tmp2;
-
-                    if (x < 0.5) x = 0.5;
-                    if (x > Nfloat + 0.5) x = Nfloat + 0.5;
-                    i0 = Math.floor(x);
-                    i1 = i0 + 1.0;
-                    if (y < 0.5) y = 0.5;
-                    if (y > Nfloat + 0.5) y = Nfloat + 0.5;
-                    j0 = Math.floor(y);
-                    j1 = j0 + 1.0;
-
-                    s1 = x - i0;
-                    s0 = 1.0 - s1;
-                    t1 = y - j0;
-                    t0 = 1.0 - t1;
-
-                    d[IX(i, j)] = s0 * (t0 * d0[IX(i0, j0)] + t1 * d0[IX(i0, j1)]) + s1 * (t0 * d0[IX(i1, j0)] + t1 * d0[IX(i1, j1)]);
-                }
-            }
-            set_bnd(b, d);
-        }
-
-        function IX(x, y) {
-            x = Math.max(0, Math.min(N - 1, x));
-            y = Math.max(0, Math.min(N - 1, y));
-            return x + y * N;
-        }
-
-        // --- Color Conversion ---
-        
-        /**
-         * Converts an HSL color value to RGB.
-         * Assumes h, s, and l are in the set [0, 1] and
-         * returns r, g, and b in the set [0, 255].
-         * @param {number} h The hue
-         * @param {number} s The saturation
-         * @param {number} l The lightness
-         * @returns {Array<number>} The RGB representation [r, g, b]
-         */
         function hslToRgb(h, s, l) {
             let r, g, b;
-            if (s === 0) {
-                r = g = b = l; // achromatic
-            } else {
+            if (s === 0) { r = g = b = l; } else {
                 const hue2rgb = (p, q, t) => {
-                    if (t < 0) t += 1;
-                    if (t > 1) t -= 1;
-                    if (t < 1 / 6) return p + (q - p) * 6 * t;
-                    if (t < 1 / 2) return q;
-                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                    if (t < 0) t += 1; if (t > 1) t -= 1;
+                    if (t < 1/6) return p + (q - p) * 6 * t;
+                    if (t < 1/2) return q;
+                    if (t < 2/3) return p + (q - p) * (2 / 3 - t) * 6;
                     return p;
                 };
                 const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
                 const p = 2 * l - q;
-                r = hue2rgb(p, q, h + 1 / 3);
-                g = hue2rgb(p, q, h);
-                b = hue2rgb(p, q, h - 1 / 3);
+                r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
             }
-            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+            return [r, g, b];
         }
 
+        window.addEventListener('mousedown', (e) => { updatePointer(e, true); });
+        window.addEventListener('mousemove', (e) => { if(pointer.down) updatePointer(e, true); });
+        window.addEventListener('mouseup', (e) => { updatePointer(e, false); });
+        window.addEventListener('touchstart', (e) => { updatePointer(e, true); });
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); updatePointer(e, true); }, { passive: false });
+        window.addEventListener('touchend', (e) => { pointer.down = false; });
 
-        // --- Rendering and Animation ---
+        document.getElementById('decay').addEventListener('input', (e) => { config.decay = parseFloat(e.target.value); document.getElementById('val-decay').innerText = config.decay.toFixed(3); });
+        document.getElementById('friction').addEventListener('input', (e) => { config.friction = parseFloat(e.target.value); document.getElementById('val-friction').innerText = config.friction.toFixed(3); });
+        document.getElementById('clearBtn').addEventListener('click', () => { fluid.r.fill(0); fluid.g.fill(0); fluid.b.fill(0); fluid.Vx.fill(0); fluid.Vy.fill(0); });
 
-        function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let i = 0; i < N; i++) {
-                for (let j = 0; j < N; j++) {
-                    const index = IX(i, j);
-                    const r = Math.min(255, Math.max(0, fluid.densityR[index]));
-                    const g = Math.min(255, Math.max(0, fluid.densityG[index]));
-                    const b = Math.min(255, Math.max(0, fluid.densityB[index]));
-                    
-                    if (r > 1 || g > 1 || b > 1) {
-                         ctx.fillStyle = `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
-                         ctx.fillRect(i * scaleX, j * scaleY, scaleX + 1, scaleY + 1); // +1 to avoid gaps
-                    }
-                }
-            }
-        }
-
-        function animate() {
-            // Add a slight decay to all densities to prevent saturation and keep colors vibrant
-            for (let i = 0; i < N * N; i++) {
-                const decay = 0.99; // A value slightly less than 1
-                fluid.densityR[i] *= decay;
-                fluid.densityG[i] *= decay;
-                fluid.densityB[i] *= decay;
-            }
-
-            fluid.step();
-            render();
-            requestAnimationFrame(animate);
-        }
-
-        // --- Initialization and Event Handling ---
-
-        function handleResize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            scaleX = canvas.width / N;
-            scaleY = canvas.height / N;
-        }
-
-        function init() {
-            handleResize();
-            fluid = new Fluid(dt, diff, visc);
-            
-            // Add random color drops every second
-            setInterval(() => {
-                const dropRadius = 6; // Radius of the drop area
-                // Ensure the drop's center isn't right at the edge
-                const x = Math.floor(Math.random() * (N - dropRadius * 2)) + dropRadius;
-                const y = Math.floor(Math.random() * (N - dropRadius * 2)) + dropRadius;
-                
-                // Generate a bright, saturated color using HSL
-                const hue = Math.random(); // 0 to 1 for full color wheel
-                const saturation = 1.0; // 100% saturation
-                const lightness = 0.5; // 50% lightness for max brightness
-                
-                const [r, g, b] = hslToRgb(hue, saturation, lightness);
-
-                // Add density in a circular area to create a larger drop
-                for (let i = -dropRadius; i <= dropRadius; i++) {
-                    for (let j = -dropRadius; j <= dropRadius; j++) {
-                        const distance = Math.sqrt(i * i + j * j);
-                        if (distance <= dropRadius) {
-                            // The color is brightest at the center and fades out
-                            const falloff = 1 - (distance / dropRadius);
-                            fluid.addDensity(x + i, y + j, r * falloff, g * falloff, b * falloff);
-                        }
-                    }
-                }
-                
-                const angle = Math.random() * 2 * Math.PI;
-                const force = 5000; // Increased force for a more powerful splash
-                // Add the velocity force at the center of the drop
-                fluid.addVelocity(x, y, Math.cos(angle) * force, Math.sin(angle) * force);
-
-            }, 1000);
-
-            animate();
-        }
-        
-        window.addEventListener('resize', handleResize);
-
-        init();
-
+        resize(); loop();
+        let resizeTimeout;
+        window.addEventListener('resize', () => { clearTimeout(resizeTimeout); resizeTimeout = setTimeout(resize, 200); });
     </script>
 </body>
 </html>
