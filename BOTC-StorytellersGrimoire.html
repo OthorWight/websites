@@ -951,6 +951,9 @@
               >Script<select id="script-select"></select
             ></label>
             <div class="row">
+              <button id="browse-scripts-btn" class="small primary">
+                Browse scripts
+              </button>
               <button id="edit-script-btn" class="small">Edit script</button
               ><button id="export-script-btn" class="small">
                 Export script
@@ -967,6 +970,7 @@
               <option value="all">Every character type</option>
             </select>
           </div>
+          <p id="script-description" class="hint"></p>
           <p class="hint">
             Select a character to inspect or assign it. You can also drag it
             onto a seat.
@@ -3699,6 +3703,256 @@
             .map((r) => r.id),
         },
       };
+      // Publisher collection snapshot from https://bloodontheclocktower.com/pages/custom-scripts (2026-09-06).
+      Object.assign(SCRIPTS, {
+        "publisher-the-passage-of-time": {
+          name: "The Passage of Time",
+          roles: [
+            "shugenja",
+            "pixie",
+            "general",
+            "snakecharmer",
+            "monk",
+            "savant",
+            "alsaahir",
+            "engineer",
+            "huntsman",
+            "fisherman",
+            "princess",
+            "cannibal",
+            "banshee",
+            "plaguedoctor",
+            "barber",
+            "mutant",
+            "damsel",
+            "puzzlemaster",
+            "psychopath",
+            "wizard",
+            "boomdandy",
+            "organgrinder",
+            "imp",
+            "shabaloth",
+            "fanggu",
+            "harlot",
+            "butcher",
+            "gangster",
+            "voudon",
+            "sentinel",
+          ],
+          author: "Delta",
+          group: "Featured by TPI",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACi2PQW4DMQhFrxKxtpL9rHuALrKrqoixiU3HBsvYSZOqd6886Q7Bfzz4%252BAEOsMClUEdwIFgIFjgnOryjGUY66PVw5kLgAEdP2mCBN8p7OmtUWCD1Xm05ncJs%252B6x%252B63qndhRSz53JjtriSe%252F5YtvI%252BVglwq8DSyOSfM1Flb95GiIJNczgwAQ38glboQYOiso2u3hD6fOUbIiJ54gkstCeSkO6FRRwcGVL1F51bSyezMCBRxFed8OKYommtWaMg4L6rm0ftPUlHf1lC1iMJlPH85mpoPU9UO3hk1bsCRzc%252BYktTF61BJTwAAfaIkpsLGEHuNT5RcIVs%252B7UFSXGMW%252FHlnXK1tF92tMT%252FTfddASdvxhJZ6EMn38ig%252FqouwEAAA%253D%253D",
+        },
+        "publisher-one-in-one-out": {
+          name: "One in one out",
+          roles: [
+            "steward",
+            "knight",
+            "highpriestess",
+            "villageidiot",
+            "snakecharmer",
+            "fortuneteller",
+            "oracle",
+            "monk",
+            "amnesiac",
+            "fisherman",
+            "seamstress",
+            "farmer",
+            "cannibal",
+            "ogre",
+            "goon",
+            "recluse",
+            "drunk",
+            "poisoner",
+            "harpy",
+            "spy",
+            "mezepheles",
+            "kazali",
+            "imp",
+            "ojo",
+            "fanggu",
+            "spiritofivory",
+          ],
+          author: "Baron von Klutz",
+          group: "Recommended by TPI",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACpWSQU7EMAxFr1J53RN0CSvEggMghEzrJqaJHTnOoBnE3RFiBEvMMtLzj%2FN%2BHt%2BBN1jguZIjzIDDsxoscIOmMp1Upvsy%2FAIzCFaCBR6EJpZJhSYdDjO8FNWtO9pdxUS3akarswosoPIdqV3NYdmxdJrBz%2B0raB%2BlwMd8XaA7vaFtMEPK2n%2FhxiK0XY8%2F9CGcsgfhzCk3Y%2BpOvQdnTlwKJuKNNXpNFzxozWiVLDiyq%2FkQciolPKOGa6EgXFWOIIpVqDOu0dW5Z7KKErVDWLtbvIH9PyJXFOEXLFGHyaIGk2r0iUZrGT0avNkId9OUu0rYRkZr52gvYbLShVqmQtEGD7xg4SDMtUXLe9XwF5KURlgEG7vufFL7S8nTJ74mOs83BQAA",
+        },
+        "publisher-a-grimm-chorus": {
+          name: "A Grimm Chorus",
+          roles: [
+            "general",
+            "villageidiot",
+            "towncrier",
+            "innkeeper",
+            "gambler",
+            "exorcist",
+            "amnesiac",
+            "nightwatchman",
+            "slayer",
+            "fisherman",
+            "soldier",
+            "minstrel",
+            "cannibal",
+            "damsel",
+            "drunk",
+            "golem",
+            "politician",
+            "godfather",
+            "summoner",
+            "assassin",
+            "scarletwoman",
+            "yaggababble",
+            "pukka",
+            "ojo",
+            "po",
+            "thief",
+            "harlot",
+            "judge",
+            "beggar",
+            "scapegoat",
+          ],
+          author: "Zets",
+          group: "Recommended by TPI",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACpWUQU4DMQxFr4K8nhPMDnWBuAIIIU%2FiSdwm9sjOUCrE3VFFBUvMMtbzj%2FX95ecP4AwzvHYaCBPgPqoazPBEw2ECwU4ww%2F3dg3Hvd4eqtl%2FrS1PNPtAeOxY6qBmlwSowg8q3jrragHnF5jTBuGxXoXVvDT6n26%2BFhAwbTFCq%2Bi%2B8sQjl2%2FOHfuPWsBBn1hFsGXqWZEwW5FnkRLSF%2BYJ9aWGa3tUSe3R47ELOmIK4cKnjjCPVjhLs8YaX8PgreyX7h7i2HLe%2Bs%2FgwioYhoQgv4exk7B7WzrbLKZoAbdSD7KaNBycOO1g0rzhq2EPfe1cJ4%2BiO7hzeZ0JrNM4aj8AFS8EFl6VR1KP9dMIgq0cNOx89GJVpDbIVrYUv0XHPJerBQqVgeOcJNyqKfw3y8gXT%2BfIa6wUAAA%3D%3D",
+        },
+        "publisher-hide-and-seek": {
+          name: "Hide and Seek",
+          roles: [
+            "noble",
+            "librarian",
+            "pixie",
+            "preacher",
+            "towncrier",
+            "oracle",
+            "undertaker",
+            "dreamer",
+            "seamstress",
+            "artist",
+            "huntsman",
+            "ravenkeeper",
+            "virgin",
+            "damsel",
+            "drunk",
+            "mutant",
+            "goon",
+            "godfather",
+            "mezepheles",
+            "poisoner",
+            "cerenovus",
+            "pukka",
+            "vigormortis",
+            "imp",
+            "ojo",
+          ],
+          author: "Narninian and Zaba",
+          group: "Recommended by TPI",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACo2Tu07FMAxAf%2BXKc7%2BgKwssLGwghNzGbU0TO3Kc8hL%2Fji5cwYjHJMdHfuXhAzjBCE%2BFHGEA7L6pwQi3aMLCKCeUdLrH6fwqWAhGuOZE39d3RDsMMGXV1BztpuBKV2pGs7MKjKDyI9Wm5jAumBsN4G%2F17Fl6zvA5XFIQnTLBAOum7Q%2BtLELpcvxlM0%2BGxihBvvIrR93VCOeNLIi7vshsHObVcA7X2SWROe5hezLCEqYbYWlu1FowAM25eRDeungr4RkZHiQ7UQ2nf7CtHNUnLI1yuI1d9iBbuqNEe7KqRhNeNS3o8UUs9E51o0zRYVblphL2z2QkevSwvu87hie5qhU9b1cwgkuNfrhn%2FYd8%2FAKDMcBoBgUAAA%3D%3D",
+        },
+        "publisher-lunar-eclipse": {
+          name: "Lunar Eclipse",
+          roles: [
+            "grandmother",
+            "pixie",
+            "sailor",
+            "chambermaid",
+            "mathematician",
+            "innkeeper",
+            "lycanthrope",
+            "savant",
+            "artist",
+            "tealady",
+            "magician",
+            "mayor",
+            "cannibal",
+            "goon",
+            "barber",
+            "lunatic",
+            "puzzlemaster",
+            "godfather",
+            "devilsadvocate",
+            "spy",
+            "assassin",
+            "marionette",
+            "nodashii",
+            "zombuul",
+            "vigormortis",
+            "barista",
+            "harlot",
+            "apprentice",
+            "beggar",
+            "voudon",
+            "spiritofivory",
+          ],
+          author: "Ekin",
+          group: "Recommended by TPI",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACpWUTU7EMAyFr4K87gm6RbNA4gYIIbdxU2sSO3Lcig7i7mhgBEs8y0jPv%2B9zXj6AE4zwVskRBsDNVzUY4XRmgQEEK8EIz5ugPZzmwq0TDDAV1dQd7alipkc1o9lZBUZQ%2BUmjXc1hXLB0GsCPds2zbKXA53Armg0lVfWVDAbIq%2Fa%2FgMYilG7P34jG70xBbUcuGk08r1gnsoqcghEVfaWKzjOjBGNY5EzUwuOWY0bx1bTFh95RPChGc%2B5RsRMWTEd4O%2FmexVQ84lahCE9YgvKsGu1iQpvi3mxyNT8K7na5FKrYPVwga1rwjttItHPpmHad0cO8tKij2Dv2znFHjVXIw52IJuwrc1B%2B0TptWxSCnbNa1SvvcRa4f3%2BJEfWKVjR8dq0ZifMcXc1EOWMUg123FCa%2BNzZ2XXhX%2Bw%2BE1y%2BQsqpnLAYAAA%3D%3D",
+        },
+        "publisher-no-greater-joy": {
+          name: "No Greater Joy",
+          roles: [
+            "clockmaker",
+            "investigator",
+            "empath",
+            "chambermaid",
+            "artist",
+            "sage",
+            "drunk",
+            "klutz",
+            "scarletwoman",
+            "baron",
+            "imp",
+          ],
+          author: "Steven Medway",
+          group: "Teensyville",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACo2OwUrEQBBEfyX0OV8wVw%2Figl48ikhnpkyGzHSHns4uUfx3WVz06ByreK%2Bol0%2FKiQK9VTjTSLz7okaBnh1nyPCIdOGDRhKuoEBPOtwb2GHDSa%2F9VFRTc7aHyjPu1AzRswoFUvkZ1KbmFN65NIzkx3YdckDaQV%2Fj7UAsGtfKK4xGmhdtf8aWRZBu8VfIckbzPLNrr4K6sS%2BdcFy4TrDKOXUabJ6bd8KNZ3SiyXZZO9m17P7ReyGyFfhFK0unMrFpL5vr9g%2F5%2Bg3pjVSGfgIAAA%3D%3D",
+        },
+        "publisher-over-the-river": {
+          name: "Over the River",
+          roles: [
+            "grandmother",
+            "clockmaker",
+            "innkeeper",
+            "snakecharmer",
+            "professor",
+            "slayer",
+            "lunatic",
+            "recluse",
+            "godfather",
+            "spy",
+            "imp",
+          ],
+          author: "Andrew Nathenson",
+          group: "Teensyville",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACpWQwUoEMQyGX2XIeZ6gN%2FHkRcGriMQ2My3TJiXJ7DLIvvvisujRegx83%2F%2BH%2F%2B0LSoIAH40cYQbcPYtCgAdOSufpGT0TmzDMwNgIArycSCfPNL2WEynM8FlFkjnqU8OVHkWVohdhCHDzcHcxUYewYDWawY%2F%2BHeREbAdc5vsPqyKnJp5vqWsW%2B1V6YaZ0P3%2BMWCVuDbdhoTBvRH2YN8aNYkZtw0pXWchMhisqHsPhdWf0EgdppVh3o0F6lbTgP8a3foyu3vof5PsV5MLzh4gCAAA%3D",
+        },
+        "publisher-laissez-un-faire": {
+          name: "Laissez Un Faire",
+          roles: [
+            "balloonist",
+            "savant",
+            "amnesiac",
+            "fisherman",
+            "artist",
+            "cannibal",
+            "mutant",
+            "lunatic",
+            "widow",
+            "goblin",
+            "leviathan",
+          ],
+          author: "Steven Medway",
+          group: "Teensyville",
+          source:
+            "https://script.bloodontheclocktower.com/?script=H4sIAAAAAAAACiXLwQrCMBCE4Vcpc84T9AE86Uk8ici0Xe1CsoFk21LFd5fQ2%2FAz3%2F0LndDjmcSJAC4%2B54IeV5dVrLvItHFHgDEJepyptcqnu1l3ohbBL2BgjDmbVkdA5Uprg8mkKkcEvLTOUhKt5eLHcaSZDowISIsfJi5G10Y2nfKGgHceojYXZVX6TMPjD4gTUWa0AAAA",
+        },
+      });
       const STORAGE_KEY = "botc-grimoire-v2";
       const esc = (value) =>
         String(value ?? "").replace(
@@ -3740,6 +3994,7 @@
           bluffNotes: ["", "", ""],
           script: "tb",
           custom: null,
+          savedScripts: [],
           phase: 0,
           checks: {},
           reminders: [],
@@ -3752,7 +4007,10 @@
         pickerTarget = null,
         draftScript = null,
         toastTimer,
-        dialogOrigin;
+        dialogOrigin,
+        catalogRequest = null,
+        catalogPage = 1,
+        catalogResults = [];
       const $ = (id) => document.getElementById(id);
       const playerName = (p) =>
         p.name || (p.traveller ? "Traveller " : "Player ") + p.id;
@@ -3761,7 +4019,8 @@
           ? { name: "All characters", roles: DATA.characters.map((r) => r.id) }
           : state.script === "custom"
             ? state.custom
-            : SCRIPTS[state.script];
+            : SCRIPTS[state.script] ||
+              state.savedScripts.find((s) => s.id === state.script);
       function parseScript(data) {
         if (!Array.isArray(data) || !data.length || data.length > 250)
           throw Error(
@@ -3779,10 +4038,44 @@
               ". This library supports official characters.",
           );
         if (!ids.length) throw Error("Choose at least one character.");
-        return {
+        const script = {
           name: String(meta?.name || "Custom script").slice(0, 100),
           roles: [...new Set(ids)],
         };
+        if (meta?.author) script.author = String(meta.author).slice(0, 150);
+        if (meta?.bootlegger !== undefined) {
+          if (
+            !Array.isArray(meta.bootlegger) ||
+            meta.bootlegger.length > 100 ||
+            meta.bootlegger.some(
+              (text) => typeof text !== "string" || text.length > 3000,
+            )
+          )
+            throw Error("Invalid Bootlegger rules in script.");
+          script.bootlegger = meta.bootlegger.filter((text) => text.trim());
+        }
+        for (const key of ["firstNight", "otherNight"]) {
+          if (meta?.[key] === undefined) continue;
+          if (!Array.isArray(meta[key]) || meta[key].length > 250)
+            throw Error("Invalid custom night order.");
+          const order = meta[key].map(normalizeId);
+          if (
+            order.some(
+              (id) =>
+                !role(id) &&
+                !["dusk", "dawn", "minioninfo", "demoninfo"].includes(id),
+            )
+          )
+            throw Error("Unknown character in custom night order.");
+          script[key] = [...new Set(order)];
+        }
+        return script;
+      }
+      function scriptJSON(script) {
+        const meta = { id: "_meta", name: script.name };
+        for (const key of ["author", "bootlegger", "firstNight", "otherNight"])
+          if (script[key] !== undefined) meta[key] = script[key];
+        return [meta, ...script.roles];
       }
       function validateGame(data) {
         if (
@@ -3855,12 +4148,45 @@
           throw Error("Demon bluffs must be good characters.");
         let custom = null;
         if (data.custom)
-          custom = parseScript([
-            { id: "_meta", name: data.custom.name },
-            ...(Array.isArray(data.custom.roles) ? data.custom.roles : []),
-          ]);
+          custom = parseScript(
+            scriptJSON({
+              ...data.custom,
+              roles: Array.isArray(data.custom.roles) ? data.custom.roles : [],
+            }),
+          );
+        const savedScripts = [];
         if (
-          !["all", "custom", ...Object.keys(SCRIPTS)].includes(data.script) ||
+          data.savedScripts !== undefined &&
+          (!Array.isArray(data.savedScripts) || data.savedScripts.length > 1000)
+        )
+          throw Error("Invalid saved script library.");
+        for (const saved of data.savedScripts || []) {
+          if (
+            !saved ||
+            !/^community-[0-9]+$/.test(saved.id) ||
+            savedScripts.some((s) => s.id === saved.id)
+          )
+            throw Error("Invalid or duplicate saved script ID.");
+          const parsed = parseScript(
+            scriptJSON({
+              ...saved,
+              roles: Array.isArray(saved.roles) ? saved.roles : [],
+            }),
+          );
+          savedScripts.push({
+            ...parsed,
+            id: saved.id,
+            version: String(saved.version || "").slice(0, 50),
+            source: safeScriptSource(saved.source),
+          });
+        }
+        if (
+          ![
+            "all",
+            "custom",
+            ...Object.keys(SCRIPTS),
+            ...savedScripts.map((s) => s.id),
+          ].includes(data.script) ||
           (data.script === "custom" && !custom)
         )
           throw Error("Invalid script selection.");
@@ -3896,6 +4222,7 @@
           ),
           script: data.script,
           custom,
+          savedScripts,
           phase: data.phase,
           checks,
           reminders,
@@ -3928,6 +4255,8 @@
         toastTimer = setTimeout(() => ($("toast").textContent = ""), 4500);
       }
       function modal(title, html) {
+        catalogRequest?.abort();
+        catalogRequest = null;
         dialogOrigin = document.activeElement;
         $("modal-title").textContent = title;
         $("modal-body").innerHTML = html;
@@ -3977,15 +4306,245 @@
         };
       }
       function scriptOptions() {
+        const groups = [
+          ...new Set(
+            Object.values(SCRIPTS).map((s) => s.group || "Base editions"),
+          ),
+        ];
         return (
-          Object.entries(SCRIPTS)
-            .map(([id, s]) => `<option value="${id}">${esc(s.name)}</option>`)
+          groups
+            .map(
+              (group) =>
+                `<optgroup label="${esc(group)}">${Object.entries(SCRIPTS)
+                  .filter(([, s]) => (s.group || "Base editions") === group)
+                  .map(
+                    ([id, s]) =>
+                      `<option value="${id}">${esc(s.name)}</option>`,
+                  )
+                  .join("")}</optgroup>`,
+            )
             .join("") +
+          (state.savedScripts.length
+            ? `<optgroup label="Saved community scripts">${state.savedScripts.map((s) => `<option value="${s.id}">${esc(s.name)}${s.version ? " · " + esc(s.version) : ""}</option>`).join("")}</optgroup>`
+            : "") +
           (state.custom
             ? `<option value="custom">${esc(state.custom.name)}</option>`
             : "") +
           '<option value="all">All characters</option>'
         );
+      }
+      function safeScriptSource(value) {
+        return typeof value === "string" &&
+          /^https:\/\/(?:www\.)?botcscripts\.com\/script\/[0-9]+\/[a-zA-Z0-9._%~-]+$/.test(
+            value,
+          )
+          ? value
+          : "";
+      }
+      function activateScript(id) {
+        state.script = id;
+        const script = currentScript();
+        if (id !== "all")
+          state.extras = script.roles.filter((id) =>
+            ["fabled", "loric"].includes(role(id).team),
+          );
+        state.checks = {};
+      }
+      function communityScript(entry) {
+        if (
+          !entry ||
+          !Number.isSafeInteger(entry.pk) ||
+          entry.pk < 1 ||
+          !Number.isSafeInteger(entry.script_id) ||
+          entry.script_id < 1
+        )
+          throw Error("Invalid community script entry.");
+        const parsed = parseScript(entry.content);
+        const version = String(entry.version || "").slice(0, 50);
+        return {
+          ...parsed,
+          id: `community-${entry.pk}`,
+          name: String(entry.name || parsed.name).slice(0, 100),
+          author: String(
+            entry.author || parsed.author || "Unknown author",
+          ).slice(0, 150),
+          version,
+          source: safeScriptSource(
+            `https://www.botcscripts.com/script/${entry.script_id}/${encodeURIComponent(version)}`,
+          ),
+        };
+      }
+      function openScriptBrowser() {
+        catalogPage = 1;
+        modal(
+          "Browse scripts",
+          `<form id="catalog-form" class="dialog-body"><div class="split"><label class="field">Collection<select id="catalog-scope"><option value="publisher">Publisher collections · offline</option><option value="community">Community database · online</option><option value="saved">Saved community scripts · offline</option></select></label><label class="field">Format<select id="catalog-format"><option value="">All formats</option><option value="Full">Full scripts</option><option value="Teensyville">Teensyville · 5–6 players</option></select></label></div><label class="field">Search scripts<input id="catalog-search" type="search" maxlength="120" placeholder="Script name or author…"></label><div class="row"><button class="primary" type="submit">Search</button><label class="row" id="catalog-versions-label" hidden><input type="checkbox" id="catalog-versions">All versions</label></div></form><p class="hint">Publisher scripts are included offline. Community scripts need internet to browse; use a script to save it on this device. Your seated players stay in place; listed special rules replace the previous script’s special rules.</p><p id="catalog-status" class="hint" role="status"></p><div id="catalog-list" class="picker-list"></div><div class="row"><button id="catalog-prev" class="small">← Previous</button><span id="catalog-page" class="muted"></span><button id="catalog-next" class="small">Next →</button></div><p class="hint">Community source: <a href="https://www.botcscripts.com/" target="_blank" rel="noopener noreferrer">BOTC Scripts ↗</a>. Scripts requiring homebrew characters are listed for reference, but cannot be played in this Grimoire.</p>`,
+        );
+        $("catalog-form").onsubmit = (e) => {
+          e.preventDefault();
+          loadCatalog(1);
+        };
+        $("catalog-scope").onchange = () => loadCatalog(1);
+        $("catalog-format").onchange = () => loadCatalog(1);
+        $("catalog-versions").onchange = () => loadCatalog(1);
+        $("catalog-prev").onclick = () => loadCatalog(catalogPage - 1);
+        $("catalog-next").onclick = () => loadCatalog(catalogPage + 1);
+        $("catalog-list").onclick = (e) => {
+          const button = e.target.closest(
+            "[data-use-script],[data-forget-script]",
+          );
+          if (!button) return;
+          if (button.dataset.forgetScript) {
+            const id = button.dataset.forgetScript;
+            commit(() => {
+              if (state.script === id) {
+                state.custom = parseScript(scriptJSON(currentScript()));
+                state.script = "custom";
+              }
+              state.savedScripts = state.savedScripts.filter(
+                (s) => s.id !== id,
+              );
+            });
+            loadCatalog(1);
+            return;
+          }
+          const selected = catalogResults[Number(button.dataset.useScript)];
+          if (!selected?.script) return;
+          const script = selected.script;
+          if (
+            selected.community &&
+            state.savedScripts.length >= 1000 &&
+            !state.savedScripts.some((s) => s.id === script.id)
+          ) {
+            toast("Your saved library is full. Remove a saved script first.");
+            return;
+          }
+          commit(() => {
+            if (selected.community) {
+              const existing = state.savedScripts.findIndex(
+                (s) => s.id === script.id,
+              );
+              if (existing < 0) state.savedScripts.push(script);
+              else state.savedScripts[existing] = script;
+            }
+            activateScript(script.id);
+          });
+          closeModal();
+          toast(`Using ${script.name}.`);
+        };
+        loadCatalog(1);
+      }
+      async function loadCatalog(page) {
+        catalogRequest?.abort();
+        catalogRequest = null;
+        if (!$("catalog-scope") || !$("modal").open) return;
+        const scope = $("catalog-scope").value,
+          query = $("catalog-search").value.trim(),
+          format = $("catalog-format").value;
+        $("catalog-versions-label").hidden = scope !== "community";
+        catalogPage = Math.max(1, page);
+        catalogResults = [];
+        $("catalog-list").innerHTML = "";
+        $("catalog-prev").disabled = true;
+        $("catalog-next").disabled = true;
+        $("catalog-page").textContent = "";
+        if (scope !== "community") {
+          const items =
+            scope === "publisher"
+              ? Object.entries(SCRIPTS).map(([id, s]) => ({ ...s, id }))
+              : state.savedScripts;
+          const filtered = items.filter(
+            (s) =>
+              `${s.name} ${s.author || ""}`
+                .toLowerCase()
+                .includes(query.toLowerCase()) &&
+              (!format ||
+                (s.roles.filter((id) => role(id).team === "townsfolk")
+                  .length === 6
+                  ? "Teensyville"
+                  : "Full") === format),
+          );
+          catalogResults = filtered.map((script) => ({
+            script,
+            community: scope === "saved",
+          }));
+          $("catalog-status").textContent =
+            `${filtered.length} script${filtered.length === 1 ? "" : "s"} · available offline`;
+          renderCatalog();
+          return;
+        }
+        $("catalog-status").textContent = "Loading community scripts…";
+        const controller = new AbortController();
+        catalogRequest = controller;
+        const timer = setTimeout(() => controller.abort(), 20000);
+        try {
+          const params = new URLSearchParams({
+            page: String(catalogPage),
+            include_hybrid: "on",
+            include_homebrew: "on",
+          });
+          if (query) params.set("search", query);
+          if (format) params.set("script_type", format);
+          if ($("catalog-versions").checked) params.set("all_scripts", "on");
+          const response = await fetch(
+            `https://www.botcscripts.com/api/scripts/?${params}`,
+            { signal: controller.signal, credentials: "omit" },
+          );
+          if (!response.ok)
+            throw Error("The community database could not load this page.");
+          const data = await response.json();
+          if (
+            !Array.isArray(data.results) ||
+            data.results.length > 100 ||
+            !Number.isSafeInteger(data.count) ||
+            data.count < 0
+          )
+            throw Error("The database returned an unexpected response.");
+          if (catalogRequest !== controller || !$("catalog-list")) return;
+          catalogResults = data.results.map((entry) => {
+            try {
+              return { script: communityScript(entry), community: true };
+            } catch (error) {
+              return {
+                name: String(entry?.name || "Unavailable script").slice(0, 100),
+                reason: error.message,
+                source: safeScriptSource(
+                  `https://www.botcscripts.com/script/${entry?.script_id}/${encodeURIComponent(String(entry?.version || "").slice(0, 50))}`,
+                ),
+              };
+            }
+          });
+          $("catalog-status").textContent =
+            `${data.count.toLocaleString()} matching entries · ${catalogResults.length} on this page`;
+          $("catalog-page").textContent = `Page ${catalogPage}`;
+          $("catalog-prev").disabled = !data.previous;
+          $("catalog-next").disabled = !data.next;
+          renderCatalog();
+        } catch (error) {
+          if (catalogRequest !== controller || !$("catalog-list")) return;
+          $("catalog-status").textContent =
+            "Could not load community scripts. Check your connection and press Search to retry. Publisher and saved scripts still work offline.";
+        } finally {
+          clearTimeout(timer);
+          if (catalogRequest === controller) catalogRequest = null;
+        }
+      }
+      function renderCatalog() {
+        $("catalog-list").innerHTML =
+          catalogResults
+            .map((entry, index) => {
+              const s = entry.script;
+              if (!s)
+                return `<div class="panel"><strong>${esc(entry.name)}</strong><p class="hint">${esc(entry.reason)}</p>${entry.source ? `<a href="${esc(entry.source)}" target="_blank" rel="noopener noreferrer">View on BOTC Scripts ↗</a>` : ""}</div>`;
+              const saved = state.savedScripts.some((item) => item.id === s.id),
+                specials = s.roles.filter((id) =>
+                  ["fabled", "loric"].includes(role(id).team),
+                );
+              return `<article class="panel"><h3>${esc(s.name)}</h3><p class="hint">${esc(s.author || "The Pandemonium Institute")}${s.version ? " · v" + esc(s.version) : ""} · ${s.roles.length} characters${saved ? " · saved" : ""}</p><details class="hint"><summary>Characters${specials.length ? " & special rules" : ""}</summary><p>${s.roles.map((id) => esc(role(id).name)).join(", ")}</p>${(s.bootlegger || []).map((text) => `<p>${esc(text)}</p>`).join("")}</details><div class="row" style="margin-top:10px"><button class="small primary" data-use-script="${index}">${entry.community && !saved ? "Use & save script" : "Use script"}</button>${s.source ? `<a href="${esc(s.source)}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ""}${$("catalog-scope").value === "saved" ? `<button class="small" data-forget-script="${s.id}">Remove saved copy</button>` : ""}</div></article>`;
+            })
+            .join("") ||
+          '<p class="empty">No matching scripts. Try another search or collection.</p>';
+        $("catalog-list").scrollTop = 0;
       }
       function render() {
         const active = document.activeElement;
@@ -4001,6 +4560,14 @@
         );
         $("script-select").innerHTML = scriptOptions();
         $("script-select").value = state.script;
+        const selectedScript = currentScript();
+        $("script-description").textContent = [
+          selectedScript.author && `By ${selectedScript.author}`,
+          `${selectedScript.roles.length} characters`,
+          selectedScript.group === "Teensyville" && "For 5–6 players",
+        ]
+          .filter(Boolean)
+          .join(" · ");
         $("player-count").value = state.players.filter(
           (p) => !p.traveller,
         ).length;
@@ -4140,9 +4707,15 @@
             )}</div><p class="hint">Base setup before character modifiers. Dead players still count; Travellers are separate.</p>${warnings.length ? `<ul class="warnings">${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}`;
       }
       function nightEntries(tab) {
-        const order = DATA.night[tab],
+        const order = [
+            ...(currentScript()[
+              tab === "first" ? "firstNight" : "otherNight"
+            ] || DATA.night[tab]),
+          ],
           field = tab === "first" ? "firstNightReminder" : "otherNightReminder",
           entries = [];
+        if (!order.includes("dusk")) order.unshift("dusk");
+        if (!order.includes("dawn")) order.push("dawn");
         const add = (id, p, suffix = "") => {
           const r = role(id),
             position = order.indexOf(id);
@@ -4196,6 +4769,7 @@
           ...(tab === "first" && !noInfo ? ["minioninfo", "demoninfo"] : []),
           "dawn",
         ]) {
+          if (!order.includes(id)) continue;
           entries.push({
             key: `${tab}:${id}`,
             position: order.indexOf(id),
@@ -4242,13 +4816,19 @@
       }
       function renderExtras() {
         $("extras-content").innerHTML =
-          state.extras
+          (currentScript().bootlegger || [])
+            .map(
+              (text) =>
+                `<div class="extra-card" style="--tone:var(--loric)"><strong>Script rule</strong><p class="ability">${esc(text)}</p></div>`,
+            )
+            .join("") +
+          (state.extras
             .map((id) => {
               const r = role(id);
               return `<div class="extra-card" style="${tone(r)}"><div class="row"><strong>${esc(r.name)}</strong><small>${titleCase(r.team)}</small><button class="small" data-remove-extra="${id}">Remove</button></div><p class="ability">${esc(r.ability)}</p></div>`;
             })
             .join("") ||
-          '<p class="hint">Add a Fabled or Loric character when your game uses a special rule.</p>';
+            '<p class="hint">Add a Fabled or Loric character when your game uses a special rule.</p>');
       }
       function renderJinxes() {
         const ids = new Set(
@@ -4499,9 +5079,12 @@
             return;
           }
           const name = $("custom-name").value.trim() || "Custom script";
+          const previous = currentScript();
           commit(() => {
             state.custom = { name, roles: [...draftScript] };
-            state.script = "custom";
+            if (previous.bootlegger)
+              state.custom.bootlegger = [...previous.bootlegger];
+            activateScript("custom");
           });
           closeModal();
         };
@@ -4584,7 +5167,8 @@
         $("role-search").oninput = renderLibrary;
         $("type-filter").onchange = renderLibrary;
         $("script-select").onchange = (e) =>
-          commit(() => (state.script = e.target.value));
+          commit(() => activateScript(e.target.value));
+        $("browse-scripts-btn").onclick = openScriptBrowser;
         $("player-count").onchange = (e) =>
           resizePlayers(Number(e.target.value));
         $("undo-btn").onclick = () => {
@@ -4611,6 +5195,8 @@
                 );
                 state.script = previous.script;
                 state.custom = previous.custom;
+                state.savedScripts = previous.savedScripts;
+                activateScript(state.script);
                 nightTab = "first";
               }),
             "New game",
@@ -4637,10 +5223,7 @@
         $("export-btn").onclick = () =>
           download("botc-grimoire-game.json", state);
         $("export-script-btn").onclick = () =>
-          download("botc-script.json", [
-            { id: "_meta", name: currentScript().name },
-            ...currentScript().roles,
-          ]);
+          download("botc-script.json", scriptJSON(currentScript()));
         $("import-btn").onclick = () => $("import-file").click();
         $("import-file").onchange = async (e) => {
           const file = e.target.files[0];
@@ -4661,7 +5244,7 @@
                 commit(() => {
                   if (isScript) {
                     state.custom = parsed;
-                    state.script = "custom";
+                    activateScript("custom");
                   } else {
                     state = parsed;
                     nightTab = state.phase < 2 ? "first" : "other";
@@ -4687,6 +5270,8 @@
         };
         $("modal-close").onclick = closeModal;
         $("modal").addEventListener("close", () => {
+          catalogRequest?.abort();
+          catalogRequest = null;
           focusReplacement(dialogOrigin);
           if (document.activeElement === document.body)
             $("privacy-btn").focus();

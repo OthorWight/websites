@@ -20,7 +20,9 @@ Enjoy!
 
 Open `BOTC-StorytellersGrimoire.html` directly, or use the local server above. The Grimoire works offline and includes a September 6, 2026 snapshot of 181 characters, night order, reminder labels, and 131 jinxes from the [official Blood on the Clocktower script tool](https://script.bloodontheclocktower.com/).
 
-- Choose a base script, build a custom script, or import an official script JSON file. Homebrew character definitions are not supported.
+- Choose from 11 bundled scripts: the three base editions and all eight scripts linked from the publisher’s current featured, recommended, and Teensyville collections (September 6, 2026 snapshot).
+- Use **Browse scripts → Community database** to search the live [BOTC Scripts database](https://www.botcscripts.com/), filter by format, browse result pages, and optionally show all versions. **Use & save script** adds a compatible script to your selector and saves it for offline use. The live catalog requires internet; publisher and previously saved scripts work offline. Homebrew character definitions are listed with a source link but cannot be played in this Grimoire.
+- Community scripts retain authors, versions, Bootlegger rules, and custom night orders in game backups and script exports. Switching scripts keeps seated players and updates the listed Fabled/Loric special rules. You can also build a custom script or import a script JSON file.
 - Click an empty seat to assign a character, or drag a character from the library. Add Travellers separately; Fabled and Loric characters belong under Special rules.
 - Use **Manage** for alignment, seat order, conditions, private notes, and shown or gained characters. Changing an assigned character preserves its alignment; adjust alignment explicitly when needed.
 - Click a character’s reminder to choose its target, or drag it onto a seat. Click a placed reminder to remove it.

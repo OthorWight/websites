@@ -165,3 +165,70 @@ test("character changes preserve alignment, death and notes while clearing old s
   assert.equal(run("state.players[0].notes"), "A private note");
   assert.equal(run("state.reminders.length"), 0);
 });
+
+test("publisher collection includes all eight current listings plus the base three", () => {
+  const run = app();
+  assert.equal(run("Object.keys(SCRIPTS).length"), 11);
+  assert.equal(
+    run('Object.values(SCRIPTS).filter(s=>s.group === "Teensyville").length'),
+    3,
+  );
+  assert(
+    run(
+      "Object.values(SCRIPTS).every(s=>s.roles.length && s.roles.every(id=>role(id)))",
+    ),
+  );
+  run('state.players[0].role="imp";activateScript("publisher-one-in-one-out")');
+  assert.equal(run("state.players[0].role"), "imp");
+  assert(run('state.extras.includes("spiritofivory")'));
+});
+
+test("saved community scripts and metadata survive backup restoration", () => {
+  const run = app();
+  run(
+    `state.savedScripts = [{id:"community-123",name:"Example",author:"Author",version:"1.2.0",source:"https://www.botcscripts.com/script/45/1.2.0",roles:["imp","monk","bootlegger"],bootlegger:["A custom rule"],firstNight:["dusk","dawn"],otherNight:["monk","imp"]}];activateScript("community-123");state=validateGame(JSON.parse(JSON.stringify(state)));`,
+  );
+  assert.equal(run("currentScript().author"), "Author");
+  assert.equal(run("currentScript().bootlegger[0]"), "A custom rule");
+  assert.equal(run("currentScript().otherNight[0]"), "monk");
+  assert.equal(
+    run("JSON.stringify(parseScript(scriptJSON(currentScript())).bootlegger)"),
+    '["A custom rule"]',
+  );
+  assert.equal(run("state.savedScripts.length"), 1);
+});
+
+test("custom night order is used without putting omitted dawn at the start", () => {
+  const run = app();
+  run(
+    'state.custom=parseScript([{id:"_meta",otherNight:["empath","imp"]},"empath","imp"]);state.script="custom";state.players[0].role="imp";state.players[1].role="empath";',
+  );
+  assert.deepEqual(
+    JSON.parse(run('JSON.stringify(nightEntries("other").map(e=>e.name))')),
+    ["Dusk", "Empath", "Imp", "Dawn"],
+  );
+  assert.throws(() =>
+    run('parseScript([{id:"_meta",firstNight:["missing-role"]},"imp"])'),
+  );
+  assert.throws(() =>
+    run('parseScript([{id:"_meta",bootlegger:"not an array"},"imp"])'),
+  );
+});
+
+test("library validation rejects invalid IDs, duplicate saves and unsafe sources", () => {
+  const run = app();
+  run(
+    'state.savedScripts=[{id:"community-1",name:"Safe",roles:["imp"],source:"javascript:alert(1)"}];',
+  );
+  assert.equal(run("validateGame(state).savedScripts[0].source"), "");
+  run("state.savedScripts.push(state.savedScripts[0]);");
+  assert.throws(() => run("validateGame(state)"));
+  assert.throws(() =>
+    run(
+      'communityScript({pk:1,script_id:1,content:["unknown"],version:"1.0.0"})',
+    ),
+  );
+  assert.throws(() =>
+    run('communityScript({pk:"constructor",script_id:1,content:["imp"]})'),
+  );
+});
