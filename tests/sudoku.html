@@ -1,0 +1,202 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Sudoku regression checks</title><script src="../sudoku-core.js"></script>
+<body><pre id="report">RUNNING</pre><iframe id="game" title="Sudoku under test"></iframe>
+<script>
+(async () => {
+    const C = SudokuCore, report = document.getElementById('report'), frame = document.getElementById('game'), checks = [];
+    const assert = (value, label) => { if (!value) throw new Error(label); checks.push(label); };
+    const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const empty = () => Array(81).fill(0), parse = text => [...text].map(Number);
+    const givens = parse('530070000600195000098000060800060003400803001700020006060000280000419005000080079');
+    const solution = parse('534678912672195348198342567859761423426853791713924856961537284287419635345286179');
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const waitFor = async (predicate, label) => { for (let k = 0; k < 500; k++) { if (predicate()) return; await sleep(20); } throw new Error('Timed out: ' + label); };
+    const stored = () => JSON.parse(localStorage.getItem('sudoku-studio-v2'));
+    const doc = () => frame.contentDocument;
+    const click = id => { const button = doc().getElementById(id); button.focus(); button.click(); };
+    const cell = (i, additive = false) => {
+        const el = doc().querySelector(`[data-index="${i}"]`); el.focus();
+        el.dispatchEvent(new frame.contentWindow.MouseEvent('click', {bubbles:true, cancelable:true, shiftKey:additive}));
+    };
+    const drag = (indices, { pointerType = 'mouse', cancel = false } = {}) => {
+        const element = i => doc().querySelector(`[data-index="${i}"]`);
+        const dispatch = (type, i, target) => {
+            const rect = element(i).getBoundingClientRect();
+            target.dispatchEvent(new frame.contentWindow.PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, isPrimary: true, pointerType, button: 0, buttons: type==='pointerup'||type==='pointercancel'?0:1, clientX: rect.x+rect.width/2, clientY: rect.y+rect.height/2 }));
+        };
+        dispatch('pointerdown',indices[0],element(indices[0]));
+        indices.slice(1).forEach(i=>dispatch('pointermove',i,doc()));
+        dispatch(cancel?'pointercancel':'pointerup',indices.at(-1),doc());
+    };
+    const key = (value, extra = {}) => {
+        const target = doc().activeElement, event = new frame.contentWindow.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...extra });
+        target.dispatchEvent(event);
+        if (value === 'Enter' && !event.defaultPrevented && target.matches('button:not(:disabled)')) target.click();
+    };
+    const seed = (mode = 'standard', cages = [], customGivens = givens) => ({ mode, difficulty: 'normal', givens: [...customGivens], values: [...customGivens], notes: empty(), cages, solution, elapsed: 0, editing: false });
+    const load = async g => {
+        // Unload first: pagehide saves the previous game and must not overwrite a new fixture.
+        await new Promise(resolve => { frame.onload = resolve; frame.src = 'about:blank'; });
+        if (g) localStorage.setItem('sudoku-studio-v2', typeof g === 'string' ? g : JSON.stringify({ version: 2, game: g, selected: 2, settings: { autoNotes: false, singles: false, conflicts: true }, notesMode: false, undo: [], redo: [] }));
+        await new Promise(resolve => { frame.onload = resolve; frame.src = '../Sudoku.html?test=' + Math.random(); });
+    };
+    try {
+        const saved = [...givens], solved = C.solve(givens);
+        assert(solved.count === 1 && !solved.exhausted && equal(solved.solution, solution), 'Known Standard puzzle has exactly the expected solution');
+        assert(equal(givens, saved), 'Solver never mutates its input');
+        assert(C.solve(empty()).count === 2, 'Empty Standard puzzle correctly has multiple solutions');
+        const bad = [...givens]; bad[2] = 5;
+        assert(C.solve(bad).count === 0, 'Conflicting givens are unsolvable');
+        assert(C.solve(givens, [], { maxNodes: 0 }).exhausted, 'Bounded search reports uncertainty rather than claiming uniqueness');
+        assert(C.solved(solution) && !C.solved(bad), 'Completion checks actual Sudoku rules');
+        assert(C.validateCages([{ sum: 3, cells: [0, 1] }]).includes('uncovered'), 'Killer cages must cover every cell');
+        assert(C.validateCages([{ sum: 3, cells: [0, 8] }], false).includes('connect'), 'Disconnected cages rejected');
+        assert(C.validateCages([{ sum: 2, cells: [0, 1] }], false).includes('total'), 'Impossible cage total rejected');
+        assert(C.validateCages([{ sum: 3, cells: [0, 1] }, { sum: 2, cells: [1] }], false).includes('overlap'), 'Overlapping cages rejected');
+        const two = [{ sum: 3, cells: [0, 1] }];
+        assert(equal(C.digits(C.analyze(empty(), two).masks[0]), [1, 2]), 'Killer candidates enforce distinct digits and target sum');
+        const partial = empty(); partial[0] = 1;
+        assert(equal(C.digits(C.analyze(partial, two).masks[1]), [2]), 'Filled cage digit reduces remaining candidates');
+        // Find a connected cage containing a repeated digit in different row/column/box units.
+        const natural = Array.from({length:81},(_,i)=>(Math.floor(i/9)*3+Math.floor(Math.floor(i/9)/3)+i%9)%9+1);
+        const cross = { cells: [0,1,2,3,4,5,6,15], sum: 29 };
+        assert(C.solved(natural) && !C.analyze(natural, [cross]).valid && C.analyze(natural, [cross]).conflicts.has(15), 'Cage no-repeat rule applies across boxes even on a valid Standard solution');
+        assert(C.analyze(empty(), [{sum:45,cells:[0,1,2,3,4,5,6,7,8]}]).masks[0] === C.ALL, 'Nine-cell cages handled without losing candidates');
+        // Independent enumeration oracle for small cages and several board states.
+        function baseCandidates(board, i) {
+            const r = Math.floor(i / 9), c = i % 9, used = new Set();
+            for (let k=0;k<9;k++) { used.add(board[r*9+k]); used.add(board[k*9+c]); used.add(board[(Math.floor(r/3)*3+Math.floor(k/3))*9+Math.floor(c/3)*3+k%3]); }
+            return [1,2,3,4,5,6,7,8,9].filter(n=>!used.has(n));
+        }
+        for (let round=0;round<20;round++) {
+            const board = solution.map((n,i)=> (i*17+round*11)%7<2 ? n : 0);
+            const cage = {cells:[0,1,10],sum:solution[0]+solution[1]+solution[10]}, allowed = new Map(cage.cells.map(i=>[i,new Set()]));
+            function enumerate(k, used, total, assignment) {
+                if(k===cage.cells.length) { if(total===cage.sum) cage.cells.forEach((i,j)=>allowed.get(i).add(assignment[j])); return; }
+                const i=cage.cells[k];
+                for(const n of board[i]?[board[i]]:baseCandidates(board,i)) if(!used.has(n)) enumerate(k+1,new Set([...used,n]),total+n,[...assignment,n]);
+            }
+            enumerate(0,new Set(),0,[]);
+            const result=C.analyze(board,[cage]);
+            for(const i of cage.cells) if(!board[i]&&!equal(C.digits(result.masks[i]),[...allowed.get(i)].sort())) throw new Error('Cage candidate oracle mismatch');
+        }
+        assert(true, 'Cage candidate masks agree with independent assignment enumeration');
+        const pairs = solution.map((n,i)=>({sum:n,cells:[i]})).filter(c=>!c.cells.includes(0)&&!c.cells.includes(1));
+        pairs.push({sum:solution[0]+solution[1],cells:[0,1]});
+        assert(!C.validateCages(pairs) && C.solve(empty(), pairs).count === 1, 'Clue-free Killer fixture is uniquely solvable');
+        for (const mode of ['standard', 'killer']) for (const difficulty of ['easy', 'normal', 'hard', 'expert']) {
+            let state = 812 + difficulty.length;
+            const random = () => { state = (Math.imul(state,1664525)+1013904223)>>>0; return state/4294967296; };
+            const puzzle = await C.generate(mode, difficulty, { random, budget: 1200 });
+            assert(C.solved(puzzle.solution, puzzle.cages), `${mode}/${difficulty}: valid generated solution`);
+            const proof = C.solve(puzzle.givens, puzzle.cages, { maxNodes: 20000, timeout: 1500 });
+            assert(proof.count === 1 && !proof.exhausted && equal(proof.solution,puzzle.solution), `${mode}/${difficulty}: exactly one solution`);
+            if(mode==='killer') {
+                assert(!C.validateCages(puzzle.cages) && puzzle.cages.some(c=>c.cells.length>1), `${mode}/${difficulty}: connected, complete, distinct-digit cages`);
+                assert(puzzle.givens.filter(Boolean).length === {easy:24,normal:16,hard:10,expert:5}[difficulty] && puzzle.givens.every((n,i)=>!n||n===puzzle.solution[i]), `${mode}/${difficulty}: difficulty sets correct fixed starting digits`);
+                const multiCells = puzzle.cages.filter(c=>c.cells.length>1).flatMap(c=>c.cells);
+                assert(multiCells.filter(i=>puzzle.givens[i]).length===Math.min(multiCells.length,puzzle.givens.filter(Boolean).length), `${mode}/${difficulty}: givens prioritize multi-cell cages`);
+            }
+        }
+        await load(seed());
+        assert(doc().querySelectorAll('.cell').length===81 && doc().querySelectorAll('.num-btn').length===9, 'Browser initializes accessible board and number pad');
+        for(const [width,height] of [[320,568],[390,844],[1280,900]]) {
+            frame.style.width=width+'px';frame.style.height=height+'px';await sleep(20);
+            assert(doc().documentElement.scrollWidth<=frame.contentWindow.innerWidth, `No horizontal overflow at ${width}×${height}`);
+        }
+        cell(0);key('1');assert(stored().game.values[0]===5,'Printed givens cannot be overwritten');
+        cell(2);key('4');assert(stored().game.values[2]===4,'Physical digits enter selected cell');
+        const focusedStyle=frame.contentWindow.getComputedStyle(doc().activeElement);
+        assert(focusedStyle.outlineStyle==='none' && focusedStyle.boxShadow.includes('inset'),'Digit entry uses an inset selection ring without an outline spilling onto neighboring cells');
+        key('z',{ctrlKey:true});assert(stored().game.values[2]===0,'Keyboard undo restores previous entry');
+        click('redo-btn');assert(stored().game.values[2]===4,'Redo restores entry');
+        key('Delete');key('n');key('2');assert(stored().game.values[2]===0 && stored().game.notes[2]===(1<<2),'Manual pencil notes toggle independently of values');
+        key('2');assert(stored().game.notes[2]===0,'Typing note again removes it');key('n');
+        const note9=doc().querySelector('[data-index="2"] .note:nth-child(9)'), noteStyle=frame.contentWindow.getComputedStyle(note9);
+        assert(noteStyle.gridColumnStart==='3'&&noteStyle.gridRowStart==='3','Pencil digits keep their conventional positions when other notes are hidden');
+        doc().getElementById('auto-notes-toggle').click();
+        assert(doc().querySelector('[data-index="2"] .note:not([hidden])'),'Auto notes show candidates');
+        cell(2);key('5');assert(doc().querySelector('[data-index="2"]').classList.contains('conflict'),'Repeated digit conflicts highlighted');
+        click('check-btn');assert(doc().getElementById('status-message').textContent.includes('differs'),'Check reports incorrect entries');
+        click('hint-btn');assert(stored().game.values[2]===5 && doc().getElementById('status-message').textContent.includes('Correct'),'Hint first asks to correct a wrong entry');
+        key('Delete');click('hint-btn');assert(stored().game.values.some((n,i)=>!givens[i]&&n===solution[i]),'Hint fills a correct digit');
+        await load();assert(stored().undo.length && doc().querySelectorAll('.given').length===givens.filter(Boolean).length,'Reload restores game and undo history');
+        doc().getElementById('help-button').focus();key('Enter');const before=[...stored().game.values];key('1');
+        assert(doc().getElementById('help-dialog').open && equal(before,stored().game.values),'Help is keyboard accessible and blocks game input');click('close-help');
+        await load(seed('killer',pairs,empty()));
+        cell(0);assert(!doc().getElementById('cage-panel').hidden && [...doc().querySelectorAll('.cage-total')].filter(el=>el.textContent).length===pairs.length,'Killer board and cage assistant available');
+        doc().getElementById('auto-notes-toggle').click();
+        const visible=[...doc().querySelector('[data-index="0"]').querySelectorAll('.note:not([hidden])')].map(n=>Number(n.textContent));
+        assert(visible.includes(solution[0])&&visible.length<9,'Killer auto notes obey cages');
+        const almost=seed('killer',pairs,empty());almost.values=[...solution];almost.values[0]=0;await load(almost);cell(0);key(String(solution[0]));
+        assert(doc().getElementById('status-message').textContent.includes('Solved'),'Killer completion enforces sums and all Sudoku rules');
+        click('new-game-btn');await waitFor(()=>stored()?.game.givens.filter(Boolean).length===16 && equal(stored().game.values,stored().game.givens),'new Killer puzzle');
+        const killerGivens=[...stored().game.givens], fixed=killerGivens.findIndex(Boolean), editableKiller=killerGivens.findIndex(n=>!n);
+        assert(doc().querySelectorAll('.given').length===16,'Generated Killer starting digits appear as fixed givens');
+        cell(fixed);key(String(killerGivens[fixed]%9+1));key('Delete');
+        assert(equal(stored().game.values,killerGivens),'Generated Killer givens cannot be overwritten or erased');
+        cell(editableKiller);key('1');assert(!doc().getElementById('confirm-dialog').open && stored().game.values[editableKiller]===1,'Typing after New puzzle enters a digit without restarting');
+        click('undo-btn');assert(equal(stored().game.values,killerGivens),'Undo preserves generated Killer starting digits');
+        await load();assert(equal(stored().game.givens,killerGivens) && doc().querySelectorAll('.given').length===16,'Reload preserves generated Killer fixed digits');
+        await load(seed());click('enter-puzzle-btn');
+        assert(stored().game.editing && !doc().getElementById('editor-panel').hidden,'Custom Standard editor available');
+        click('validate-puzzle');await sleep(50);assert(stored().game.editing && doc().getElementById('status-message').textContent.includes('multiple'),'Empty custom puzzle rejected as ambiguous');
+        for(let i=0;i<81;i++)if(givens[i]){cell(i);key(String(givens[i]));}
+        click('validate-puzzle');await sleep(50);assert(!stored().game.editing && equal(stored().game.givens,givens),'Custom Standard puzzle validated and givens locked');
+        const editor=seed('killer',[],empty());editor.editing=true;editor.difficulty='custom';editor.solution=[];await load(editor);
+        click('edit-cages');drag([30,31,40]);key('1');key('5');drag([6]);
+        assert(equal([...doc().querySelectorAll('.draft-selected')].map(el=>Number(el.dataset.index)),[6]) && doc().getElementById('cage-total').value==='','Clicking a new cell clears the previous dragged cage selection and total');
+        drag([30,31]);cell(6);
+        assert(equal([...doc().querySelectorAll('.draft-selected')].map(el=>Number(el.dataset.index)),[6]),'Keyboard cell activation also replaces the previous cage selection');
+        cell(7,true);assert(doc().querySelectorAll('.draft-selected').length===2,'Shift-click explicitly adds a cell to the draft cage');
+        cell(7,true);assert(doc().querySelectorAll('.draft-selected').length===1,'Shift-click toggles an individual draft cell off');
+        drag([0,2,11,2]);
+        assert(equal([...doc().querySelectorAll('.draft-selected')].map(el=>Number(el.dataset.index)),[0,1,2,11]),'Dragging selects an L-shaped cage, fills fast-sweep gaps, and preserves revisited cells');
+        doc().querySelector('[data-index="2"]').dispatchEvent(new frame.contentWindow.MouseEvent('click',{bubbles:true,cancelable:true,detail:1}));
+        assert(doc().querySelectorAll('.draft-selected').length===4,'Release click does not toggle a dragged cell off');
+        key('2');key('0');key('Backspace');key('0');
+        assert(doc().getElementById('cage-total').value==='20' && stored().game.values.every(n=>n===0),'Typing a multi-digit cage total and Backspace leave givens untouched');
+        key('Enter');
+        assert(equal(stored().game.cages,[{sum:20,cells:[0,1,2,11]}]) && doc().querySelectorAll('.draft-selected').length===0 && doc().getElementById('cage-total').value==='','Enter adds the dragged cage and clears cells and total for the next cage');
+        drag([3,4]);key('1');key('0');key('Enter');
+        assert(stored().game.cages.length===2 && stored().game.cages[1].sum===10,'A second drag accepts a total containing zero without extra controls');
+        drag([5,6],{cancel:true});
+        assert(doc().querySelectorAll('.draft-selected').length===0 && stored().game.cages.length===2,'Canceled drag restores the previous selection without creating a cage');
+        drag([5,14],{pointerType:'touch'});
+        assert(doc().activeElement.id==='cage-total' && doc().querySelectorAll('.draft-selected').length===2 && frame.contentWindow.getComputedStyle(doc().getElementById('sudoku-grid')).touchAction==='none','Touch dragging selects cells and opens the numeric total input without scrolling the board');
+        doc().getElementById('cage-total').value='9';key('Enter');
+        assert(stored().game.cages.length===3 && stored().game.cages[2].sum===9,'Enter from the total input adds the touch-selected cage');
+        drag([0,1]);key('Enter');assert(stored().game.cages.length===3 && doc().getElementById('status-message').textContent.includes('overlap'),'Dragging over an existing cage cannot add overlapping cages');
+        click('clear-cage-selection');cell(20);cell(22,true);key('1');key('0');key('Enter');
+        assert(stored().game.cages.length===3 && doc().getElementById('status-message').textContent.includes('connect'),'Keyboard cage submission still rejects disconnected cells');
+        key('Escape');assert(!doc().querySelector('.draft-selected') && doc().getElementById('cage-total').value==='','Escape clears draft cells and total');
+        click('edit-givens');cell(30);drag([30,31]);key('7');
+        assert(stored().game.values[30]===7 && !doc().querySelector('.draft-selected'),'Given digit mode keeps drag gestures out of cage editing');
+        await load(editor);
+        click('edit-cages');cell(0);cell(1,true);doc().getElementById('cage-total').value='2';click('add-cage');
+        assert(stored().game.cages.length===0 && doc().getElementById('status-message').textContent.includes('total'),'Editor rejects impossible Killer cage sums');
+        doc().getElementById('cage-total').focus();key('9');assert(stored().game.values.every(n=>n===0),'Input fields do not intercept digits into the Sudoku board');
+        doc().getElementById('cage-total').value='3';click('add-cage');assert(stored().game.cages.length===1,'Connected Killer cage can be added');
+        click('validate-puzzle');assert(stored().game.editing && doc().getElementById('status-message').textContent.includes('uncovered'),'Incomplete Killer cage coverage blocks play');
+        cell(0);click('remove-cage');assert(stored().game.cages.length===0,'Existing cage can be removed');click('undo-btn');assert(stored().game.cages.length===1,'Undo restores a removed cage');
+        cell(1);doc().getElementById('cage-total').focus();key('Delete');
+        assert(stored().game.cages.length===1,'Delete while editing the total input preserves the cage');
+        cell(1);key('Delete');
+        assert(stored().game.cages.length===0 && !doc().querySelector('.draft-selected') && doc().getElementById('cage-total').value==='' && stored().game.values.every(n=>n===0),'Delete on a cage cell removes its cage, clears the selection and total, and preserves givens');
+        key('z',{ctrlKey:true});assert(equal(stored().game.cages,[{sum:3,cells:[0,1]}]),'Keyboard Undo restores the cage removed with Delete');
+        key('z',{ctrlKey:true,shiftKey:true});assert(stored().game.cages.length===0,'Keyboard Redo reapplies cage deletion');
+        cell(20);key('Delete');assert(stored().game.cages.length===0 && doc().getElementById('status-message').textContent.includes('existing cage'),'Delete on an uncaged cell asks for an existing cage');
+        const imported=seed('killer',pairs,empty());imported.editing=true;imported.difficulty='custom';imported.solution=[];await load(imported);click('validate-puzzle');await sleep(50);
+        assert(!stored().game.editing&&equal(stored().game.solution,solution),'Custom Killer puzzle validates to its unique solution');
+        await load('broken');await waitFor(()=>{try{return stored()?.game?.solution?.length===81;}catch{return false;}},'recovery after malformed save');
+        assert(!stored().game.editing,'Malformed save recovers with a playable puzzle');
+        await new Promise(resolve=>{frame.onload=resolve;frame.src='../Sudoku.html?fixture=no-storage';});
+        await waitFor(()=>doc().getElementById('status-message').textContent.includes('One solution verified'),'no-storage puzzle');
+        assert(doc().getElementById('save-status').textContent.includes('unavailable'),'Storage failure is explained without blocking play');
+        const editable=doc().querySelector('.cell:not(.given)');editable.focus();editable.click();key('1');
+        assert(editable.querySelector('.value').textContent==='1','Sudoku remains playable without local storage');
+        await new Promise(resolve=>{frame.onload=resolve;frame.src='../Sudoku.html?fixture=missing-core';});
+        assert(doc().getElementById('status-message').textContent.includes('could not load')&&doc().getElementById('new-game-btn').disabled,'Missing engine shows a useful error');
+        report.textContent='PASS\n'+checks.join('\n');report.dataset.result='pass';
+    } catch(error) { report.textContent='FAIL\n'+(error.stack||error.message)+'\nPassed so far:\n'+checks.join('\n');report.dataset.result='fail'; }
+})();
+</script></body></html>

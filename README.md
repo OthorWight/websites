@@ -64,3 +64,15 @@ python3 tests/check_wordle.py
 ```
 
 This needs Python 3 and an installed Chromium or Chrome browser, with no npm or third-party Python dependencies. It uses an isolated temporary browser profile and a temporary localhost server. It verifies every dictionary entry against the pinned source checksums, checks repeated-letter feedback against 20,000 independent reference evaluations, and exercises hints, invalid guesses, rapid input, saved progress, wins, losses, reveal/restart dialogs, and result copying.
+
+## Sudoku Studio
+
+Open `Sudoku.html` directly or through the local server. Keep `sudoku.css`, `sudoku-core.js`, and `sudoku.js` beside it. Standard and Killer Sudoku work offline, with generated puzzles checked for exactly one solution. Difficulty presets adjust clue counts or cage sizes; they are approximate rather than formal technique ratings.
+
+- Choose **Standard** or **Killer**, a difficulty, then **New puzzle**. Killer puzzles start with 24 fixed digits on Easy, 16 on Normal, 10 on Hard, and 5 on Expert. Killer cages use distinct digits that add up to the displayed total, alongside the usual row, column, and box rules. Select a cage to inspect its remaining sum and possible digit combinations.
+- Select a cell and type or tap 1–9. Arrow keys move; Delete erases. **Notes** or N toggles pencil marks. **Auto notes** accounts for both Standard constraints and Killer cages; **Highlight singles** emphasizes forced candidates.
+- **Undo/Redo** also reverses notes, hints, and cage edits. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redoes. **Check** reports incorrect entries; **Hint** fills a logical single or reveals one solution digit when no single is available.
+- **Enter your own puzzle** supports transcribing Standard or Killer puzzles, including those from an Android game. Enter printed givens; for Killer, use **Draw cages**, drag across connected cells, type the total, and press **Enter**. Clicking a cell starts a fresh selection; Shift-click adds or removes individual cells. You can also use **Add cage**. Backspace corrects the total; Escape clears the selection. **Delete** removes the selected cage; **Undo** restores it. Every cell must belong to one cage. **Validate & play** checks the rules and uniqueness before locking the givens. Select and remove a cage to redraw it.
+- Progress, notes, editor work, settings, and recent undo history save in this browser. The timer counts visible play, pausing during editing, generation, and dialogs. There is no mistake limit.
+
+Run the engine and browser regressions with `python3 tests/check_sudoku.py`. This uses Python 3 and installed Chrome or Chromium, without additional packages. It checks uniqueness at every difficulty in both modes, cage candidates against an independent enumeration, custom puzzle validation, keyboard and touch controls, notes, undo, persistence, error recovery, and layouts down to 320 pixels wide.
