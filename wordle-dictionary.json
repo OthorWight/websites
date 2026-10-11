@@ -1,0 +1,33 @@
+{
+  "edition": "Current NYT accepted guesses + WordleBot practice answer candidates",
+  "verifiedOn": "2026-10-11",
+  "version": "nyt-2026-10-11-v1",
+  "answerCount": 3209,
+  "acceptedGuessCount": 14855,
+  "sources": {
+    "answers": {
+      "source": "https://wordletools.azurewebsites.net/weightedbottles",
+      "snapshotDate": "2026-10-11",
+      "description": "All 3,209 WordleBot candidate words in the first table column. Practice pool, not an official future answer schedule.",
+      "count": 3209,
+      "rawSourceSha256": "82fcdad4315edd7a6d76670003228ecc6746853f6087da18841e1d7e6fdbaf74",
+      "normalizedSha256": "9cb4139fef460ceeff3e5595ebc339edfcdb25c9c9eae8d77526f6ef28547aef"
+    },
+    "guesses": {
+      "source": "https://www.nytimes.com/games-assets/v2/854.956067bfaa684a42428f.js",
+      "gamePage": "https://www.nytimes.com/games/wordle/index.html",
+      "snapshotDate": "2026-10-11",
+      "description": "Exact 14,855-word array exported by module 96329. Sorted alphabetically for storage. Also exactly matches cfreshman\u2019s March 6, 2026 snapshot.",
+      "count": 14855,
+      "rawSourceSha256": "45a7d24e16dc83ff4a66ee6026a91a95459a0ee360d080be1a4def92659732ff",
+      "normalizedSha256": "a7898cd20f36686d4c5b43ece226c36eb41a701df36da35bd18e21af41cfead4",
+      "matchingPublishedSnapshot": {
+        "gist": "8b92bc418b43096094cf5d1b0eea8f84",
+        "revision": "2519c8c22e3274b7a665fe11ab233a96416defc2",
+        "source": "https://gist.github.com/cfreshman/8b92bc418b43096094cf5d1b0eea8f84/2519c8c22e3274b7a665fe11ab233a96416defc2",
+        "sha256": "a7898cd20f36686d4c5b43ece226c36eb41a701df36da35bd18e21af41cfead4",
+        "count": 14855
+      }
+    }
+  }
+}

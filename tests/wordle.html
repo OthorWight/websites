@@ -1,0 +1,135 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Wordle regression checks</title>
+<script src="../wordle-words.js"></script><script src="../wordle-core.js"></script>
+<body><pre id="report">RUNNING</pre><iframe id="game" title="Game under test"></iframe>
+<script>
+(async () => {
+    const report = document.getElementById('report');
+    const frame = document.getElementById('game');
+    const checks = [];
+    const assert = (condition, label) => { if (!condition) throw new Error(label); checks.push(label); };
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const dict = WordleCore.dictionary(WORDLE_WORDS);
+    const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const key = value => frame.contentDocument.body.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
+    const type = word => { for (const letter of word) key(letter); };
+    const doc = () => frame.contentDocument;
+    const click = id => doc().getElementById(id).click();
+    const stored = () => JSON.parse(localStorage.getItem('wordle-practice-v2'));
+    const load = (game, stats = { played: 0, won: 0, streak: 0 }) => new Promise(resolve => {
+        if (game) localStorage.setItem('wordle-practice-v2', JSON.stringify({ dictionaryVersion: WORDLE_WORDS.version, game, stats }));
+        frame.onload = resolve;
+        frame.src = '../Wordle.html?check=' + Math.random();
+    });
+    const seed = (answer, guesses = [], input = '', status = 'playing') => ({ answer, guesses, input, status });
+    try {
+        assert(dict.answers.length === 3209 && dict.allowed.size === 14855, 'Separate answer and full guess dictionaries');
+        assert(dict.allowed.has('AAHED') && dict.allowed.has('ROATE') && dict.allowed.has('SOARE') && !dict.answers.includes('ROATE'), 'Guess-only words accepted without becoming answers');
+        assert(dict.allowed.has('AAPAS') && dict.allowed.has('ADORB'), 'New NYT dictionary entries accepted');
+        assert(dict.answers.includes('AIOLI') && dict.answers.includes('PSHAW'), 'Modern practice-answer candidates included');
+        assert(!dict.allowed.has('ABCDE') && !dict.allowed.has('ZZZZZ'), 'Nonsense words rejected');
+        assert(equal(WordleCore.score('ALLEY', 'APPLE'), ['correct', 'present', 'absent', 'present', 'absent']), 'Excess repeated letters stay gray');
+        assert(equal(WordleCore.score('EERIE', 'SERVE'), ['absent', 'correct', 'correct', 'absent', 'correct']), 'Green letters take priority over yellow');
+        assert(equal(WordleCore.score('SASSY', 'PASTY'), ['absent', 'correct', 'correct', 'absent', 'correct']), 'Duplicate greens consume copies before yellows');
+        // Independent reference uses answer positions rather than counts.
+        function oracle(guess, answer) {
+            const available = answer.split('');
+            const result = Array(5).fill('absent');
+            for (let i = 0; i < 5; i++) if (guess[i] === available[i]) { result[i] = 'correct'; available[i] = null; }
+            for (let i = 0; i < 5; i++) if (result[i] !== 'correct') {
+                const position = available.indexOf(guess[i]);
+                if (position >= 0) { result[i] = 'present'; available[position] = null; }
+            }
+            return result;
+        }
+        const all = [...dict.allowed];
+        let seedNumber = 817;
+        for (let i = 0; i < 20000; i++) {
+            seedNumber = (Math.imul(seedNumber, 1664525) + 1013904223) >>> 0;
+            const guess = all[seedNumber % all.length];
+            seedNumber = (Math.imul(seedNumber, 1664525) + 1013904223) >>> 0;
+            const answer = dict.answers[seedNumber % dict.answers.length];
+            if (!equal(WordleCore.score(guess, answer), oracle(guess, answer))) throw new Error(`Oracle mismatch: ${guess}/${answer}`);
+        }
+        assert(true, '20,000 deterministic feedback comparisons against independent oracle');
+        assert(dict.answers.every(answer => WordleCore.score(answer, answer).every(s => s === 'correct')), 'Every answer can win');
+        const entry = { guess: 'ALLEY', result: WordleCore.score('ALLEY', 'APPLE') };
+        const possible = WordleCore.candidates(['APPLE', 'AMPLE', 'LAPEL', 'ALLEY'], [entry]);
+        assert(equal(possible, ['APPLE', 'AMPLE']), 'Hints enforce exact repeated-letter feedback');
+        for (const answer of dict.answers) {
+            const h = ['EERIE', 'SASSY'].map(guess => ({ guess, result: WordleCore.score(guess, answer) }));
+            if (!WordleCore.candidates([answer], h).includes(answer)) throw new Error('Hint eliminated answer ' + answer);
+        }
+        assert(true, 'Hints retain every actual answer after repeated-letter guesses');
+        let rejected = false;
+        try { WordleCore.dictionary({ ...WORDLE_WORDS, guesses: WORDLE_WORDS.guesses.slice(1) }); } catch { rejected = true; }
+        assert(rejected, 'Incomplete dictionary fails closed');
+
+        await load(seed('APPLE'));
+        assert(doc().querySelectorAll('.grid-cell').length === 30 && doc().querySelectorAll('.key').length === 28, 'Game initializes board and keyboard');
+        for (const [width, height] of [[320, 568], [390, 844], [1200, 900]]) {
+            frame.style.width = width + 'px'; frame.style.height = height + 'px';
+            await sleep(30);
+            assert(doc().documentElement.scrollWidth <= frame.contentWindow.innerWidth, `No horizontal overflow at ${width}×${height}`);
+            assert(doc().getElementById('button-container').getBoundingClientRect().bottom <= frame.contentWindow.innerHeight, `Board, keyboard, and controls fit at ${width}×${height}`);
+        }
+        type('AB'); key('Enter');
+        assert(stored().game.guesses.length === 0 && doc().getElementById('message-area').textContent.includes('five letters'), 'Short guess does not consume a turn');
+        key('Backspace'); key('Backspace'); type('ZZZZZ'); key('Enter');
+        assert(stored().game.guesses.length === 0 && stored().game.input === 'ZZZZZ', 'Invalid guess stays editable without consuming a turn');
+        for (let i = 0; i < 5; i++) key('Backspace');
+        type('ALLEY'); key('Enter'); key('Enter'); key('Backspace'); type('ROATE');
+        assert(stored().game.guesses.length === 1 && stored().game.input === '' && doc().getElementById('restart-button').disabled, 'Rapid input and restart blocked during reveal');
+        await sleep(1000);
+        assert(doc().querySelectorAll('.grid-row')[0].children[2].classList.contains('absent'), 'Duplicate feedback rendered in browser');
+        assert(doc().querySelector('[data-key="L"]').classList.contains('present'), 'Gray duplicate cannot downgrade yellow keyboard key');
+        click('show-possible-button');
+        assert(!doc().getElementById('possible-words-container').hidden && [...doc().querySelectorAll('.hint-word')].some(b => b.textContent === 'APPLE'), 'Hints include actual answer');
+        click('show-possible-button');
+        type('ROATE'); key('Enter'); await sleep(1000);
+        assert(stored().game.guesses.at(-1) === 'ROATE', 'Guess-only dictionary word accepted by UI');
+        type('APP'); await load();
+        assert(stored().game.input === 'APP' && doc().querySelectorAll('.grid-row')[2].textContent === 'APP', 'Reload restores guesses and partial input');
+        type('LE'); key('Enter'); await sleep(1000);
+        assert(stored().game.status === 'won' && stored().stats.played === 1 && stored().stats.won === 1 && stored().stats.streak === 1, 'Win and stats saved exactly once');
+        key('Enter'); await load();
+        assert(stored().stats.played === 1 && !doc().getElementById('result-container').hidden, 'Completed reload does not count result again');
+        assert(doc().getElementById('give-up-button').disabled && doc().querySelector('[data-key="A"]').disabled, 'Completed games block input');
+        click('share-button'); await sleep(100);
+        assert(doc().getElementById('share-fallback').value.startsWith('Wordle Practice 3/6') || doc().getElementById('message-area').textContent === 'Result copied!', 'Result sharing or selectable copy fallback');
+
+        await load(seed('APPLE', ['CRANE', 'SLATE', 'BRICK', 'MOUND', 'FJORD']));
+        type('ROATE'); key('Enter'); await sleep(1000);
+        assert(stored().game.status === 'lost' && stored().stats.played === 1 && stored().stats.won === 0 && doc().getElementById('result-text').textContent.includes('APPLE'), 'Sixth wrong guess ends game and reveals word');
+        await load(seed('APPLE', ['CRANE', 'SLATE', 'BRICK', 'MOUND', 'FJORD']));
+        type('APPLE'); key('Enter'); await sleep(1000);
+        assert(stored().game.status === 'won' && stored().stats.won === 1, 'Sixth-guess win takes priority over loss');
+        await load(seed('APPLE', [], 'A'));
+        click('restart-button');
+        assert(doc().getElementById('confirm-dialog').open, 'Replacing active puzzle requires in-game confirmation');
+        key('Enter'); assert(stored().game.input === 'A', 'Dialog input cannot submit game');
+        click('cancel-action'); await sleep(10);
+        assert(stored().game.input === 'A', 'Cancel retains puzzle');
+        click('give-up-button'); click('confirm-action'); await sleep(10);
+        assert(stored().game.status === 'revealed' && stored().stats.played === 1 && stored().stats.won === 0, 'Revealing counts one loss');
+        click('restart-button');
+        assert(stored().game.status === 'playing' && stored().game.answer !== 'APPLE' && stored().game.guesses.length === 0, 'New game clears board and avoids immediate repeat');
+        click('help-button'); type('CRANE');
+        assert(stored().game.input === '', 'Help dialog blocks game input');
+        click('close-help');
+        localStorage.setItem('wordle-practice-v2', '{bad json'); await load();
+        assert(stored().game.status === 'playing', 'Malformed storage safely starts a new game');
+        await load(seed('APPLE', ['APPLE', 'CRANE']));
+        assert(stored().game.guesses.length === 0, 'Inconsistent saved game rejected');
+        await new Promise(resolve => { frame.onload = resolve; frame.src = '../Wordle.html?fixture=no-storage'; });
+        type('CRANE'); key('Enter'); await sleep(1000);
+        assert(doc().querySelectorAll('.grid-row')[0].textContent === 'CRANE' && doc().getElementById('save-status').textContent.includes('unavailable'), 'Blocked storage still permits gameplay and shows save limitation');
+        await new Promise(resolve => { frame.onload = resolve; frame.src = '../Wordle.html?fixture=missing-dictionary'; });
+        assert(doc().getElementById('message-area').textContent.includes('Dictionary unavailable') && doc().getElementById('restart-button').disabled && doc().querySelector('[data-key="A"]').disabled, 'Missing dictionary blocks gameplay with a clear error');
+        report.textContent = 'PASS\n' + checks.join('\n');
+        report.dataset.result = 'pass';
+    } catch (error) {
+        report.textContent = 'FAIL\n' + (error.stack || error.message) + '\nPassed so far:\n' + checks.join('\n');
+        report.dataset.result = 'fail';
+    }
+})();
+</script></body></html>
