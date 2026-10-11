@@ -61,6 +61,7 @@
         save();
         render();
         message('Find the five-letter word.');
+        $('grid-container').focus({ preventScroll: true });
     }
     function buildBoard() {
         for (let i = 0; i < 6; i++) {
@@ -310,6 +311,9 @@
         // Preserve Enter/Space activation on focused controls. On letter keys Enter submits.
         if (key === 'ENTER' && event.target.closest('button') && !event.target.classList.contains('key')) return;
         event.preventDefault();
+        // Typing returns focus to gameplay so Enter cannot reactivate a toolbar button.
+        if (key !== 'ENTER' && game?.status === 'playing' && !isRevealing &&
+            event.target.closest('button:not(.key)')) $('grid-container').focus({ preventScroll: true });
         handleKey(key);
     });
     try {

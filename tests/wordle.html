@@ -10,10 +10,16 @@
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const dict = WordleCore.dictionary(WORDLE_WORDS);
     const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-    const key = value => frame.contentDocument.body.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
+    const key = value => {
+        const target = frame.contentDocument.activeElement;
+        const event = new frame.contentWindow.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true });
+        target.dispatchEvent(event);
+        // Synthetic key events lack the browser's default button activation.
+        if (value === 'Enter' && !event.defaultPrevented && target.matches('button:not(:disabled)')) target.click();
+    };
     const type = word => { for (const letter of word) key(letter); };
     const doc = () => frame.contentDocument;
-    const click = id => doc().getElementById(id).click();
+    const click = id => { const button = doc().getElementById(id); button.focus(); button.click(); };
     const stored = () => JSON.parse(localStorage.getItem('wordle-practice-v2'));
     const load = (game, stats = { played: 0, won: 0, streak: 0 }) => new Promise(resolve => {
         if (game) localStorage.setItem('wordle-practice-v2', JSON.stringify({ dictionaryVersion: WORDLE_WORDS.version, game, stats }));
@@ -94,8 +100,11 @@
         key('Enter'); await load();
         assert(stored().stats.played === 1 && !doc().getElementById('result-container').hidden, 'Completed reload does not count result again');
         assert(doc().getElementById('give-up-button').disabled && doc().querySelector('[data-key="A"]').disabled, 'Completed games block input');
+        Object.defineProperty(frame.contentWindow.navigator, 'clipboard', {
+            value: { writeText: () => Promise.reject(new Error('Clipboard unavailable in this test')) }
+        });
         click('share-button'); await sleep(100);
-        assert(doc().getElementById('share-fallback').value.startsWith('Wordle Practice 3/6') || doc().getElementById('message-area').textContent === 'Result copied!', 'Result sharing or selectable copy fallback');
+        assert(doc().getElementById('share-fallback').value.startsWith('Wordle Practice 3/6') && !doc().getElementById('share-fallback').hidden, 'Result sharing provides a selectable fallback when clipboard is unavailable');
 
         await load(seed('APPLE', ['CRANE', 'SLATE', 'BRICK', 'MOUND', 'FJORD']));
         type('ROATE'); key('Enter'); await sleep(1000);
@@ -113,9 +122,19 @@
         assert(stored().game.status === 'revealed' && stored().stats.played === 1 && stored().stats.won === 0, 'Revealing counts one loss');
         click('restart-button');
         assert(stored().game.status === 'playing' && stored().game.answer !== 'APPLE' && stored().game.guesses.length === 0, 'New game clears board and avoids immediate repeat');
-        click('help-button'); type('CRANE');
+        type('SLATE'); key('Enter');
+        assert(stored().game.guesses[0] === 'SLATE' && !doc().getElementById('confirm-dialog').open, 'Enter submits the first guess after clicking New game');
+        await sleep(1000);
+        doc().getElementById('help-button').focus(); key('Enter');
+        assert(doc().getElementById('help-dialog').open, 'Enter still activates toolbar buttons selected by keyboard');
+        type('CRANE');
         assert(stored().game.input === '', 'Help dialog blocks game input');
         click('close-help');
+        await load(seed('APPLE', [], 'A'));
+        click('restart-button'); click('confirm-action'); await sleep(10);
+        type('SLATE'); key('Enter');
+        assert(stored().game.guesses[0] === 'SLATE' && !doc().getElementById('confirm-dialog').open, 'Enter submits the first guess after confirming a restart');
+        await sleep(1000);
         localStorage.setItem('wordle-practice-v2', '{bad json'); await load();
         assert(stored().game.status === 'playing', 'Malformed storage safely starts a new game');
         await load(seed('APPLE', ['APPLE', 'CRANE']));
