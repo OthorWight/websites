@@ -1,0 +1,89 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Pocket Pal regression checks</title><script src="../tamagochi-core.js"></script><body><pre id="report">RUNNING</pre><iframe id="game" title="Pocket Pal under test" style="width:1000px;height:1000px"></iframe><script>
+(async () => {
+  const C = PocketPal, checks = [], frame = document.getElementById('game'), now = Date.now(), sleep = ms => new Promise(r => setTimeout(r, ms));
+  const assert = (condition, message) => { if (!condition) throw new Error(message); checks.push(message); document.getElementById('report').textContent = checks.length + ' checks\n' + checks.join('\n'); };
+  const near = (a, b) => Math.abs(a - b) < .001;
+  const doc = () => frame.contentDocument, click = id => doc().getElementById(id).click();
+  const stored = () => JSON.parse(localStorage.getItem(C.SAVE_KEY));
+  const wait = async (f, label) => { for (let i = 0; i < 200; i++) { if (f()) return; await sleep(25); } throw new Error('Timeout: ' + label); };
+  const baby = () => { const s = C.fresh(now); s.age = 30; s.stage = 'baby'; return s; };
+  const load = async (s, fixture = '') => {
+    await new Promise(r => { frame.onload = r; frame.src = 'about:blank'; });
+    if (s === null) localStorage.removeItem(C.SAVE_KEY); else localStorage.setItem(C.SAVE_KEY, typeof s === 'string' ? s : JSON.stringify(s));
+    await new Promise(r => { frame.onload = r; frame.src = '../Tamagochi.html?fixture=' + fixture + '&test=' + Math.random(); });
+    await wait(() => doc().querySelector('.need.fullness'), 'UI initialization');
+  };
+  try {
+    let s = C.fresh(now); C.advance(s, now + 19000); assert(s.stage === 'egg', 'Egg remains an egg before 20 seconds'); C.advance(s, now + 20000); assert(s.stage === 'baby', 'Egg hatches at 20 seconds');
+    s = baby(); s.paused = true; const before = JSON.stringify({...s, lastUpdate:0, goals:null}); C.advance(s, now + 86400000); assert(before === JSON.stringify({...s, lastUpdate:0, goals:null}), 'Pause freezes every need, growth, and care history across a long absence');
+    s = baby(); const initial = s.fullness; C.advance(s, now + 60000); assert(near(s.fullness, initial - 1.125) && near(s.energy, 89.25), 'Baby needs decay at a measured per-minute rate, rather than per click');
+    s = baby(); s.energy = 20; C.act(s, 'sleep', now); C.advance(s, now + 600000); assert(s.sleeping && near(s.energy, 80), 'Sleep restores energy gradually without requiring repeated clicks'); C.act(s, 'sleep', now + 600000); assert(!s.sleeping, 'Wake returns a sleeping pet to care');
+    s = baby(); s.fullness = 10; s.energy = 0; assert(C.act(s, 'meal', now).ok && s.fullness === 38 && s.energy === 0, 'Free meals work even when the pet is too tired to play');
+    s.fullness = 100; const meals = s.meals; assert(!C.act(s, 'meal', now).ok && s.meals === meals, 'Full pets refuse overfeeding and repeated feeding cannot farm growth');
+    s.coins = 20; C.act(s, 'snack', now); C.act(s, 'snack', now); assert(!C.act(s, 'snack', now).ok && s.coins === 8, 'Treat limit prevents unlimited snack consumption and only charges accepted actions');
+    s = baby(); s.cleanliness = 20; s.waste = 3; C.advance(s, now + 301000); assert(s.sick && s.misses === 1, 'Sustained dirty conditions cause illness and one missed-care episode');
+    assert(C.act(s, 'clean', now + 301000).ok && s.waste === 0 && s.cleanliness === 100, 'Cleaning removes all waste and restores cleanliness'); const health = s.health; assert(C.act(s, 'medicine', now + 301000).ok && !s.sick && s.health > health && s.coins === 30, 'Free medicine cures illness and restores health');
+    s = baby(); s.fullness = 0; s.health = 10; C.advance(s, now + 3600000); assert(s.dead && s.health === 0, 'Visible unattended starvation can end the journey'); const deadAge = s.age; C.advance(s, now + 7200000); assert(s.age === deadAge && !C.act(s, 'meal', now + 7200000).ok, 'A dead pet cannot grow or be fed');
+    s = baby(); const awayResult = C.advance(s, now + 7 * 86400000, {away:true}); assert(s.health >= 10 && !s.dead && s.age === 30 + C.MAX_AWAY && awayResult.capped, 'Offline time is capped at eight hours and cannot kill a living pet');
+    s = baby(); s.age = 5400 - 1; s.stage = 'teen'; s.careTotal = 80 * 5000; s.careTime = 5000; C.advance(s, now + 1000); assert(s.form === 'sunny' && s.discoveries.includes('sunny'), 'Balanced care grows Sunny and records the discovery');
+    const evolve = (quality, misses, meals, games) => { const x = baby(); x.age = 5399; x.stage = 'teen'; x.careTime = 5000; x.careTotal = quality * 5000; x.misses = misses; x.meals = meals; x.games = games; C.advance(x, now + 1000); return x.form; };
+    assert(evolve(55, 4, 10, 1) === 'sprout' && evolve(55, 4, 1, 10) === 'starlit' && evolve(20, 9, 10, 10) === 'cloud', 'Distinct care histories produce food-loving, playful, and resilient adult forms');
+    s = baby(); s.cleanliness = 50; s.waste = 1; C.act(s, 'meal', now); C.act(s, 'clean', now); C.rewardGame(s, 'memory', 3, now); assert(C.claim(s, now).ok && !C.claim(s, now).ok, 'Daily care bonus requires all goals and pays only once');
+    const coins = s.coins; C.advance(s, new Date(new Date(now).setHours(24,0,1,0)).getTime()); assert(!s.goals.claimed && s.coins === coins, 'Daily rollover clears goals without paying passive coins');
+    s = baby(); s.energy = 14; const tired = JSON.stringify(s); assert(!C.beginGame(s, now).ok && JSON.stringify(s) === tired, 'Too-tired pets cannot start games or pay an energy cost');
+    s = baby(); s.sick = true; assert(!C.beginGame(s, now).ok, 'Ill pets need treatment before mini-games');
+    s = baby(); s.coins = 45; assert(C.buy(s, 'peach').ok && s.coins === 0 && s.room === 'peach', 'Shop deducts the exact price and equips the purchased room'); assert(C.buy(s, 'meadow').ok && C.buy(s, 'peach').ok && s.coins === 0, 'Re-equipping owned cosmetics is free'); assert(!C.buy(s, 'night').ok && s.room === 'peach', 'Unaffordable purchases do not change room or coins');
+    assert(C.nextGeneration(s, now) === null, 'Young pets cannot start a new generation without explicit reset'); s.dead = true; s.discoveries = ['sunny']; const next = C.nextGeneration(s, now); assert(next.age === 0 && next.generation === 2 && next.room === 'peach' && next.discoveries.includes('sunny') && next.history.length === 1, 'New generation preserves collection, home, and memorial while resetting care');
+    assert(C.restore({version:2, name:'x', age:Infinity,lastUpdate:now}) === null && C.restore({version:1}) === null, 'Invalid and incompatible saves are rejected');
+    s = baby(); Object.assign(s, {name:'<b>Pet</b>', energy:-400, coins:Infinity, room:'bad', owned:['bad'], age:40, stage:'adult', form:'__proto__'}); const safe = C.restore(s, now); assert(safe.energy === 0 && safe.coins === 30 && safe.room === 'meadow' && safe.stage === 'baby' && safe.form === null, 'Save validation clamps malformed stats and derives life stage from age');
+    // Real browser UI, save writes, dialogs, mini-games, responsive layout, and error handling.
+    s = baby(); s.name = '<img src=x onerror="throw 1">'; s.fullness = 30; s.cleanliness = 30; s.energy = 50; s.waste = 2; s.lastUpdate = Date.now(); await load(s);
+    assert(doc().getElementById('pet-name').textContent === s.name.slice(0,20) && !doc().querySelector('#pet-name img'), 'Saved names are rendered as text, never executable markup');
+    click('feed-btn'); click('modal-title'); assert(doc().getElementById('modal').open, 'Feeding opens an accessible dialog'); doc().querySelector('[data-food="meal"]').click(); await sleep(50); assert(stored().fullness > 57 && !doc().getElementById('modal').open, 'Meal dialog feeds and persists the changed needs');
+    click('clean-btn'); assert(stored().waste === 0 && stored().cleanliness === 100, 'Clean action updates the saved room'); click('sleep-btn'); assert(stored().sleeping && doc().getElementById('feed-btn').disabled, 'Sleeping disables care actions and persists'); click('sleep-btn'); assert(!stored().sleeping, 'Wake button resumes care');
+    click('pause-btn'); assert(stored().paused && doc().getElementById('play-btn').disabled, 'Pause visibly freezes play'); click('pause-btn');
+    click('rename-btn'); doc().getElementById('name-input').value = 'Pebble'; doc().getElementById('rename-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); await sleep(50); assert(stored().name === 'Pebble' && doc().getElementById('pet-name').textContent === 'Pebble', 'Rename form updates both identity and save');
+    click('play-btn'); click('memory-start'); const gameCoins = stored().coins, seen = {}, matched = new Set(); let pairs = 0;
+    async function reveal(i) { doc().querySelector(`[data-card="${i}"]`).click(); await sleep(10); const t = doc().querySelector(`[data-card="${i}"]`)?.textContent; if (t) seen[i] = t; return t; }
+    // Solve by remembering observed cards, rather than inspecting the hidden deck.
+    let turns = 0;
+    while (pairs < 6) {
+      if (++turns > 35) throw new Error('Memory loop stalled: '+ JSON.stringify({pairs,seen,matched:[...matched],cards:[...doc().querySelectorAll('[data-card]')].map(e=>e.textContent)}));
+      const available = Array.from({length:12},(_,i)=>i).filter(i=>!matched.has(i));
+      let pair;
+      for (const a of available) for (const b of available) if (a < b && seen[a] && seen[a] === seen[b]) pair = [a,b];
+      if (pair) { await reveal(pair[0]); await reveal(pair[1]); matched.add(pair[0]); matched.add(pair[1]); pairs++; }
+      else {
+        const unknown = available.filter(i=>!seen[i]), a = unknown[0] ?? available[0], symbol = await reveal(a);
+        const known = available.find(i=>i!==a&&seen[i]===symbol), b = known ?? unknown.find(i=>i!==a) ?? available.find(i=>i!==a);
+        const other = await reveal(b);
+        if (other === symbol) { matched.add(a); matched.add(b); pairs++; } else await wait(() => !doc().querySelector('[data-card].face-up:not(.matched)'), 'mismatched cards turn back over');
+      }
+    }
+    await wait(() => doc().getElementById('result-done'), 'memory result'); assert(stored().coins === gameCoins + 24 && stored().goals.game, 'A completed Memory Garden pays 24 coins and completes the daily play goal'); const payout = stored().coins; click('result-done'); await sleep(50); assert(stored().coins === payout, 'Closing a completed result cannot duplicate the payout');
+    click('claim-btn'); assert(stored().coins === payout + 20 && stored().goals.claimed, 'UI claims the completed daily bonus exactly once'); click('claim-btn'); assert(stored().coins === payout + 20, 'Disabled daily bonus cannot be claimed again');
+    click('play-btn'); click('guess-start'); const guessCoins = stored().coins; let correct = 0;
+    for (let r=0;r<5;r++) { const before = +doc().getElementById('guess-number').textContent, up = before <= 5; click(up ? 'higher-btn' : 'lower-btn'); const after = +doc().getElementById('guess-number').textContent; assert(before !== after && after >= 1 && after <= 9, `Guess round ${r+1} draws a different number in range`); if(up ? after > before : after < before) correct++; click('guess-next'); }
+    assert(doc().getElementById('result-done') && stored().coins === guessCoins + correct * 4, 'Higher or Lower completes five rounds and pays only correct predictions'); click('result-done'); await sleep(50);
+    click('play-btn'); click('guess-start'); const abandonedCoins = stored().coins, n = +doc().getElementById('guess-number').textContent; click(n === 9 ? 'lower-btn' : 'higher-btn'); const nextNumber = +doc().getElementById('guess-number').textContent, earned = (n === 9 ? nextNumber < n : nextNumber > n) ? 4 : 0; click('close-modal'); await sleep(50); assert(stored().coins === abandonedCoins + earned && !doc().getElementById('modal').open, 'Closing an unfinished game pays completed guesses exactly once'); await sleep(100); assert(stored().coins === abandonedCoins + earned, 'Abandoned-game cleanup cannot award duplicate coins');
+    click('tab-shop'); assert(!doc().getElementById('panel-shop').hidden && doc().getElementById('tab-shop').getAttribute('aria-selected')==='true', 'Shop tab updates its accessible selection and panel');
+    doc().querySelector('[data-buy="bow"]').focus(); const focused = doc().activeElement; await sleep(1100); assert(doc().activeElement === focused, 'Routine pet updates retain keyboard focus on shop controls');
+    doc().getElementById('tab-shop').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true})); assert(!doc().getElementById('panel-album').hidden, 'Arrow keys navigate tabs');
+    click('tab-shop'); doc().querySelector('[data-buy="bow"]').click(); assert(stored().hat==='bow' && stored().owned.includes('bow'), 'Shop purchase equips and saves an accessory');
+    for (const width of [320,375,640,1000]) { frame.style.width=width+'px'; await sleep(30); assert(doc().documentElement.scrollWidth <= width + 1, `No horizontal page overflow at ${width}px`); }
+    s = stored(); await load(s); assert(stored().name==='Pebble'&&stored().hat==='bow'&&stored().goals.claimed, 'Reload restores pet name, accessory, and claimed goals');
+    click('settings-btn'); click('reset-btn'); click('confirm-cancel'); await sleep(50); assert(stored().generation === 1, 'Cancelling new-egg confirmation preserves the current generation');
+    click('settings-btn');
+    async function importFile(text) { const w = frame.contentWindow, dt = new w.DataTransfer(); dt.items.add(new w.File([text], 'backup.json', {type:'application/json'})); doc().getElementById('import-file').files = dt.files; doc().getElementById('import-file').dispatchEvent(new w.Event('change', {bubbles:true})); }
+    await importFile('{bad'); await wait(() => doc().getElementById('import-status').textContent.includes('not a valid'), 'invalid import'); assert(stored().name==='Pebble', 'Invalid backup import reports an error and preserves the current pal');
+    const backup = C.fresh(Date.now()); backup.name = 'Fern'; backup.coins=123;
+    await importFile(JSON.stringify(backup)); await wait(() => doc().getElementById('confirm-ok'), 'import confirmation'); assert(stored().name==='Pebble', 'Valid backup does not replace progress before confirmation'); click('confirm-ok'); await sleep(50); assert(stored().name==='Fern'&&stored().coins===123, 'Confirmed backup restore replaces and persists validated progress');
+    click('settings-btn'); click('reset-btn'); click('confirm-ok'); await sleep(50); assert(stored().generation===2&&stored().coins===123&&stored().history[0].name==='Fern', 'Confirmed early restart preserves coins and records the previous pal');
+    await load('{broken json'); assert(stored().stage === 'egg' && localStorage.getItem('pocket-pal-recovery') === '{broken json', 'Corrupt saves get a recovery copy before the game starts fresh');
+    localStorage.setItem('tamagochiGameState', JSON.stringify({name:'Legacy',coins:500})); const legacy = localStorage.getItem('tamagochiGameState'); await load(null); assert(stored().name==='Legacy'&&stored().coins===200&&localStorage.getItem('tamagochiGameState')===legacy, 'Legacy save migration keeps name, caps inherited coins, and leaves the original save untouched'); localStorage.removeItem('tamagochiGameState');
+    await load(null, 'no-storage'); assert(doc().getElementById('save-status').textContent.includes('Session only') && !doc().getElementById('pause-btn').disabled, 'Disabled browser storage leaves a playable session with clear backup guidance');
+    assert(!doc().querySelector('[src^="http"], [href^="https://fonts"]'), 'Game runs using local assets without CDN dependencies');
+    document.getElementById('report').dataset.result = 'pass'; document.getElementById('report').textContent = `${checks.length} checks passed\n` + checks.join('\n');
+  } catch(e) { document.getElementById('report').dataset.result='fail'; document.getElementById('report').textContent=`${checks.length} checks passed before failure\n${e.stack}`; }
+})();
+</script></body></html>

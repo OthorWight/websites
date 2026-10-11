@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Pocket Pal animation checks</title><script src="../tamagochi-core.js"></script><script src="../tamagochi-animations.js"></script><body><pre id="report">RUNNING</pre><iframe id="game" title="Animation test pet" style="width:1000px;height:1000px"></iframe><script>
+(async () => {
+  const A = PocketPalAnimations, C = PocketPal, checks = [], frame = document.getElementById('game'), sleep = ms => new Promise(r => setTimeout(r, ms));
+  const assert = (ok, label) => {if(!ok) throw Error(label); checks.push(label); document.getElementById('report').textContent=checks.length+' checks\n'+checks.join('\n');};
+  const sequence = numbers => {let i=0;return ()=>numbers[Math.min(i++,numbers.length-1)];};
+  const doc=()=>frame.contentDocument, click=id=>doc().getElementById(id).click(), stored=()=>JSON.parse(localStorage.getItem(C.SAVE_KEY));
+  const wait=async (f,label)=>{for(let i=0;i<200;i++){if(f())return;await sleep(25);}throw Error('Timeout: '+label);};
+  const pet=()=>{const s=C.fresh(Date.now());s.age=1000;s.stage='child';return s;};
+  const load=async(s,fixture)=>{
+    await new Promise(r=>{frame.onload=r;frame.src='about:blank';});s.lastUpdate=Date.now();localStorage.setItem(C.SAVE_KEY,JSON.stringify(s));
+    await new Promise(r=>{frame.onload=r;frame.src='../Tamagochi.html?test=animations&fixture='+fixture;});
+    await wait(()=>doc().querySelector('.need.fullness'),'room initialized');
+  };
+  const pixels=()=>doc().getElementById('pet-canvas').toDataURL();
+  try {
+    assert(A.choose(sequence([.0009]),null,false)==='overlord'&&A.choose(sequence([.001,0]),null,false)!=='overlord','Spooky Easter egg has an exact one-in-a-thousand threshold');
+    assert(A.choose(sequence([0]),null,true)!=='overlord','Spooky Easter egg cannot repeat once seen this session');
+    for(const id of A.NORMAL) assert(A.choose(sequence([.5,0]),id,false)!==id, `${id}: no consecutive repeats`);
+    let controller=A.create({random:sequence([0,.5,0,0,.5,0])});
+    assert(!controller.tick(0,true,1)&&!controller.tick(19999,true,1)&&controller.tick(20000,true,1)?.id==='wave','Scheduler waits twenty seconds, then starts spontaneously');
+    assert(controller.tick(22000,true,1)?.elapsed===2000&&!controller.tick(24200,true,1),'Animation follows elapsed time and ends at its duration');
+    assert(!controller.tick(24201,true,1)&&controller.tick(44200,true,1)?.id!=='wave','Finished performances wait again and choose a different animation');
+    controller.interrupt();assert(!controller.tick(45000,true,1),'Care interruptions discard the animation and restart its wait');
+    controller=A.create({random:()=>0});controller.tick(0,true,1);assert(controller.tick(20000,true,1)?.id==='overlord','Rare animation can occur through the natural scheduler');controller.tick(27800,true,1);assert(controller.tick(47800,true,1)?.id!=='overlord','Natural rare animation is limited to once per session');
+    assert(!controller.tick(48000,false,1)&&!controller.tick(9999999,true,1),'Blocked time never queues a performance on return');
+    assert(!controller.tick(10000000,true,2),'New generation cancels a pending performance');
+    for(const id of [...A.NORMAL,'overlord']) {
+      const def=A.DEFINITIONS[id], early=A.pose(A.frame(id,def.duration*.2)), late=A.pose(A.frame(id,def.duration*.55));
+      const finite=p=>[p.dx,p.dy,p.rotation,p.scaleX,p.scaleY,p.gaze,p.armLift].every(Number.isFinite);
+      assert(finite(early)&&finite(late)&&A.frame(id,def.duration)===null,`${id}: finite poses and a clean ending`);
+      const still=A.pose(A.frame(id,def.duration*.4),true);assert(still.dx===0&&still.dy===0&&still.rotation===0&&still.scaleX===1&&still.scaleY===1,`${id}: reduced motion has no movement or scaling`);
+    }
+    assert(A.frame('overlord',3000).caption.includes('SOUL')&&A.frame('overlord',6500).caption.includes('rice bowl')&&!A.pose(A.frame('overlord',6500)).evil,'Villain pose resolves into a rice-bowl joke and ordinary pet');
+    const signatures=new Set();
+    for(const id of [...A.NORMAL,'overlord']) {
+      await load(pet(),'animation-'+id);
+      const mood=id==='overlord'?'Practicing world domination':A.DEFINITIONS[id].mood;
+      assert(doc().getElementById('scene').dataset.animation===id&&doc().getElementById('pet-btn').getAttribute('aria-label').includes(mood),`${id}: actual canvas draws the performance with accessible description`);
+      signatures.add(pixels());assert(stored().coins===30&&stored().health===100&&!Object.hasOwn(stored(),'animation'),`${id}: visuals never change saved health or coins`);
+    }
+    assert(signatures.size===7,'All seven performances have distinct rendered pixels');
+    click('pause-btn');assert(doc().getElementById('scene').dataset.animation==='idle'&&doc().getElementById('speech').textContent.includes('Take your time'),'Pause immediately removes the spooky pose and restores care feedback');
+    await load(pet(),'animation-dance');click('feed-btn');assert(doc().getElementById('scene').dataset.animation==='idle','Care dialog immediately interrupts idle animation');click('close-modal');await sleep(100);click('sleep-btn');assert(doc().getElementById('scene').dataset.animation==='idle'&&doc().getElementById('speech').textContent.includes('Zzz'),'Sleep clears animations and gives normal sleep feedback');
+    for(const condition of ['sick','dead','hungry','egg']) {
+      const s=pet();if(condition==='sick')s.sick=true;if(condition==='dead'){s.dead=true;s.health=0;}if(condition==='hungry')s.fullness=10;if(condition==='egg'){s.age=0;s.stage='egg';}
+      await load(s,'animation-overlord');assert(doc().getElementById('scene').dataset.animation==='idle',`${condition}: care or life state takes priority over performance`);
+    }
+    await load(pet(),'animation-reduced');const still=pixels();await sleep(500);assert(pixels()===still&&doc().getElementById('scene').dataset.animation==='dance','Reduced-motion browser keeps a stable expressive pose');
+    await load(pet(),'animation-overlord-timeline');assert(doc().getElementById('speech').textContent.includes('SOUL'),'Rare sequence begins its theatrical villain speech');await wait(()=>doc().getElementById('speech').textContent.includes('rice bowl'),'punchline');assert(doc().getElementById('mood-label').textContent.includes('complete'),'Rare sequence reaches the joke punchline');await wait(()=>doc().getElementById('scene').dataset.animation==='idle','ending');assert(doc().getElementById('speech').textContent.includes('little')&&stored().coins===30&&stored().health===100,'Rare sequence ends automatically, leaving a healthy ordinary pal');
+    document.getElementById('report').dataset.result='pass';document.getElementById('report').textContent=checks.length+' animation checks passed\n'+checks.join('\n');
+  } catch(e) {document.getElementById('report').dataset.result='fail';document.getElementById('report').textContent=checks.length+' checks passed before failure\n'+e.stack;}
+})();
+</script></body></html>
